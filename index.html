@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="TikTok Clone - Plateforme de partage de vidéos courtes. Créez, partagez et découvrez des vidéos créatives.">
+    <meta name="keywords" content="vidéos, réseaux sociaux, tiktok, partage, créativité">
+    <meta name="author" content="TikTok Clone">
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="TikTok Clone - Partagez vos vidéos">
+    <meta property="og:description" content="Plateforme de partage de vidéos courtes créatives">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="/assets/og-image.jpg">
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="TikTok Clone">
+    <meta name="twitter:description" content="Partagez vos vidéos créatives">
+    
+    <title>TikTok Clone - Partagez vos vidéos</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
+    
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "TikTok Clone",
+        "url": "https://tiktok-clone.com",
+        "description": "Plateforme de partage de vidéos courtes créatives"
+    }
+    </script>
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loadingScreen" class="loading-screen">
+        <div class="loading-spinner"></div>
+        <p>Chargement...</p>
+    </div>
+
+    <!-- Login Modal -->
+    <div id="loginModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content auth-modal">
+            <span class="close-btn" onclick="closeLoginModal()">&times;</span>
+            <div class="auth-tabs">
+                <div class="auth-tab active" onclick="switchAuthTab('login')">Connexion</div>
+                <div class="auth-tab" onclick="switchAuthTab('register')">Inscription</div>
+            </div>
+            
+            <form id="loginForm" class="auth-form" onsubmit="login(event)">
+                <div class="form-group">
+                    <input type="email" id="loginEmail" placeholder="Email" required>
+                </div>
+                <div class="form-group">
+                    <input type="password" id="loginPassword" placeholder="Mot de passe" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Se connecter</button>
+                
+                <div class="auth-divider">
+                    <span>ou</span>
+                </div>
+                
+                <button type="button" class="btn btn-google" onclick="loginWithGoogle()">
+                    <i class="fab fa-google"></i> Continuer avec Google
+                </button>
+                
+                <div class="auth-links">
+                    <a href="#" onclick="showForgotPassword()">Mot de passe oublié?</a>
+                </div>
+            </form>
+            
+            <form id="registerForm" class="auth-form" style="display: none;" onsubmit="register(event)">
+                <div class="form-group">
+                    <input type="text" id="registerUsername" placeholder="Nom d'utilisateur" required>
+                </div>
+                <div class="form-group">
+                    <input type="email" id="registerEmail" placeholder="Email" required>
+                </div>
+                <div class="form-group">
+                    <input type="password" id="registerPassword" placeholder="Mot de passe" required>
+                </div>
+                <div class="form-group">
+                    <input type="password" id="registerConfirmPassword" placeholder="Confirmer le mot de passe" required>
+                </div>
+                <button type="submit" class="btn btn-primary">S'inscrire</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main App Container -->
+    <div class="app-container" id="appContainer" style="display: none;">
+        <!-- Top Navigation -->
+        <nav class="navbar">
+            <div class="logo">
+                <i class="fas fa-video"></i> TikTok Clone
+            </div>
+            
+            <div class="search-bar">
+                <input type="text" id="searchInput" placeholder="Rechercher des vidéos...">
+                <button class="search-btn"><i class="fas fa-search"></i></button>
+            </div>
+            
+            <div class="nav-right">
+                <div class="coin-balance" id="coinBalance" onclick="openCoinShop()">
+                    <i class="fas fa-coins"></i>
+                    <span>0</span>
+                </div>
+                
+                <button class="btn btn-live" id="goLiveBtn" onclick="openLiveSetup()">
+                    <i class="fas fa-broadcast-tower"></i> En direct
+                </button>
+                
+                <button class="btn btn-upload" id="createBtn">
+                    <i class="fas fa-plus"></i> Créer
+                </button>
+                
+                <div class="user-menu" id="userMenu" onclick="toggleUserMenu()">
+                    <img id="userAvatar" src="https://randomuser.me/api/portraits/lego/1.jpg" alt="Profil">
+                </div>
+            </div>
+            
+            <!-- User Dropdown Menu -->
+            <div class="dropdown-menu" id="userDropdown">
+                <a href="#" onclick="openProfile()"><i class="fas fa-user"></i> Mon profil</a>
+                <a href="#" onclick="openWallet()"><i class="fas fa-wallet"></i> Mon portefeuille</a>
+                <a href="#" onclick="openSettings()"><i class="fas fa-cog"></i> Paramètres</a>
+                <div class="divider"></div>
+                <a href="#" onclick="logout()" style="color: #ff0050;"><i class="fas fa-sign-out-alt"></i> Déconnexion</a>
+            </div>
+        </nav>
+
+        <!-- Video Feed -->
+        <main class="main-content">
+            <div class="video-feed" id="videoFeed">
+                <!-- Videos will be loaded here -->
+            </div>
+            
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <div class="sidebar-section">
+                    <h3>Découvrir</h3>
+                    <a href="#"><i class="fas fa-fire"></i> Tendances</a>
+                    <a href="#"><i class="fas fa-music"></i> Musique</a>
+                    <a href="#"><i class="fas fa-gamepad"></i> Gaming</a>
+                    <a href="#"><i class="fas fa-graduation-cap"></i> Éducation</a>
+                </div>
+                
+                <div class="sidebar-section">
+                    <h3>Suivis</h3>
+                    <div id="followingList">
+                        <!-- Following list -->
+                    </div>
+                </div>
+                
+                <div class="sidebar-section">
+                    <h3>Suggestions</h3>
+                    <div id="suggestionsList">
+                        <!-- Suggestions -->
+                    </div>
+                </div>
+            </aside>
+        </main>
+
+        <!-- Bottom Navigation (Mobile) -->
+        <div class="bottom-nav">
+            <a href="#" class="nav-item active"><i class="fas fa-home"></i></a>
+            <a href="#" class="nav-item"><i class="fas fa-search"></i></a>
+            <a href="#" class="nav-item" onclick="openCreateModal()"><i class="fas fa-plus-square"></i></a>
+            <a href="#" class="nav-item"><i class="fas fa-inbox"></i></a>
+            <a href="#" class="nav-item" onclick="openProfile()"><i class="fas fa-user"></i></a>
+        </div>
+
+        <!-- Create Video Modal -->
+        <div id="createModal" class="modal-overlay">
+            <div class="modal-content">
+                <span class="close-btn" onclick="closeCreateModal()">&times;</span>
+                <h2>Créer une vidéo</h2>
+                
+                <div class="video-preview" id="videoPreview">
+                    <video id="previewVideo" style="display: none;"></video>
+                    <div class="preview-placeholder">
+                        <i class="fas fa-video"></i>
+                        <p>Aucune vidéo sélectionnée</p>
+                    </div>
+                    
+                    <div class="record-indicator" id="recordIndicator">
+                        <i class="fas fa-circle"></i> ENREGISTREMENT
+                    </div>
+                </div>
+                
+                <div class="modal-actions">
+                    <button class="btn btn-action" onclick="startRecording()" id="recordBtn">
+                        <i class="fas fa-video"></i> Filmer
+                    </button>
+                    <button class="btn btn-action" onclick="openFilePicker()">
+                        <i class="fas fa-upload"></i> Importer
+                    </button>
+                    <input type="file" id="videoInput" accept="video/*" style="display: none;">
+                </div>
+                
+                <div class="form-section">
+                    <label for="videoCaption">Légende</label>
+                    <textarea id="videoCaption" placeholder="Ajoutez une légende... #hashtag" rows="3"></textarea>
+                    
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="monetizeVideo">
+                            <span>Monétiser cette vidéo</span>
+                        </label>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Visibilité</label>
+                        <select id="videoPrivacy">
+                            <option value="public">Public</option>
+                            <option value="private">Privé</option>
+                            <option value="friends">Amis seulement</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeCreateModal()">Annuler</button>
+                    <button class="btn btn-primary" onclick="publishVideo()" id="publishBtn">
+                        <i class="fas fa-paper-plane"></i> Publier
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Live Stream Setup Modal -->
+        <div id="liveSetupModal" class="modal-overlay">
+            <div class="modal-content">
+                <span class="close-btn" onclick="closeLiveSetup()">&times;</span>
+                <h2>Démarrer un live</h2>
+                
+                <div class="form-section">
+                    <div class="form-group">
+                        <label>Titre du live</label>
+                        <input type="text" id="liveTitle" placeholder="Donnez un titre à votre live..." maxlength="100">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea id="liveDescription" placeholder="Décrivez votre live..." rows="3"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Catégorie</label>
+                        <select id="liveCategory">
+                            <option value="entertainment">Divertissement</option>
+                            <option value="gaming">Gaming</option>
+                            <option value="music">Musique</option>
+                            <option value="talk">Discussion</option>
+                            <option value="education">Éducation</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Visibilité</label>
+                        <div class="radio-group">
+                            <label>
+                                <input type="radio" name="livePrivacy" value="public" checked>
+                                <span>Public</span>
+                            </label>
+                            <label>
+                                <input type="radio" name="livePrivacy" value="private">
+                                <span>Privé</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeLiveSetup()">Annuler</button>
+                    <button class="btn btn-primary" onclick="startLiveStream()">
+                        <i class="fas fa-broadcast-tower"></i> Démarrer le live
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Live Stream Interface -->
+        <div id="liveInterface" class="live-interface" style="display: none;">
+            <div class="live-header">
+                <div class="streamer-info">
+                    <img id="streamerAvatar" src="" alt="">
+                    <div>
+                        <h3 id="streamerName"></h3>
+                        <span class="viewer-count"><i class="fas fa-eye"></i> <span id="viewerCount">0</span> spectateurs</span>
+                    </div>
+                </div>
+                
+                <div class="live-controls">
+                    <button class="btn btn-gift" onclick="openGiftShop()">
+                        <i class="fas fa-gift"></i> Cadeaux
+                    </button>
+                    <button class="btn btn-danger" onclick="endLiveStream()">
+                        <i class="fas fa-stop"></i> Terminer
+                    </button>
+                </div>
+            </div>
+            
+            <div class="live-content">
+                <div class="video-container">
+                    <video id="liveVideo" autoplay playsinline></video>
+                    <div class="live-stats">
+                        <span class="stat"><i class="fas fa-heart"></i> <span id="liveLikes">0</span></span>
+                        <span class="stat"><i class="fas fa-gift"></i> <span id="liveGifts">0</span></span>
+                        <span class="stat"><i class="fas fa-comment"></i> <span id="liveComments">0</span></span>
+                    </div>
+                </div>
+                
+                <div class="live-sidebar">
+                    <div class="chat-container">
+                        <div class="chat-header">
+                            <h4>Chat en direct</h4>
+                            <span id="onlineCount">0 en ligne</span>
+                        </div>
+                        
+                        <div class="chat-messages" id="chatMessages">
+                            <!-- Chat messages will appear here -->
+                        </div>
+                        
+                        <div class="chat-input">
+                            <input type="text" id="chatInput" placeholder="Envoyer un message..." maxlength="200">
+                            <button id="sendChatBtn"><i class="fas fa-paper-plane"></i></button>
+                        </div>
+                    </div>
+                    
+                    <div class="viewers-list">
+                        <h4>Spectateurs</h4>
+                        <div id="viewersList">
+                            <!-- Viewers will appear here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gift Shop Modal -->
+        <div id="giftShopModal" class="modal-overlay">
+            <div class="modal-content">
+                <span class="close-btn" onclick="closeGiftShop()">&times;</span>
+                <h2>Envoyer un cadeau</h2>
+                
+                <div class="gifts-grid">
+                    <div class="gift-item" onclick="selectGift('rose', 1)">
+                        <div class="gift-icon">🌹</div>
+                        <div class="gift-name">Rose</div>
+                        <div class="gift-price">1 coin</div>
+                    </div>
+                    
+                    <div class="gift-item" onclick="selectGift('crown', 10)">
+                        <div class="gift-icon">👑</div>
+                        <div class="gift-name">Couronne</div>
+                        <div class="gift-price">10 coins</div>
+                    </div>
+                    
+                    <div class="gift-item" onclick="selectGift('diamond', 50)">
+                        <div class="gift-icon">💎</div>
+                        <div class="gift-name">Diamant</div>
+                        <div class="gift-price">50 coins</div>
+                    </div>
+                    
+                    <div class="gift-item" onclick="selectGift('rocket', 100)">
+                        <div class="gift-icon">🚀</div>
+                        <div class="gift-name">Fusée</div>
+                        <div class="gift-price">100 coins</div>
+                    </div>
+                </div>
+                
+                <div class="selected-gift" id="selectedGift" style="display: none;">
+                    <h3>Cadeau sélectionné</h3>
+                    <div class="gift-preview">
+                        <span id="selectedGiftIcon">🌹</span>
+                        <div>
+                            <h4 id="selectedGiftName">Rose</h4>
+                            <p>Coût: <span id="selectedGiftPrice">1</span> coins</p>
+                        </div>
+                    </div>
+                    
+                    <div class="gift-message">
+                        <input type="text" id="giftMessage" placeholder="Ajouter un message...">
+                    </div>
+                    
+                    <button class="btn btn-primary" onclick="sendGift()">
+                        <i class="fas fa-gift"></i> Envoyer le cadeau
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notifications Container -->
+        <div id="notificationsContainer" class="notifications-container"></div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-storage.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-functions.js"></script>
+    
+    <!-- Main Script -->
+    <script src="script.js"></script>
+    
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js')
+                .then(reg => console.log('Service Worker enregistré'))
+                .catch(err => console.log('Erreur Service Worker:', err));
+        }
+    </script>
+</body>
+</html>
