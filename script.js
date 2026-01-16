@@ -1,47 +1,188 @@
-// ==================== FONCTIONS MODALES ====================
+// ==================== INITIALISATION ====================
 
-// Fonction pour ouvrir la modale de création
+// État de l'application
+const appState = {
+    user: null,
+    userProfile: null,
+    videos: [],
+    currentVideoIndex: 0,
+    currentVideoFile: null,
+    currentThumbnailBlob: null,
+    isLive: false,
+    selectedGift: null,
+    selectedVideoForGift: null,
+    selectedReceiverForGift: null
+};
+
+// VIDÉOS DE DÉMO
+const demoVideos = [
+    {
+        id: "1",
+        videoUrl: "https://assets.mixkit.co/videos/preview/mixkit-woman-dancing-under-neon-lights-1230-large.mp4",
+        thumbnailUrl: "https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=400&h=600&fit=crop",
+        userId: "user1",
+        username: "dancequeen",
+        userAvatar: "https://randomuser.me/api/portraits/women/44.jpg",
+        caption: "Apprends cette choré avec moi ! #danse #fun",
+        likes: 12400,
+        comments: 1200,
+        shares: 543,
+        views: 54000,
+        duration: 45,
+        createdAt: new Date(Date.now() - 86400000),
+        isMonetized: true
+    },
+    {
+        id: "2",
+        videoUrl: "https://assets.mixkit.co/videos/preview/mixkit-man-doing-tricks-with-skateboard-in-a-parking-lot-34553-large.mp4",
+        thumbnailUrl: "https://images.unsplash.com/photo-1547447134-cd3f5c716030?w=400&h=600&fit=crop",
+        userId: "user2",
+        username: "skatepro",
+        userAvatar: "https://randomuser.me/api/portraits/men/32.jpg",
+        caption: "Nouveau trick au skatepark ! #skate #trick",
+        likes: 8900,
+        comments: 450,
+        shares: 210,
+        views: 32000,
+        duration: 28,
+        createdAt: new Date(Date.now() - 43200000),
+        isMonetized: false
+    },
+    {
+        id: "3",
+        videoUrl: "https://assets.mixkit.co/videos/preview/mixkit-tree-with-yellow-flowers-1173-large.mp4",
+        thumbnailUrl: "https://images.unsplash.com/photo-1465146344425-f00d5f5c8f07?w=400&h=600&fit=crop",
+        userId: "user3",
+        username: "naturelover",
+        userAvatar: "https://randomuser.me/api/portraits/women/67.jpg",
+        caption: "Beauté de la nature au printemps 🌸 #nature #printemps",
+        likes: 15600,
+        comments: 890,
+        shares: 430,
+        views: 78000,
+        duration: 32,
+        createdAt: new Date(Date.now() - 21600000),
+        isMonetized: true
+    }
+];
+
+// ==================== FONCTIONS UI DE BASE ====================
+
+function openFilePicker() {
+    const videoInput = document.getElementById('videoInput');
+    if (videoInput) videoInput.click();
+}
+
+function toggleUserMenu() {
+    const dropdown = document.getElementById('userDropdown');
+    if (dropdown) {
+        dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+    }
+}
+
+function openProfile() {
+    alert('Profil - Fonctionnalité à venir');
+}
+
+function openWallet() {
+    alert('Portefeuille - Fonctionnalité à venir');
+}
+
+function openSettings() {
+    alert('Paramètres - Fonctionnalité à venir');
+}
+
+function openCoinShop() {
+    alert('Boutique de coins - Fonctionnalité à venir');
+}
+
+function showForgotPassword() {
+    alert('Mot de passe oublié - Fonctionnalité à venir');
+}
+
+function startRecording() {
+    alert('Enregistrement vidéo - Fonctionnalité à venir');
+}
+
+// ==================== GESTION DES MODALES ====================
+
+function hideLoginModal() {
+    const loginModal = document.getElementById('loginModal');
+    if (loginModal) {
+        loginModal.style.display = 'none';
+    }
+}
+
 function openCreateModal() {
-    const modal = document.getElementById("createModal");
-    if (modal) {
-        modal.style.display = "flex"; // Affiche la fenêtre modale
-    } else {
-        console.error("Élément #createModal introuvable");
+    if (!appState.user) {
+        const loginModal = document.getElementById('loginModal');
+        if (loginModal) loginModal.style.display = 'flex';
+        return;
     }
+    const createModal = document.getElementById('createModal');
+    if (createModal) createModal.style.display = 'flex';
 }
 
-// Fonction pour fermer la modale de création
 function closeCreateModal() {
-    const modal = document.getElementById("createModal");
-    if (modal) {
-        modal.style.display = "none";
-        // Réinitialiser les champs
-        document.getElementById('videoCaption').value = '';
-        document.getElementById('previewVideo').style.display = 'none';
-        document.getElementById('previewVideo').src = '';
-        document.getElementById('thumbnailPreview').style.display = 'none';
-        document.getElementById('thumbnailPreview').src = '';
-        document.getElementById('uploadProgressContainer').style.display = 'none';
-        document.getElementById('uploadProgressFill').style.width = '0%';
-        document.getElementById('uploadProgressText').textContent = '0%';
-        document.getElementById('uploadPercentage').textContent = '0%';
-        document.getElementById('uploadStatus').textContent = 'Préparation de l\'upload...';
-        document.getElementById('publishBtn').disabled = true;
-        document.getElementById('videoFileInfo').innerHTML = '<i class="fas fa-file-video"></i><span>Aucun fichier sélectionné</span>';
-        document.getElementById('monetizeVideo').checked = false;
-        document.getElementById('videoPrivacy').value = 'public';
-        document.querySelector('.preview-placeholder').style.display = 'flex';
-        // Réinitialiser l'état
-        if (window.appState) {
-            window.appState.currentVideoFile = null;
-            window.appState.currentThumbnailBlob = null;
-        }
-    }
+    const modal = document.getElementById('createModal');
+    if (!modal) return;
+    
+    modal.style.display = 'none';
+    document.getElementById('videoCaption').value = '';
+    document.getElementById('previewVideo').style.display = 'none';
+    document.getElementById('previewVideo').src = '';
+    document.getElementById('thumbnailPreview').style.display = 'none';
+    document.getElementById('thumbnailPreview').src = '';
+    document.getElementById('uploadProgressContainer').style.display = 'none';
+    document.getElementById('uploadProgressFill').style.width = '0%';
+    document.getElementById('uploadProgressText').textContent = '0%';
+    document.getElementById('uploadPercentage').textContent = '0%';
+    document.getElementById('uploadStatus').textContent = 'Préparation de l\'upload...';
+    document.getElementById('publishBtn').disabled = true;
+    document.getElementById('videoFileInfo').innerHTML = '<i class="fas fa-file-video"></i><span>Aucun fichier sélectionné</span>';
+    document.getElementById('monetizeVideo').checked = false;
+    document.getElementById('videoPrivacy').value = 'public';
+    const placeholder = document.querySelector('.preview-placeholder');
+    if (placeholder) placeholder.style.display = 'flex';
+    
+    appState.currentVideoFile = null;
+    appState.currentThumbnailBlob = null;
 }
 
-// ==================== FONCTION SELECTGIFT ====================
+function openLiveSetup() {
+    if (!appState.user) {
+        const loginModal = document.getElementById('loginModal');
+        if (loginModal) loginModal.style.display = 'block';
+        return;
+    }
+    const liveSetupModal = document.getElementById('liveSetupModal');
+    if (liveSetupModal) liveSetupModal.style.display = 'block';
+}
 
-// Fonction pour sélectionner un cadeau
+function closeLiveSetup() {
+    const modal = document.getElementById('liveSetupModal');
+    if (modal) modal.style.display = 'none';
+}
+
+function openGiftShop() {
+    const modal = document.getElementById('giftShopModal');
+    if (modal) modal.style.display = 'block';
+}
+
+function closeGiftShop() {
+    const modal = document.getElementById('giftShopModal');
+    if (!modal) return;
+    
+    modal.style.display = 'none';
+    document.getElementById('selectedGift').style.display = 'none';
+    document.getElementById('giftMessage').value = '';
+    document.querySelectorAll('.gift-item').forEach(item => {
+        item.classList.remove('selected');
+    });
+    
+    appState.selectedGift = null;
+}
+
 function selectGift(type, price) {
     // Désélectionner tous les cadeaux
     document.querySelectorAll('.gift-item').forEach(item => {
@@ -49,8 +190,9 @@ function selectGift(type, price) {
     });
     
     // Sélectionner le cadeau cliqué
-    const element = event.currentTarget;
-    if (element) element.classList.add('selected');
+    if (event && event.currentTarget) {
+        event.currentTarget.classList.add('selected');
+    }
     
     // Mettre à jour l'affichage
     const iconMap = {
@@ -67,140 +209,231 @@ function selectGift(type, price) {
         'rocket': 'Fusée'
     };
     
-    document.getElementById('selectedGiftIcon').textContent = iconMap[type] || '🎁';
-    document.getElementById('selectedGiftName').textContent = nameMap[type] || 'Cadeau';
-    document.getElementById('selectedGiftPrice').textContent = price;
-    document.getElementById('selectedGift').style.display = 'block';
+    const selectedGiftIcon = document.getElementById('selectedGiftIcon');
+    const selectedGiftName = document.getElementById('selectedGiftName');
+    const selectedGiftPrice = document.getElementById('selectedGiftPrice');
+    const selectedGiftContainer = document.getElementById('selectedGift');
+    
+    if (selectedGiftIcon) selectedGiftIcon.textContent = iconMap[type] || '🎁';
+    if (selectedGiftName) selectedGiftName.textContent = nameMap[type] || 'Cadeau';
+    if (selectedGiftPrice) selectedGiftPrice.textContent = price;
+    if (selectedGiftContainer) selectedGiftContainer.style.display = 'block';
     
     // Stocker dans l'état global
-    if (window.appState) {
-        window.appState.selectedGift = { type, price };
+    appState.selectedGift = { type, price };
+}
+
+function sendGift() {
+    if (!appState.user || !appState.selectedGift) {
+        alert('Veuillez vous connecter et sélectionner un cadeau');
+        return;
+    }
+    
+    showNotification('Cadeau envoyé avec succès!', 'success');
+    closeGiftShop();
+}
+
+function openGiftShopForVideo(videoId, receiverId) {
+    appState.selectedVideoForGift = videoId;
+    appState.selectedReceiverForGift = receiverId;
+    openGiftShop();
+}
+
+// ==================== GESTION DES VIDÉOS ====================
+
+function handleVideoInput() {
+    const videoInput = document.getElementById('videoInput');
+    if (!videoInput) return;
+    
+    videoInput.addEventListener('change', function(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        // Vérifier la taille (max 100MB)
+        const maxSize = 100 * 1024 * 1024;
+        if (file.size > maxSize) {
+            alert('Le fichier est trop volumineux (max 100MB)');
+            return;
+        }
+        
+        // Mettre à jour l'affichage du fichier
+        const fileInfo = document.getElementById('videoFileInfo');
+        if (fileInfo) {
+            fileInfo.innerHTML = `
+                <i class="fas fa-file-video"></i>
+                <span>${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB)</span>
+            `;
+        }
+        
+        // Activer le bouton de publication
+        const publishBtn = document.getElementById('publishBtn');
+        if (publishBtn) publishBtn.disabled = false;
+        
+        // Afficher la prévisualisation
+        const previewVideo = document.getElementById('previewVideo');
+        if (previewVideo) {
+            previewVideo.style.display = 'block';
+            previewVideo.src = URL.createObjectURL(file);
+            previewVideo.load();
+            
+            // Cacher le placeholder
+            const placeholder = document.querySelector('.preview-placeholder');
+            if (placeholder) placeholder.style.display = 'none';
+            
+            // Générer et afficher la miniature
+            previewVideo.addEventListener('loadeddata', function() {
+                const canvas = document.createElement('canvas');
+                canvas.width = previewVideo.videoWidth || 400;
+                canvas.height = previewVideo.videoHeight || 600;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(previewVideo, 0, 0, canvas.width, canvas.height);
+                
+                canvas.toBlob(function(blob) {
+                    const thumbnailPreview = document.getElementById('thumbnailPreview');
+                    if (thumbnailPreview) {
+                        thumbnailPreview.style.display = 'block';
+                        thumbnailPreview.src = URL.createObjectURL(blob);
+                        
+                        // Stocker dans l'état global
+                        appState.currentVideoFile = file;
+                        appState.currentThumbnailBlob = blob;
+                    }
+                }, 'image/jpeg', 0.8);
+            });
+        }
+    });
+}
+
+function publishVideo() {
+    if (!appState.user) {
+        openCreateModal();
+        return;
+    }
+    
+    const caption = document.getElementById('videoCaption').value.trim();
+    const isMonetized = document.getElementById('monetizeVideo').checked;
+    const privacy = document.getElementById('videoPrivacy').value;
+    
+    if (!appState.currentVideoFile) {
+        alert('Veuillez sélectionner une vidéo');
+        return;
+    }
+    
+    if (!caption) {
+        alert('Veuillez ajouter une légende');
+        return;
+    }
+    
+    try {
+        const publishBtn = document.getElementById('publishBtn');
+        if (publishBtn) {
+            publishBtn.disabled = true;
+            publishBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Publication...';
+        }
+        
+        // Simuler l'upload
+        showNotification('Publication en cours... (Mode démo)', 'info');
+        
+        // VIDÉOS DE DÉMO
+        const demoVideoUrls = [
+            "https://assets.mixkit.co/videos/preview/mixkit-woman-dancing-under-neon-lights-1230-large.mp4",
+            "https://assets.mixkit.co/videos/preview/mixkit-man-doing-tricks-with-skateboard-in-a-parking-lot-34553-large.mp4",
+            "https://assets.mixkit.co/videos/preview/mixkit-tree-with-yellow-flowers-1173-large.mp4"
+        ];
+        
+        // MINIATURES DE DÉMO
+        const demoThumbnails = [
+            'https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=400&h=600&fit=crop',
+            'https://images.unsplash.com/photo-1547447134-cd3f5c716030?w=400&h=600&fit=crop',
+            'https://images.unsplash.com/photo-1465146344425-f00d5f5c8f07?w=400&h=600&fit=crop'
+        ];
+        
+        // Simuler un délai d'upload
+        setTimeout(() => {
+            const videoUrl = demoVideoUrls[Math.floor(Math.random() * demoVideoUrls.length)];
+            const thumbnailUrl = demoThumbnails[Math.floor(Math.random() * demoThumbnails.length)];
+            
+            // Créer la nouvelle vidéo
+            const newVideo = {
+                id: Date.now().toString(),
+                videoUrl: videoUrl,
+                thumbnailUrl: thumbnailUrl,
+                userId: "demo_user",
+                username: appState.userProfile?.username || "Utilisateur",
+                userAvatar: appState.userProfile?.avatar || "https://randomuser.me/api/portraits/lego/1.jpg",
+                caption: caption,
+                likes: 0,
+                comments: 0,
+                shares: 0,
+                views: 0,
+                duration: 30,
+                createdAt: new Date(),
+                isMonetized: isMonetized
+            };
+            
+            // Ajouter à la liste
+            appState.videos.unshift(newVideo);
+            
+            // Re-rendre les vidéos
+            renderVideos();
+            
+            // Fermer le modal et montrer une notification
+            closeCreateModal();
+            showNotification('Vidéo publiée avec succès! (Mode démo)', 'success');
+            
+            // Réinitialiser le bouton
+            if (publishBtn) {
+                publishBtn.disabled = false;
+                publishBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Publier';
+            }
+        }, 2000);
+        
+    } catch (error) {
+        console.error('Erreur publication:', error);
+        alert('Erreur lors de la publication: ' + error.message);
+        
+        const publishBtn = document.getElementById('publishBtn');
+        if (publishBtn) {
+            publishBtn.disabled = false;
+            publishBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Publier';
+        }
     }
 }
 
-// ==================== CONFIGURATION FIREBASE V8 ====================
-const firebaseConfig = {
-    apiKey: "AIzaSyD6UBg16fK3WP6ttzzmGMLglruXO4-KEzA",
-    authDomain: "tiktak-97036.firebaseapp.com",
-    projectId: "tiktak-97036",
-    storageBucket: "tiktak-97036.appspot.com",
-    messagingSenderId: "329130229096",
-    appId: "1:329130229096:web:2dabf7f2a39de191b62add",
-    measurementId: "G-8HN67F2F2R"
-};
-
-// Initialiser Firebase (syntaxe v8)
-firebase.initializeApp(firebaseConfig);
-
-// Services Firebase (SANS Storage)
-const auth = firebase.auth();
-const db = firebase.firestore();
-const functions = firebase.functions();
-const analytics = firebase.analytics();
-
-// NE PAS initialiser storage puisque vous n'avez pas activé le forfait Blaze
-// const storage = firebase.storage();
-
-// État de l'application
-const appState = {
-    user: null,
-    userProfile: null,
-    videos: [],
-    currentVideoIndex: 0,
-    isRecording: false,
-    mediaRecorder: null,
-    recordedChunks: [],
-    videoStream: null,
-    liveStream: null,
-    currentStreamId: null,
-    isLive: false,
-    selectedGift: null,
-    notifications: [],
-    selectedVideoForGift: null,
-    selectedReceiverForGift: null,
-    currentVideoFile: null,
-    currentThumbnailBlob: null
-};
-
-// VIDÉOS DE DÉMO (gratuites et libres de droit)
-const demoVideos = [
-    {
-        id: "1",
-        videoUrl: "https://assets.mixkit.co/videos/preview/mixkit-woman-dancing-under-neon-lights-1230-large.mp4",
-        thumbnailUrl: "https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=400&h=600&fit=crop",
-        userId: "user1",
-        username: "dancequeen",
-        userAvatar: "https://randomuser.me/api/portraits/women/44.jpg",
-        caption: "Apprends cette choré avec moi ! #danse #fun",
-        likes: 12400,
-        comments: 1200,
-        shares: 543,
-        views: 54000,
-        duration: 45,
-        createdAt: new Date(Date.now() - 86400000),
-        isMonetized: true,
-        likesCount: 12400,
-        commentsCount: 1200,
-        sharesCount: 543,
-        viewsCount: 54000
-    },
-    {
-        id: "2",
-        videoUrl: "https://assets.mixkit.co/videos/preview/mixkit-man-doing-tricks-with-skateboard-in-a-parking-lot-34553-large.mp4",
-        thumbnailUrl: "https://images.unsplash.com/photo-1547447134-cd3f5c716030?w=400&h=600&fit=crop",
-        userId: "user2",
-        username: "skatepro",
-        userAvatar: "https://randomuser.me/api/portraits/men/32.jpg",
-        caption: "Nouveau trick au skatepark ! #skate #trick",
-        likes: 8900,
-        comments: 450,
-        shares: 210,
-        views: 32000,
-        duration: 28,
-        createdAt: new Date(Date.now() - 43200000),
-        isMonetized: false,
-        likesCount: 8900,
-        commentsCount: 450,
-        sharesCount: 210,
-        viewsCount: 32000
-    },
-    {
-        id: "3",
-        videoUrl: "https://assets.mixkit.co/videos/preview/mixkit-tree-with-yellow-flowers-1173-large.mp4",
-        thumbnailUrl: "https://images.unsplash.com/photo-1465146344425-f00d5f5c8f07?w=400&h=600&fit=crop",
-        userId: "user3",
-        username: "naturelover",
-        userAvatar: "https://randomuser.me/api/portraits/women/67.jpg",
-        caption: "Beauté de la nature au printemps 🌸 #nature #printemps",
-        likes: 15600,
-        comments: 890,
-        shares: 430,
-        views: 78000,
-        duration: 32,
-        createdAt: new Date(Date.now() - 21600000),
-        isMonetized: true,
-        likesCount: 15600,
-        commentsCount: 890,
-        sharesCount: 430,
-        viewsCount: 78000
-    }
-];
-
 // ==================== GESTION DES COMMENTAIRES ====================
+
 function openComments(videoId) {
     const commentsSection = document.getElementById(`comments-${videoId}`);
     if (commentsSection) {
         commentsSection.style.display = 'block';
-        commentsSection.classList.add('active');
-        
-        // Focus sur le champ de commentaire si disponible
-        const commentInput = commentsSection.querySelector('textarea');
-        if (commentInput) {
-            setTimeout(() => commentInput.focus(), 100);
-        }
     } else {
-        console.error(`Section de commentaires introuvable pour la vidéo ${videoId}`);
-        showNotification('Fonctionnalité commentaires en développement', 'info');
+        // Si la section n'existe pas, la créer
+        const videoContainer = document.querySelector(`[data-video-id="${videoId}"]`);
+        if (videoContainer) {
+            const commentsHTML = `
+                <div id="comments-${videoId}" class="comments-section" style="display: block;">
+                    <div class="comments-header">
+                        <h4>Commentaires</h4>
+                        <button onclick="closeComments('${videoId}')" class="close-comments-btn">×</button>
+                    </div>
+                    <div class="comments-list">
+                        <div class="comment">
+                            <strong>@user123</strong>
+                            <p>Super vidéo !</p>
+                        </div>
+                        <div class="comment">
+                            <strong>@fan456</strong>
+                            <p>J'adore 😍</p>
+                        </div>
+                    </div>
+                    <div class="comment-form">
+                        <textarea placeholder="Ajouter un commentaire..." rows="2"></textarea>
+                        <button onclick="postComment('${videoId}')">Publier</button>
+                    </div>
+                </div>
+            `;
+            videoContainer.insertAdjacentHTML('beforeend', commentsHTML);
+        }
     }
 }
 
@@ -208,341 +441,136 @@ function closeComments(videoId) {
     const commentsSection = document.getElementById(`comments-${videoId}`);
     if (commentsSection) {
         commentsSection.style.display = 'none';
-        commentsSection.classList.remove('active');
     }
 }
 
-function toggleComments(videoId) {
-    const commentsSection = document.getElementById(`comments-${videoId}`);
-    if (!commentsSection) {
-        console.error(`Section de commentaires introuvable pour la vidéo ${videoId}`);
+function postComment(videoId) {
+    const commentInput = document.querySelector(`#comments-${videoId} textarea`);
+    if (!commentInput || !commentInput.value.trim()) {
+        alert('Veuillez écrire un commentaire');
         return;
     }
     
-    if (commentsSection.style.display === 'none' || !commentsSection.classList.contains('active')) {
-        openComments(videoId);
-    } else {
-        closeComments(videoId);
-    }
+    showNotification('Commentaire publié! (Mode démo)', 'success');
+    commentInput.value = '';
 }
 
-// ==================== FONCTIONS UI ====================
+// ==================== LIKES ET PARTAGES ====================
 
-function hideLoginModal() {
-    const loginModal = document.getElementById('loginModal');
-    if (loginModal) {
-        loginModal.style.display = 'none';
-    }
-}
-
-function showLoginModal() {
-    const loginModal = document.getElementById('loginModal');
-    if (loginModal) {
-        loginModal.style.display = 'flex';
-        switchAuthTab('login');
-    }
-}
-
-function switchAuthTab(tab) {
-    console.log(`🎯 Changement d'onglet vers: ${tab}`);
+function handleLike(videoId) {
+    const video = appState.videos.find(v => v.id === videoId);
+    if (!video) return;
     
-    const loginForm = document.getElementById('loginForm');
-    const registerForm = document.getElementById('registerForm');
-    const loginTabBtn = document.getElementById('loginTabBtn');
-    const registerTabBtn = document.getElementById('registerTabBtn');
+    // Mettre à jour le compteur
+    video.likes += 1;
     
-    if (!loginForm || !registerForm || !loginTabBtn || !registerTabBtn) {
-        console.error('❌ Éléments du formulaire non trouvés');
-        return;
-    }
-    
-    loginForm.style.display = 'none';
-    registerForm.style.display = 'none';
-    loginTabBtn.classList.remove('active');
-    registerTabBtn.classList.remove('active');
-    
-    if (tab === 'login') {
-        loginForm.style.display = 'block';
-        loginTabBtn.classList.add('active');
-    } else if (tab === 'register') {
-        registerForm.style.display = 'block';
-        registerTabBtn.classList.add('active');
-    }
-    
-    console.log(`✅ Onglet ${tab} activé`);
-}
-
-function showApp() {
-    const appContainer = document.getElementById('appContainer');
-    if (appContainer) {
-        appContainer.style.display = 'block';
-    }
-}
-
-function hideApp() {
-    const appContainer = document.getElementById('appContainer');
-    if (appContainer) {
-        appContainer.style.display = 'none';
-    }
-}
-
-function updateCoinDisplay(coins) {
-    const coinElement = document.getElementById('coinBalance');
-    if (coinElement) {
-        const span = coinElement.querySelector('span');
-        if (span) {
-            span.textContent = coins;
+    // Mettre à jour l'affichage
+    const videoContainer = document.querySelector(`[data-video-id="${videoId}"]`);
+    if (videoContainer) {
+        const likeCount = videoContainer.querySelector('.action:nth-child(1) span');
+        if (likeCount) {
+            likeCount.textContent = formatNumber(video.likes);
+        }
+        
+        // Ajouter la classe liked
+        const likeButton = videoContainer.querySelector('.action:nth-child(1)');
+        if (likeButton) {
+            likeButton.classList.add('liked');
         }
     }
+    
+    showNotification('Vous avez aimé cette vidéo!', 'success');
 }
 
-function updateUIForUser() {
-    const userAvatar = document.getElementById('userAvatar');
-    if (userAvatar && appState.userProfile && appState.userProfile.avatar) {
-        userAvatar.src = appState.userProfile.avatar;
+function handleShare(videoId) {
+    const video = appState.videos.find(v => v.id === videoId);
+    if (!video) return;
+    
+    // Mettre à jour le compteur
+    video.shares += 1;
+    
+    // Mettre à jour l'affichage
+    const videoContainer = document.querySelector(`[data-video-id="${videoId}"]`);
+    if (videoContainer) {
+        const shareCount = videoContainer.querySelector('.action:nth-child(3) span');
+        if (shareCount) {
+            shareCount.textContent = formatNumber(video.shares);
+        }
     }
     
-    if (appState.userProfile) {
-        updateCoinDisplay(appState.userProfile.coins || 0);
-    }
-    
-    console.log('✅ UI mise à jour pour l\'utilisateur');
-}
-
-// ==================== AUTHENTIFICATION ====================
-async function login(event) {
-    if (event) event.preventDefault();
-    
-    const email = document.getElementById('loginEmail').value;
-    const password = document.getElementById('loginPassword').value;
-    
-    if (!email || !password) {
-        showNotification('Veuillez remplir tous les champs', 'error');
-        return;
-    }
-    
-    try {
-        showNotification('Connexion en cours...', 'info');
-        const userCredential = await auth.signInWithEmailAndPassword(email, password);
-        console.log('✅ Connexion réussie pour:', userCredential.user.email);
-        
-    } catch (error) {
-        console.error('❌ Erreur connexion:', error);
-        showNotification(getAuthErrorMessage(error.code), 'error');
-    }
-}
-
-async function register(event) {
-    event.preventDefault();
-    
-    const email = document.getElementById('registerEmail').value;
-    const password = document.getElementById('registerPassword').value;
-    const username = document.getElementById('registerUsername').value;
-    const confirmPassword = document.getElementById('registerConfirmPassword').value;
-    
-    if (!email || !password || !username || !confirmPassword) {
-        showNotification('Veuillez remplir tous les champs', 'error');
-        return;
-    }
-    
-    if (password !== confirmPassword) {
-        showNotification('Les mots de passe ne correspondent pas', 'error');
-        return;
-    }
-    
-    if (password.length < 6) {
-        showNotification('Le mot de passe doit faire au moins 6 caractères', 'error');
-        return;
-    }
-    
-    if (username.length < 3) {
-        showNotification('Le nom d\'utilisateur doit faire au moins 3 caractères', 'error');
-        return;
-    }
-    
-    try {
-        showNotification('Création du compte...', 'info');
-        
-        const userCredential = await auth.createUserWithEmailAndPassword(email, password);
-        const user = userCredential.user;
-        
-        console.log('✅ Utilisateur créé:', user.uid);
-        
-        await user.updateProfile({
-            displayName: username,
-            photoURL: `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=ff0050&color=fff`
+    // Partager le lien
+    if (navigator.share) {
+        navigator.share({
+            title: `Regarde cette vidéo de @${video.username}`,
+            text: video.caption,
+            url: window.location.href
         });
-        
-        console.log('✅ Profil Firebase Auth mis à jour');
-        
-        await createUserProfile(user, username);
-        
-        showNotification('Compte créé avec succès!', 'success');
-        
-        setTimeout(() => {
-            switchAuthTab('login');
-            document.getElementById('registerEmail').value = '';
-            document.getElementById('registerPassword').value = '';
-            document.getElementById('registerUsername').value = '';
-            document.getElementById('registerConfirmPassword').value = '';
-        }, 1500);
-        
-    } catch (error) {
-        console.error('❌ Erreur inscription:', error);
-        showNotification(getAuthErrorMessage(error.code), 'error');
+    } else {
+        navigator.clipboard.writeText(window.location.href);
+        showNotification('Lien copié dans le presse-papier!', 'success');
     }
 }
 
-async function loginWithGoogle() {
-    try {
-        const provider = new firebase.auth.GoogleAuthProvider();
-        provider.addScope('profile');
-        provider.addScope('email');
-        
-        const result = await auth.signInWithPopup(provider);
-        console.log('✅ Connexion Google réussie');
-    } catch (error) {
-        console.error('Erreur Google:', error);
-        showNotification('Erreur lors de la connexion avec Google', 'error');
+// ==================== STREAMING ====================
+
+function startLiveStream() {
+    const title = document.getElementById('liveTitle').value.trim();
+    
+    if (!title) {
+        alert('Veuillez entrer un titre pour le live');
+        return;
     }
+    
+    if (!appState.user) {
+        alert('Veuillez vous connecter pour démarrer un live');
+        return;
+    }
+    
+    showNotification('Live démarré! (Mode démo)', 'success');
+    closeLiveSetup();
+    
+    // Simuler l'interface de live
+    const appContainer = document.getElementById('appContainer');
+    const liveInterface = document.getElementById('liveInterface');
+    
+    if (appContainer) appContainer.style.display = 'none';
+    if (liveInterface) liveInterface.style.display = 'block';
+    
+    appState.isLive = true;
+    
+    // Mettre à jour les infos du streamer
+    const streamerName = document.getElementById('streamerName');
+    const streamerAvatar = document.getElementById('streamerAvatar');
+    
+    if (streamerName) streamerName.textContent = appState.userProfile?.username || "Streamer";
+    if (streamerAvatar) streamerAvatar.src = appState.userProfile?.avatar || "https://randomuser.me/api/portraits/lego/1.jpg";
 }
 
-async function logout() {
-    try {
-        if (appState.isLive) {
-            await endLiveStream();
-        }
-        
-        await auth.signOut();
-        showNotification('Déconnexion réussie', 'success');
-    } catch (error) {
-        console.error('Erreur déconnexion:', error);
-        showNotification('Erreur lors de la déconnexion', 'error');
-    }
+function endLiveStream() {
+    appState.isLive = false;
+    
+    const appContainer = document.getElementById('appContainer');
+    const liveInterface = document.getElementById('liveInterface');
+    
+    if (appContainer) appContainer.style.display = 'block';
+    if (liveInterface) liveInterface.style.display = 'none';
+    
+    showNotification('Live terminé avec succès', 'success');
 }
 
-// ==================== PROFIL UTILISATEUR ====================
-async function loadUserProfile(userId) {
-    try {
-        const userDoc = await db.collection('users').doc(userId).get();
-        
-        if (userDoc.exists) {
-            appState.userProfile = userDoc.data();
-            updateCoinDisplay(appState.userProfile.coins || 0);
-            
-            const userAvatar = document.getElementById('userAvatar');
-            if (userAvatar && appState.userProfile.avatar) {
-                userAvatar.src = appState.userProfile.avatar;
-            }
-            
-            console.log('✅ Profil utilisateur chargé');
-        } else {
-            await createUserProfile(auth.currentUser, auth.currentUser.displayName);
-        }
-    } catch (error) {
-        console.error('Erreur chargement profil:', error);
-        appState.userProfile = {
-            uid: userId,
-            username: auth.currentUser.displayName || 'Utilisateur',
-            avatar: auth.currentUser.photoURL || 'https://ui-avatars.com/api/?name=User&background=ff0050&color=fff',
-            coins: 100,
-            followers: 0,
-            following: 0
-        };
-        updateCoinDisplay(100);
-    }
-}
-
-async function createUserProfile(user, username) {
-    try {
-        const userProfile = {
-            uid: user.uid,
-            email: user.email,
-            username: username,
-            avatar: user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=ff0050&color=fff`,
-            fullName: user.displayName || '',
-            bio: '',
-            coins: 100,
-            followers: 0,
-            following: 0,
-            videosCount: 0,
-            isVerified: false,
-            isCreator: false,
-            preferences: {
-                language: 'fr',
-                notifications: true,
-                privacy: 'public'
-            },
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        };
-        
-        await db.collection('users').doc(user.uid).set(userProfile);
-        appState.userProfile = userProfile;
-        updateCoinDisplay(100);
-        
-        console.log('✅ Profil utilisateur créé');
-    } catch (error) {
-        console.error('Erreur création profil:', error);
-        throw error;
-    }
-}
-
-// ==================== VIDÉOS (MODE DÉMO - SANS STORAGE) ====================
-async function loadVideos() {
-    try {
-        console.log('📹 Chargement des vidéos...');
-        
-        const videosSnapshot = await db.collection('videos')
-            .where('isPublic', '==', true)
-            .orderBy('createdAt', 'desc')
-            .limit(20)
-            .get();
-        
-        if (!videosSnapshot.empty) {
-            const videos = videosSnapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
-            
-            appState.videos = videos;
-            console.log(`✅ ${videos.length} vidéos chargées depuis Firestore`);
-        } else {
-            console.log('⚠️ Aucune vidéo dans Firestore, mode démo activé');
-            appState.videos = demoVideos;
-        }
-        
-        renderVideos();
-        
-    } catch (error) {
-        console.error('Erreur chargement vidéos:', error);
-        appState.videos = demoVideos;
-        renderVideos();
-        showNotification('Mode démo activé', 'info');
-    }
-}
+// ==================== RENDU DES VIDÉOS ====================
 
 function renderVideos() {
     const videoFeed = document.getElementById('videoFeed');
     if (!videoFeed) return;
     
     if (appState.videos.length === 0) {
-        videoFeed.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-video-slash"></i>
-                <h3>Aucune vidéo disponible</h3>
-                <p>Soyez le premier à publier une vidéo!</p>
-                <button class="btn btn-primary" onclick="openCreateModal()">
-                    <i class="fas fa-plus"></i> Créer une vidéo
-                </button>
-            </div>
-        `;
-        return;
+        appState.videos = [...demoVideos];
     }
     
     videoFeed.innerHTML = '';
     
-    appState.videos.forEach((video, index) => {
+    appState.videos.forEach((video) => {
         const videoElement = createVideoElement(video);
         videoFeed.appendChild(videoElement);
     });
@@ -558,35 +586,34 @@ function createVideoElement(video) {
     const timeAgo = getTimeAgo(video.createdAt);
     
     div.innerHTML = `
-        <video loop muted playsinline data-index="${appState.videos.indexOf(video)}">
+        <video loop muted playsinline>
             <source src="${video.videoUrl}" type="video/mp4">
         </video>
         
         <div class="video-overlay">
             <div class="creator-info">
-                <img src="${video.userAvatar || 'https://randomuser.me/api/portraits/lego/1.jpg'}" 
-                     alt="${video.username}">
+                <img src="${video.userAvatar}" alt="${video.username}">
                 <div>
                     <h4>@${video.username}</h4>
-                    <p>${video.caption || ''}</p>
+                    <p>${video.caption}</p>
                     <small class="time-ago">${timeAgo}</small>
                 </div>
             </div>
             
             <div class="video-actions">
-                <div class="action ${video.userLiked ? 'liked' : ''}" onclick="handleLike('${video.id}')">
+                <div class="action" onclick="handleLike('${video.id}')">
                     <i class="fas fa-heart"></i>
-                    <span>${formatNumber(video.likesCount || video.likes || 0)}</span>
+                    <span>${formatNumber(video.likes)}</span>
                 </div>
                 
                 <div class="action" onclick="openComments('${video.id}')">
                     <i class="fas fa-comment"></i>
-                    <span>${formatNumber(video.commentsCount || video.comments || 0)}</span>
+                    <span>${formatNumber(video.comments)}</span>
                 </div>
                 
                 <div class="action" onclick="handleShare('${video.id}')">
                     <i class="fas fa-share"></i>
-                    <span>${formatNumber(video.sharesCount || video.shares || 0)}</span>
+                    <span>${formatNumber(video.shares)}</span>
                 </div>
                 
                 ${video.isMonetized ? `
@@ -598,7 +625,7 @@ function createVideoElement(video) {
             </div>
             
             <div class="video-stats">
-                <span class="view-count"><i class="fas fa-eye"></i> ${formatNumber(video.viewsCount || video.views || 0)}</span>
+                <span class="view-count"><i class="fas fa-eye"></i> ${formatNumber(video.views)}</span>
                 ${video.duration ? `<span class="duration">${formatDuration(video.duration)}</span>` : ''}
             </div>
             
@@ -608,323 +635,33 @@ function createVideoElement(video) {
             </div>
             ` : ''}
         </div>
-        
-        <!-- Section des commentaires -->
-        <div id="comments-${video.id}" class="comments-section" style="display: none;">
-            <div class="comments-header">
-                <h4>Commentaires (${formatNumber(video.commentsCount || video.comments || 0)})</h4>
-                <button onclick="closeComments('${video.id}')" class="close-comments-btn">×</button>
-            </div>
-            <div class="comments-list">
-                <div class="comment">
-                    <strong>@fan123</strong>
-                    <p>Super vidéo ! J'adore 😍</p>
-                </div>
-                <div class="comment">
-                    <strong>@creative_user</strong>
-                    <p>Trop stylé ! Continue comme ça 👍</p>
-                </div>
-                <div class="comment">
-                    <strong>@tiktok_fan</strong>
-                    <p>#tiktokclone #awesome</p>
-                </div>
-            </div>
-            <div class="comment-form">
-                <textarea placeholder="Ajouter un commentaire..." rows="2"></textarea>
-                <button onclick="postComment('${video.id}')">Publier</button>
-            </div>
-        </div>
     `;
     
     return div;
 }
 
-function postComment(videoId) {
-    if (!appState.user) {
-        showLoginModal();
-        return;
-    }
+function initVideoPlayback() {
+    const videos = document.querySelectorAll('.video-container video');
     
-    const commentInput = document.querySelector(`#comments-${videoId} textarea`);
-    if (!commentInput || !commentInput.value.trim()) {
-        showNotification('Veuillez écrire un commentaire', 'error');
-        return;
-    }
-    
-    showNotification('Commentaire publié! (Mode démo)', 'success');
-    commentInput.value = '';
-}
-
-// ==================== PUBLICATION DE VIDÉO (SANS STORAGE) ====================
-async function publishVideo() {
-    if (!appState.user) {
-        showLoginModal();
-        return;
-    }
-    
-    const caption = document.getElementById('videoCaption').value.trim();
-    const isMonetized = document.getElementById('monetizeVideo').checked;
-    const privacy = document.getElementById('videoPrivacy').value;
-    
-    if (!appState.currentVideoFile) {
-        showNotification('Veuillez sélectionner une vidéo', 'error');
-        return;
-    }
-    
-    if (!caption) {
-        showNotification('Veuillez ajouter une légende', 'error');
-        return;
-    }
-    
-    try {
-        showNotification('Publication en cours...', 'info');
-        
-        // DÉSACTIVER LE BOUTON
-        const publishBtn = document.getElementById('publishBtn');
-        if (publishBtn) {
-            publishBtn.disabled = true;
-            publishBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Publication...';
-        }
-        
-        // VIDÉOS DE DÉMO DISPONIBLES
-        const demoVideoUrls = [
-            "https://assets.mixkit.co/videos/preview/mixkit-woman-dancing-under-neon-lights-1230-large.mp4",
-            "https://assets.mixkit.co/videos/preview/mixkit-man-doing-tricks-with-skateboard-in-a-parking-lot-34553-large.mp4",
-            "https://assets.mixkit.co/videos/preview/mixkit-tree-with-yellow-flowers-1173-large.mp4",
-            "https://assets.mixkit.co/videos/preview/mixkit-waves-in-the-water-1164-large.mp4",
-            "https://assets.mixkit.co/videos/preview/mixkit-group-of-friends-partying-happily-4640-large.mp4",
-            "https://assets.mixkit.co/videos/preview/mixkit-young-women-listening-to-music-while-walking-in-the-city-50013-large.mp4"
-        ];
-        
-        // MINIATURES DE DÉMO
-        const demoThumbnails = [
-            'https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=400&h=600&fit=crop',
-            'https://images.unsplash.com/photo-1547447134-cd3f5c716030?w=400&h=600&fit=crop',
-            'https://images.unsplash.com/photo-1465146344425-f00d5f5c8f07?w=400&h=600&fit=crop',
-            'https://images.unsplash.com/photo-1492684223066-e9e3b74d2c9e?w=400&h=600&fit=crop'
-        ];
-        
-        // CHOISIR UNE VIDÉO ET UNE MINIATURE AU HASARD
-        const videoUrl = demoVideoUrls[Math.floor(Math.random() * demoVideoUrls.length)];
-        const thumbnailUrl = demoThumbnails[Math.floor(Math.random() * demoThumbnails.length)];
-        
-        // Extraire les hashtags
-        const tags = extractHashtags(caption);
-        
-        // Créer la nouvelle vidéo
-        const newVideo = {
-            userId: appState.user.uid,
-            username: appState.userProfile.username,
-            userAvatar: appState.userProfile.avatar,
-            videoUrl: videoUrl,
-            thumbnailUrl: thumbnailUrl,
-            caption: caption,
-            likesCount: 0,
-            commentsCount: 0,
-            sharesCount: 0,
-            viewsCount: 0,
-            duration: 30,
-            isPublic: privacy === 'public',
-            isMonetized: isMonetized,
-            tags: tags,
-            allowComments: true,
-            allowDuet: true,
-            allowStitch: true,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        };
-        
-        // Enregistrer dans Firestore
-        const videoRef = await db.collection('videos').add(newVideo);
-        const videoId = videoRef.id;
-        
-        // Incrémenter le compteur de vidéos de l'utilisateur
-        await db.collection('users').doc(appState.user.uid).update({
-            videosCount: firebase.firestore.FieldValue.increment(1),
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        
-        // Ajouter la vidéo à la liste locale
-        appState.videos.unshift({
-            id: videoId,
-            ...newVideo
-        });
-        
-        // Re-rendre les vidéos
-        renderVideos();
-        
-        // Fermer le modal
-        closeCreateModal();
-        showNotification('Vidéo publiée avec succès! (Mode démo)', 'success');
-        
-        // Réinitialiser
-        appState.currentVideoFile = null;
-        appState.currentThumbnailBlob = null;
-        
-        // Faire défiler vers le haut
-        window.scrollTo(0, 0);
-        
-    } catch (error) {
-        console.error('❌ Erreur publication:', error);
-        showNotification('Erreur lors de la publication: ' + error.message, 'error');
-        
-        // Réactiver le bouton
-        const publishBtn = document.getElementById('publishBtn');
-        if (publishBtn) {
-            publishBtn.disabled = false;
-            publishBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Publier';
-        }
-    }
-}
-
-// ==================== LIKES ET INTERACTIONS ====================
-async function handleLike(videoId) {
-    if (!appState.user) {
-        showLoginModal();
-        return;
-    }
-    
-    try {
-        const videoRef = db.collection('videos').doc(videoId);
-        const likeRef = videoRef.collection('likes').doc(appState.user.uid);
-        const likeDoc = await likeRef.get();
-        
-        if (likeDoc.exists) {
-            await likeRef.delete();
-            await videoRef.update({
-                likesCount: firebase.firestore.FieldValue.increment(-1)
-            });
-            
-            const videoContainer = document.querySelector(`[data-video-id="${videoId}"]`);
-            if (videoContainer) {
-                const likeAction = videoContainer.querySelector('.action');
-                const likeCount = likeAction.querySelector('span');
-                likeAction.classList.remove('liked');
-                const currentCount = parseInt(likeCount.textContent) || 0;
-                likeCount.textContent = formatNumber(Math.max(0, currentCount - 1));
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            const video = entry.target;
+            if (entry.isIntersecting) {
+                video.play().catch(e => console.log('Lecture bloquée:', e));
+            } else {
+                video.pause();
             }
-            
-        } else {
-            await likeRef.set({
-                userId: appState.user.uid,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-            
-            await videoRef.update({
-                likesCount: firebase.firestore.FieldValue.increment(1)
-            });
-            
-            const videoDoc = await videoRef.get();
-            if (videoDoc.exists) {
-                const videoData = videoDoc.data();
-                if (videoData.userId !== appState.user.uid) {
-                    await createNotification({
-                        userId: videoData.userId,
-                        type: 'like',
-                        fromUserId: appState.user.uid,
-                        fromUsername: appState.userProfile.username,
-                        fromUserAvatar: appState.userProfile.avatar,
-                        videoId: videoId,
-                        message: "a aimé votre vidéo",
-                        isRead: false,
-                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                    });
-                }
-            }
-            
-            const videoContainer = document.querySelector(`[data-video-id="${videoId}"]`);
-            if (videoContainer) {
-                const likeAction = videoContainer.querySelector('.action');
-                const likeCount = likeAction.querySelector('span');
-                likeAction.classList.add('liked');
-                const currentCount = parseInt(likeCount.textContent) || 0;
-                likeCount.textContent = formatNumber(currentCount + 1);
-            }
-        }
-        
-    } catch (error) {
-        console.error('Erreur like:', error);
-        showNotification('Erreur lors du like', 'error');
-    }
-}
-
-async function handleShare(videoId) {
-    try {
-        const video = appState.videos.find(v => v.id === videoId);
-        if (!video) return;
-        
-        const videoRef = db.collection('videos').doc(videoId);
-        await videoRef.update({
-            sharesCount: firebase.firestore.FieldValue.increment(1)
         });
-        
-        if (navigator.share) {
-            await navigator.share({
-                title: `Regarde cette vidéo de @${video.username}`,
-                text: video.caption,
-                url: window.location.href + '#video=' + videoId
-            });
-        } else {
-            const shareUrl = window.location.href + '#video=' + videoId;
-            await navigator.clipboard.writeText(shareUrl);
-            showNotification('Lien copié dans le presse-papier!', 'success');
-        }
-        
-        const videoContainer = document.querySelector(`[data-video-id="${videoId}"]`);
-        if (videoContainer) {
-            const shareAction = videoContainer.querySelector('.action:nth-child(3)');
-            const shareCount = shareAction.querySelector('span');
-            const currentCount = parseInt(shareCount.textContent) || 0;
-            shareCount.textContent = formatNumber(currentCount + 1);
-        }
-        
-    } catch (error) {
-        console.error('Erreur partage:', error);
-        const shareUrl = window.location.href + '#video=' + videoId;
-        await navigator.clipboard.writeText(shareUrl);
-        showNotification('Lien copié dans le presse-papier!', 'success');
-    }
-}
-
-// ==================== NOTIFICATIONS ====================
-async function createNotification(notificationData) {
-    try {
-        await db.collection('notifications').add(notificationData);
-        console.log('✅ Notification créée');
-    } catch (error) {
-        console.error('Erreur création notification:', error);
-    }
-}
-
-function setupRealtimeListeners() {
-    if (!appState.user) return;
+    }, { threshold: 0.5 });
     
-    db.collection('notifications')
-        .where('userId', '==', appState.user.uid)
-        .orderBy('createdAt', 'desc')
-        .limit(10)
-        .onSnapshot((snapshot) => {
-            snapshot.docChanges().forEach((change) => {
-                if (change.type === 'added') {
-                    const notification = {
-                        id: change.doc.id,
-                        ...change.doc.data()
-                    };
-                    showNotificationInUI(notification);
-                }
-            });
-        });
+    videos.forEach(video => observer.observe(video));
 }
 
 // ==================== UTILITAIRES ====================
+
 function formatNumber(num) {
-    if (typeof num !== 'number') num = parseInt(num) || 0;
-    if (num >= 1000000) {
-        return (num / 1000000).toFixed(1) + 'M';
-    }
-    if (num >= 1000) {
-        return (num / 1000).toFixed(1) + 'K';
-    }
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
     return num.toString();
 }
 
@@ -934,10 +671,7 @@ function formatDuration(seconds) {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
-function getTimeAgo(timestamp) {
-    if (!timestamp) return 'Récemment';
-    
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+function getTimeAgo(date) {
     const now = new Date();
     const diffInSeconds = Math.floor((now - date) / 1000);
     
@@ -946,31 +680,6 @@ function getTimeAgo(timestamp) {
     if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} h`;
     if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} j`;
     return `${Math.floor(diffInSeconds / 604800)} sem`;
-}
-
-function extractHashtags(text) {
-    if (!text) return [];
-    const hashtags = text.match(/#\w+/g) || [];
-    return hashtags.map(tag => tag.substring(1).toLowerCase());
-}
-
-function getAuthErrorMessage(errorCode) {
-    const errors = {
-        'auth/email-already-in-use': 'Cet email est déjà utilisé',
-        'auth/invalid-email': 'Email invalide',
-        'auth/operation-not-allowed': 'Opération non autorisée',
-        'auth/weak-password': 'Mot de passe trop faible (min 6 caractères)',
-        'auth/user-disabled': 'Compte désactivé',
-        'auth/user-not-found': 'Utilisateur non trouvé',
-        'auth/wrong-password': 'Mot de passe incorrect',
-        'auth/too-many-requests': 'Trop de tentatives, réessayez plus tard',
-        'auth/network-request-failed': 'Erreur réseau, vérifiez votre connexion',
-        'auth/popup-closed-by-user': 'La fenêtre de connexion a été fermée',
-        'auth/cancelled-popup-request': 'Connexion annulée',
-        'auth/popup-blocked': 'La fenêtre de connexion a été bloquée'
-    };
-    
-    return errors[errorCode] || 'Une erreur est survenue: ' + errorCode;
 }
 
 function showNotification(message, type = 'info') {
@@ -996,230 +705,153 @@ function showNotification(message, type = 'info') {
     }, 5000);
 }
 
-function showNotificationInUI(notification) {
-    const message = `@${notification.fromUsername} ${notification.message}`;
-    showNotification(message, 'info');
-}
+// ==================== ÉVÉNEMENTS GLOBAUX ====================
 
-function initVideoPlayback() {
-    const videos = document.querySelectorAll('.video-container video');
-    
-    const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            const video = entry.target;
-            if (entry.isIntersecting) {
-                video.play().catch(e => {
-                    console.log('Lecture automatique bloquée:', e);
-                });
-            } else {
-                video.pause();
+function setupEventListeners() {
+    // Fermer les modales en cliquant à l'extérieur
+    document.addEventListener('click', function(event) {
+        // Fermer le menu utilisateur
+        const userMenu = document.getElementById('userMenu');
+        const dropdown = document.getElementById('userDropdown');
+        
+        if (userMenu && dropdown && !userMenu.contains(event.target) && !dropdown.contains(event.target)) {
+            dropdown.style.display = 'none';
+        }
+        
+        // Fermer les modales
+        const modals = document.querySelectorAll('.modal-overlay');
+        modals.forEach(modal => {
+            if (modal.style.display === 'flex' && event.target === modal) {
+                modal.style.display = 'none';
+                
+                // Réinitialiser la modale de création si c'est elle
+                if (modal.id === 'createModal') {
+                    closeCreateModal();
+                }
             }
         });
-    }, {
-        threshold: 0.5
     });
     
-    videos.forEach(video => observer.observe(video));
+    // Empêcher la fermeture des modales en cliquant à l'intérieur
+    document.querySelectorAll('.modal-content').forEach(modalContent => {
+        modalContent.addEventListener('click', function(event) {
+            event.stopPropagation();
+        });
+    });
+    
+    // Gestionnaire de fichier vidéo
+    handleVideoInput();
+    
+    // Recherche
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            console.log('Recherche:', this.value);
+        });
+    }
+    
+    // Chat en direct
+    const chatInput = document.getElementById('chatInput');
+    const sendChatBtn = document.getElementById('sendChatBtn');
+    
+    if (chatInput && sendChatBtn) {
+        sendChatBtn.addEventListener('click', function() {
+            if (chatInput.value.trim()) {
+                showNotification('Message envoyé! (Mode démo)', 'success');
+                chatInput.value = '';
+            }
+        });
+        
+        chatInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && this.value.trim()) {
+                showNotification('Message envoyé! (Mode démo)', 'success');
+                this.value = '';
+            }
+        });
+    }
 }
 
 // ==================== INITIALISATION ====================
-async function testFirebaseConnection() {
-    try {
-        const testDoc = await db.collection('test').doc('connection').get();
-        console.log('✅ Connexion Firestore OK');
-    } catch (error) {
-        console.log('⚠️ Firestore non configuré, mode démo activé');
-    }
-}
 
-async function setupApp() {
-    await testFirebaseConnection();
+function initApp() {
+    console.log('🚀 Initialisation de TikTok Clone...');
     
-    auth.onAuthStateChanged(async (user) => {
-        if (user) {
-            console.log('✅ Utilisateur connecté:', user.email);
-            appState.user = user;
-            await loadUserProfile(user.uid);
-            hideLoginModal();
-            showApp();
-            await loadVideos();
-            setupRealtimeListeners();
-            updateUIForUser();
-        } else {
-            console.log('🔐 Aucun utilisateur connecté');
-            showLoginModal();
-            hideApp();
-        }
-    });
-
-    const searchInput = document.getElementById('searchInput');
-    if (searchInput) {
-        searchInput.addEventListener('input', debounce(handleSearch, 300));
-    }
-    
+    // Cacher l'écran de chargement
     const loadingScreen = document.getElementById('loadingScreen');
     if (loadingScreen) {
         setTimeout(() => {
             loadingScreen.style.display = 'none';
+            document.getElementById('appContainer').style.display = 'block';
         }, 1000);
     }
-}
-
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
+    
+    // Initialiser l'état
+    appState.videos = [...demoVideos];
+    
+    // Rendre les vidéos
+    renderVideos();
+    
+    // Configurer les événements
+    setupEventListeners();
+    
+    // Simuler un utilisateur pour la démo
+    appState.user = { uid: 'demo_user' };
+    appState.userProfile = {
+        username: 'Utilisateur Démo',
+        avatar: 'https://randomuser.me/api/portraits/lego/1.jpg',
+        coins: 100
     };
-}
-
-function handleSearch() {
-    console.log('Recherche en cours...');
-}
-
-async function initApp() {
-    try {
-        console.log('🚀 Initialisation de TikTok Clone (Mode Démo)...');
-        
-        if (document.readyState !== 'loading') {
-            await setupApp();
-        } else {
-            document.addEventListener('DOMContentLoaded', setupApp);
-        }
-        
-    } catch (error) {
-        console.error('❌ Erreur initialisation:', error);
-        showNotification('Erreur de connexion à Firebase', 'error');
-        
-        appState.user = null;
-        appState.videos = demoVideos;
-        renderVideos();
-        const loadingScreen = document.getElementById('loadingScreen');
-        if (loadingScreen) loadingScreen.style.display = 'none';
-        showApp();
-    }
-}
-
-// ==================== STREAMING (SIMULATION) ====================
-async function startLiveStream() {
-    const title = document.getElementById('liveTitle').value.trim();
     
-    if (!title) {
-        showNotification('Veuillez entrer un titre', 'error');
-        return;
+    // Mettre à jour l'UI
+    const userAvatar = document.getElementById('userAvatar');
+    const coinBalance = document.getElementById('coinBalance');
+    
+    if (userAvatar && appState.userProfile.avatar) {
+        userAvatar.src = appState.userProfile.avatar;
     }
     
-    if (!appState.user) {
-        showLoginModal();
-        return;
+    if (coinBalance) {
+        const span = coinBalance.querySelector('span');
+        if (span) span.textContent = appState.userProfile.coins;
     }
     
-    try {
-        showNotification('Live démarré! Les spectateurs peuvent maintenant vous rejoindre.', 'success');
-        closeLiveSetup();
-        
-        const appContainer = document.getElementById('appContainer');
-        const liveInterface = document.getElementById('liveInterface');
-        const streamerName = document.getElementById('streamerName');
-        const streamerAvatar = document.getElementById('streamerAvatar');
-        
-        if (appContainer) appContainer.style.display = 'none';
-        if (liveInterface) liveInterface.style.display = 'block';
-        if (streamerName) streamerName.textContent = appState.userProfile.username;
-        if (streamerAvatar) streamerAvatar.src = appState.userProfile.avatar;
-        
-        appState.isLive = true;
-        
-    } catch (error) {
-        console.error('Erreur démarrage live:', error);
-        showNotification('Erreur lors du démarrage du live: ' + error.message, 'error');
-    }
-}
-
-async function endLiveStream() {
-    try {
-        appState.isLive = false;
-        
-        const appContainer = document.getElementById('appContainer');
-        const liveInterface = document.getElementById('liveInterface');
-        
-        if (appContainer) appContainer.style.display = 'block';
-        if (liveInterface) liveInterface.style.display = 'none';
-        
-        showNotification('Live terminé avec succès', 'success');
-        
-    } catch (error) {
-        console.error('Erreur arrêt live:', error);
-        showNotification('Erreur lors de l\'arrêt du live', 'error');
-    }
-}
-
-// ==================== CADEAUX ====================
-function openGiftShopForVideo(videoId, receiverId) {
-    appState.selectedVideoForGift = videoId;
-    appState.selectedReceiverForGift = receiverId;
-    openGiftShop();
-}
-
-async function sendGift() {
-    if (!appState.user || !appState.selectedGift) {
-        showLoginModal();
-        return;
-    }
-    
-    const giftMessage = document.getElementById('giftMessage').value;
-    const userCoins = appState.userProfile.coins || 0;
-    
-    if (userCoins < appState.selectedGift.price) {
-        showNotification('Solde insuffisant!', 'error');
-        return;
-    }
-    
-    try {
-        showNotification('Cadeau envoyé avec succès!', 'success');
-        closeGiftShop();
-        
-    } catch (error) {
-        console.error('Erreur envoi cadeau:', error);
-        showNotification('Erreur lors de l\'envoi du cadeau', 'error');
-    }
+    console.log('✅ Application initialisée (Mode Démo)');
 }
 
 // ==================== EXPORT GLOBAL ====================
+
+// Exposer toutes les fonctions globalement
 window.appState = appState;
-window.switchAuthTab = switchAuthTab;
+window.openFilePicker = openFilePicker;
+window.toggleUserMenu = toggleUserMenu;
+window.openProfile = openProfile;
+window.openWallet = openWallet;
+window.openSettings = openSettings;
+window.openCoinShop = openCoinShop;
+window.showForgotPassword = showForgotPassword;
+window.startRecording = startRecording;
 window.hideLoginModal = hideLoginModal;
-window.showLoginModal = showLoginModal;
-window.login = login;
-window.register = register;
-window.loginWithGoogle = loginWithGoogle;
-window.logout = logout;
 window.openCreateModal = openCreateModal;
 window.closeCreateModal = closeCreateModal;
-window.publishVideo = publishVideo;
-window.handleLike = handleLike;
-window.handleShare = handleShare;
-window.openComments = openComments;
-window.closeComments = closeComments;
-window.toggleComments = toggleComments;
-window.postComment = postComment;
-window.openGiftShopForVideo = openGiftShopForVideo;
-window.sendGift = sendGift;
-window.selectGift = selectGift;
-window.startLiveStream = startLiveStream;
-window.endLiveStream = endLiveStream;
+window.openLiveSetup = openLiveSetup;
+window.closeLiveSetup = closeLiveSetup;
 window.openGiftShop = openGiftShop;
 window.closeGiftShop = closeGiftShop;
+window.selectGift = selectGift;
+window.sendGift = sendGift;
+window.openGiftShopForVideo = openGiftShopForVideo;
+window.publishVideo = publishVideo;
+window.openComments = openComments;
+window.closeComments = closeComments;
+window.postComment = postComment;
+window.handleLike = handleLike;
+window.handleShare = handleShare;
+window.startLiveStream = startLiveStream;
+window.endLiveStream = endLiveStream;
 
-// Initialiser l'application
+// Démarrer l'application
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-        setTimeout(initApp, 100);
-    });
+    document.addEventListener('DOMContentLoaded', initApp);
 } else {
     setTimeout(initApp, 100);
 }
