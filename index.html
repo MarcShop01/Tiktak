@@ -24,12 +24,8 @@
         <div class="modal-content auth-modal">
             <span class="close-btn" onclick="hideLoginModal()">&times;</span>
             <div class="auth-tabs">
-                <button type="button" class="auth-tab active" id="loginTabBtn" onclick="switchAuthTab('login')">
-                    Connexion
-                </button>
-                <button type="button" class="auth-tab" id="registerTabBtn" onclick="switchAuthTab('register')">
-                    Inscription
-                </button>
+                <div class="auth-tab active" onclick="switchAuthTab('login')">Connexion</div>
+                <div class="auth-tab" onclick="switchAuthTab('register')">Inscription</div>
             </div>
             
             <form id="loginForm" class="auth-form" onsubmit="login(event); return false;">
@@ -406,7 +402,7 @@
         <div id="notificationsContainer" class="notifications-container"></div>
     </div>
 
-    <!-- ========== FIREBASE V8 (Compatibilité) ========== -->
+    <!-- ========== FIREBASE V8 (Compatibilité maximale) ========== -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
@@ -418,39 +414,30 @@
     <script src="script.js"></script>
     
     <script>
-        // Fonctions UI de base (évite les erreurs de référence)
+        // Fonctions UI de base
         function openFilePicker() {
-            const videoInput = document.getElementById('videoInput');
-            if (videoInput) videoInput.click();
+            document.getElementById('videoInput').click();
         }
         
         function toggleUserMenu() {
             const dropdown = document.getElementById('userDropdown');
-            if (dropdown) {
-                dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
-            }
+            dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
         }
         
         function hideLoginModal() {
-            const loginModal = document.getElementById('loginModal');
-            if (loginModal) loginModal.style.display = 'none';
+            document.getElementById('loginModal').style.display = 'none';
         }
         
         function openCreateModal() {
             if (!window.appState || !window.appState.user) {
-                const loginModal = document.getElementById('loginModal');
-                if (loginModal) loginModal.style.display = 'block';
+                document.getElementById('loginModal').style.display = 'block';
                 return;
             }
-            const createModal = document.getElementById('createModal');
-            if (createModal) createModal.style.display = 'block';
+            document.getElementById('createModal').style.display = 'block';
         }
         
         function closeCreateModal() {
-            const modal = document.getElementById('createModal');
-            if (!modal) return;
-            
-            modal.style.display = 'none';
+            document.getElementById('createModal').style.display = 'none';
             document.getElementById('videoCaption').value = '';
             document.getElementById('previewVideo').style.display = 'none';
             document.getElementById('previewVideo').src = '';
@@ -470,29 +457,22 @@
         
         function openLiveSetup() {
             if (!window.appState || !window.appState.user) {
-                const loginModal = document.getElementById('loginModal');
-                if (loginModal) loginModal.style.display = 'block';
+                document.getElementById('loginModal').style.display = 'block';
                 return;
             }
-            const liveSetupModal = document.getElementById('liveSetupModal');
-            if (liveSetupModal) liveSetupModal.style.display = 'block';
+            document.getElementById('liveSetupModal').style.display = 'block';
         }
         
         function closeLiveSetup() {
-            const modal = document.getElementById('liveSetupModal');
-            if (modal) modal.style.display = 'none';
+            document.getElementById('liveSetupModal').style.display = 'none';
         }
         
         function openGiftShop() {
-            const modal = document.getElementById('giftShopModal');
-            if (modal) modal.style.display = 'block';
+            document.getElementById('giftShopModal').style.display = 'block';
         }
         
         function closeGiftShop() {
-            const modal = document.getElementById('giftShopModal');
-            if (!modal) return;
-            
-            modal.style.display = 'none';
+            document.getElementById('giftShopModal').style.display = 'none';
             document.getElementById('selectedGift').style.display = 'none';
             document.getElementById('giftMessage').value = '';
             document.querySelectorAll('.gift-item').forEach(item => {
@@ -507,8 +487,7 @@
             });
             
             // Sélectionner le cadeau cliqué
-            const element = event.currentTarget;
-            if (element) element.classList.add('selected');
+            event.currentTarget.classList.add('selected');
             
             // Mettre à jour l'affichage
             const iconMap = {
@@ -564,95 +543,100 @@
             alert('Commentaires - Fonctionnalité à venir');
         }
         
-        // Gestionnaire de fichier vidéo
-        document.addEventListener('DOMContentLoaded', function() {
-            const videoInput = document.getElementById('videoInput');
-            if (videoInput) {
-                videoInput.addEventListener('change', function(event) {
-                    const file = event.target.files[0];
-                    if (!file) return;
-                    
-                    // Vérifier la taille (max 100MB)
-                    const maxSize = 100 * 1024 * 1024; // 100MB
-                    if (file.size > maxSize) {
-                        alert('Le fichier est trop volumineux (max 100MB)');
-                        return;
-                    }
-                    
-                    // Mettre à jour l'affichage du fichier
-                    const fileInfo = document.getElementById('videoFileInfo');
-                    if (fileInfo) {
-                        fileInfo.innerHTML = `
-                            <i class="fas fa-file-video"></i>
-                            <span>${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB)</span>
-                        `;
-                    }
-                    
-                    // Activer le bouton de publication
-                    const publishBtn = document.getElementById('publishBtn');
-                    if (publishBtn) publishBtn.disabled = false;
-                    
-                    // Afficher la prévisualisation
-                    const previewVideo = document.getElementById('previewVideo');
-                    if (previewVideo) {
-                        previewVideo.style.display = 'block';
-                        previewVideo.src = URL.createObjectURL(file);
-                        previewVideo.load();
-                        
-                        // Cacher le placeholder
-                        const placeholder = document.querySelector('.preview-placeholder');
-                        if (placeholder) placeholder.style.display = 'none';
-                        
-                        // Générer et afficher la miniature
-                        previewVideo.addEventListener('loadeddata', function() {
-                            const canvas = document.createElement('canvas');
-                            canvas.width = previewVideo.videoWidth || 400;
-                            canvas.height = previewVideo.videoHeight || 600;
-                            const ctx = canvas.getContext('2d');
-                            ctx.drawImage(previewVideo, 0, 0, canvas.width, canvas.height);
-                            
-                            canvas.toBlob(function(blob) {
-                                const thumbnailPreview = document.getElementById('thumbnailPreview');
-                                if (thumbnailPreview) {
-                                    thumbnailPreview.style.display = 'block';
-                                    thumbnailPreview.src = URL.createObjectURL(blob);
-                                    
-                                    // Stocker dans l'état global
-                                    if (window.appState) {
-                                        window.appState.currentVideoFile = file;
-                                        window.appState.currentThumbnailBlob = blob;
-                                    }
-                                }
-                            }, 'image/jpeg', 0.8);
-                        });
-                    }
-                });
-            }
-            
-            // Fermer les modales en cliquant à l'extérieur
-            document.addEventListener('click', function(event) {
-                // Fermer le menu utilisateur
-                const userMenu = document.getElementById('userMenu');
-                const dropdown = document.getElementById('userDropdown');
-                
-                if (userMenu && dropdown && !userMenu.contains(event.target) && !dropdown.contains(event.target)) {
-                    dropdown.style.display = 'none';
-                }
-                
-                // Fermer les modales
-                const modals = document.querySelectorAll('.modal-overlay');
-                modals.forEach(modal => {
-                    if (modal.style.display === 'flex' && event.target === modal) {
-                        modal.style.display = 'none';
-                    }
-                });
+        function switchAuthTab(tab) {
+            // Désactiver tous les onglets
+            document.querySelectorAll('.auth-tab').forEach(tabElement => {
+                tabElement.classList.remove('active');
             });
             
-            // Empêcher la fermeture des modales en cliquant à l'intérieur
-            document.querySelectorAll('.modal-content').forEach(modalContent => {
-                modalContent.addEventListener('click', function(event) {
-                    event.stopPropagation();
-                });
+            // Masquer tous les formulaires
+            document.querySelectorAll('.auth-form').forEach(form => {
+                form.style.display = 'none';
+            });
+            
+            // Activer l'onglet cliqué
+            event.currentTarget.classList.add('active');
+            
+            // Afficher le formulaire correspondant
+            document.getElementById(`${tab}Form`).style.display = 'block';
+        }
+        
+        // Gestionnaire de fichier vidéo
+        document.getElementById('videoInput')?.addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            // Vérifier la taille (max 100MB)
+            const maxSize = 100 * 1024 * 1024; // 100MB
+            if (file.size > maxSize) {
+                alert('Le fichier est trop volumineux (max 100MB)');
+                return;
+            }
+            
+            // Mettre à jour l'affichage du fichier
+            const fileInfo = document.getElementById('videoFileInfo');
+            fileInfo.innerHTML = `
+                <i class="fas fa-file-video"></i>
+                <span>${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB)</span>
+            `;
+            
+            // Activer le bouton de publication
+            document.getElementById('publishBtn').disabled = false;
+            
+            // Afficher la prévisualisation
+            const previewVideo = document.getElementById('previewVideo');
+            previewVideo.style.display = 'block';
+            previewVideo.src = URL.createObjectURL(file);
+            previewVideo.load();
+            
+            // Cacher le placeholder
+            document.querySelector('.preview-placeholder').style.display = 'none';
+            
+            // Générer et afficher la miniature
+            previewVideo.addEventListener('loadeddata', function() {
+                const canvas = document.createElement('canvas');
+                canvas.width = previewVideo.videoWidth || 400;
+                canvas.height = previewVideo.videoHeight || 600;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(previewVideo, 0, 0, canvas.width, canvas.height);
+                
+                canvas.toBlob(function(blob) {
+                    const thumbnailPreview = document.getElementById('thumbnailPreview');
+                    thumbnailPreview.style.display = 'block';
+                    thumbnailPreview.src = URL.createObjectURL(blob);
+                    
+                    // Stocker dans l'état global
+                    if (window.appState) {
+                        window.appState.currentVideoFile = file;
+                        window.appState.currentThumbnailBlob = blob;
+                    }
+                }, 'image/jpeg', 0.8);
+            });
+        });
+        
+        // Fermer les modales en cliquant à l'extérieur
+        document.addEventListener('click', function(event) {
+            // Fermer le menu utilisateur
+            const userMenu = document.getElementById('userMenu');
+            const dropdown = document.getElementById('userDropdown');
+            
+            if (userMenu && dropdown && !userMenu.contains(event.target) && !dropdown.contains(event.target)) {
+                dropdown.style.display = 'none';
+            }
+            
+            // Fermer les modales
+            const modals = document.querySelectorAll('.modal-overlay');
+            modals.forEach(modal => {
+                if (modal.style.display === 'flex' && event.target === modal) {
+                    modal.style.display = 'none';
+                }
+            });
+        });
+        
+        // Empêcher la fermeture des modales en cliquant à l'intérieur
+        document.querySelectorAll('.modal-content').forEach(modalContent => {
+            modalContent.addEventListener('click', function(event) {
+                event.stopPropagation();
             });
         });
     </script>
