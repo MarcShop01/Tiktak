@@ -418,7 +418,7 @@
     <script src="script.js"></script>
     
     <script>
-        // Fonctions UI de base (évite les erreurs de référence)
+        // Fonctions UI de base
         function openFilePicker() {
             const videoInput = document.getElementById('videoInput');
             if (videoInput) videoInput.click();
@@ -560,10 +560,6 @@
             alert('Enregistrement vidéo - Fonctionnalité à venir');
         }
         
-        function openComments(videoId) {
-            alert('Commentaires - Fonctionnalité à venir');
-        }
-        
         // Gestionnaire de fichier vidéo
         document.addEventListener('DOMContentLoaded', function() {
             const videoInput = document.getElementById('videoInput');
@@ -657,18 +653,4 @@
         });
     </script>
 </body>
-</html><!-- Fenêtre modale de création -->
-<div id="createModal" class="modal">
-  <div class="modal-content">
-    <span onclick="closeCreateModal()" class="close">&times;</span>
-    <h2>Créer une nouvelle vidéo</h2>
-    <form id="createForm">
-      <input type="text" placeholder="Titre de la vidéo" required>
-      <textarea placeholder="Description" required></textarea>
-      <button type="submit">Publier</button>
-    </form>
-  </div>
-</div>
-
-
-
+</html>
