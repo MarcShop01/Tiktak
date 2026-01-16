@@ -39,6 +39,45 @@ function closeCreateModal() {
     }
 }
 
+// ==================== FONCTION SELECTGIFT ====================
+
+// Fonction pour sélectionner un cadeau
+function selectGift(type, price) {
+    // Désélectionner tous les cadeaux
+    document.querySelectorAll('.gift-item').forEach(item => {
+        item.classList.remove('selected');
+    });
+    
+    // Sélectionner le cadeau cliqué
+    const element = event.currentTarget;
+    if (element) element.classList.add('selected');
+    
+    // Mettre à jour l'affichage
+    const iconMap = {
+        'rose': '🌹',
+        'crown': '👑',
+        'diamond': '💎',
+        'rocket': '🚀'
+    };
+    
+    const nameMap = {
+        'rose': 'Rose',
+        'crown': 'Couronne',
+        'diamond': 'Diamant',
+        'rocket': 'Fusée'
+    };
+    
+    document.getElementById('selectedGiftIcon').textContent = iconMap[type] || '🎁';
+    document.getElementById('selectedGiftName').textContent = nameMap[type] || 'Cadeau';
+    document.getElementById('selectedGiftPrice').textContent = price;
+    document.getElementById('selectedGift').style.display = 'block';
+    
+    // Stocker dans l'état global
+    if (window.appState) {
+        window.appState.selectedGift = { type, price };
+    }
+}
+
 // ==================== CONFIGURATION FIREBASE V8 ====================
 const firebaseConfig = {
     apiKey: "AIzaSyD6UBg16fK3WP6ttzzmGMLglruXO4-KEzA",
