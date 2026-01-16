@@ -35,7 +35,9 @@ const appState = {
     selectedGift: null,
     notifications: [],
     selectedVideoForGift: null,
-    selectedReceiverForGift: null
+    selectedReceiverForGift: null,
+    currentVideoFile: null,
+    currentThumbnailBlob: null
 };
 
 // Données de démo (à utiliser si Firebase n'est pas encore configuré)
@@ -115,6 +117,15 @@ async function testFirebaseConnection() {
         // Test Firestore
         const testDoc = await db.collection('test').doc('connection').get();
         console.log('✅ Connexion Firestore OK');
+        
+        // Test Storage (si activé)
+        try {
+            const storageRef = storage.ref();
+            console.log('✅ Connexion Storage OK');
+        } catch (storageError) {
+            console.log('⚠️ Storage non configuré - veuillez activer le forfait Blaze');
+            showNotification('Storage non configuré. Activez le forfait Blaze dans la console Firebase.', 'warning');
+        }
     } catch (error) {
         console.log('⚠️ Firestore non configuré, mode démo activé');
     }
@@ -279,7 +290,132 @@ async function createUserProfile(user, username) {
     }
 }
 
-// ==================== VIDÉOS ====================
+// ==================== FONCTIONS STORAGE ====================
+async function uploadVideoToStorage(file, userId) {
+    try {
+        console.log('📤 Upload de la vidéo vers Firebase Storage...');
+        
+        // Créer une référence pour le fichier
+        const storageRef = storage.ref();
+        const videoRef = storageRef.child(`videos/${userId}/${Date.now()}_${file.name}`);
+        
+        // Upload le fichier
+        const uploadTask = videoRef.put(file);
+        
+        // Retourner une promesse pour suivre la progression
+        return new Promise((resolve, reject) => {
+            uploadTask.on('state_changed',
+                (snapshot) => {
+                    // Progression de l'upload
+                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                    console.log(`📊 Progression: ${progress.toFixed(2)}%`);
+                    
+                    // Mettre à jour la barre de progression si elle existe
+                    const progressBar = document.getElementById('uploadProgress');
+                    if (progressBar) {
+                        progressBar.style.width = `${progress}%`;
+                        progressBar.textContent = `${Math.round(progress)}%`;
+                    }
+                },
+                (error) => {
+                    console.error('❌ Erreur upload:', error);
+                    reject(error);
+                },
+                async () => {
+                    // Upload terminé avec succès
+                    const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
+                    console.log('✅ Vidéo uploadée avec succès:', downloadURL);
+                    
+                    resolve({
+                        url: downloadURL,
+                        path: uploadTask.snapshot.ref.fullPath,
+                        fileName: file.name
+                    });
+                }
+            );
+        });
+        
+    } catch (error) {
+        console.error('❌ Erreur upload vidéo:', error);
+        throw error;
+    }
+}
+
+async function uploadImageToStorage(file, userId) {
+    try {
+        console.log('📤 Upload de l\'image vers Firebase Storage...');
+        
+        // Créer une référence pour le fichier
+        const storageRef = storage.ref();
+        const imageRef = storageRef.child(`thumbnails/${userId}/${Date.now()}_${file.name}`);
+        
+        // Upload le fichier
+        const uploadTask = imageRef.put(file);
+        
+        // Retourner une promesse pour suivre la progression
+        return new Promise((resolve, reject) => {
+            uploadTask.on('state_changed',
+                (snapshot) => {
+                    // Progression de l'upload
+                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                    console.log(`📊 Progression: ${progress.toFixed(2)}%`);
+                },
+                (error) => {
+                    console.error('❌ Erreur upload:', error);
+                    reject(error);
+                },
+                async () => {
+                    // Upload terminé avec succès
+                    const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
+                    console.log('✅ Image uploadée avec succès:', downloadURL);
+                    
+                    resolve({
+                        url: downloadURL,
+                        path: uploadTask.snapshot.ref.fullPath,
+                        fileName: file.name
+                    });
+                }
+            );
+        });
+        
+    } catch (error) {
+        console.error('❌ Erreur upload image:', error);
+        throw error;
+    }
+}
+
+async function uploadAvatarToStorage(file, userId) {
+    try {
+        console.log('📤 Upload de l\'avatar vers Firebase Storage...');
+        
+        // Créer une référence pour le fichier
+        const storageRef = storage.ref();
+        const avatarRef = storageRef.child(`avatars/${userId}/${Date.now()}_${file.name}`);
+        
+        // Upload le fichier
+        const uploadTask = avatarRef.put(file);
+        
+        // Retourner une promesse
+        return new Promise((resolve, reject) => {
+            uploadTask.on('state_changed',
+                null,
+                (error) => {
+                    reject(error);
+                },
+                async () => {
+                    const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
+                    resolve(downloadURL);
+                }
+            );
+        });
+        
+    } catch (error) {
+        console.error('❌ Erreur upload avatar:', error);
+        throw error;
+    }
+}
+
+// ==================== GESTION DES VIDÉOS ====================
 async function loadVideos() {
     try {
         console.log('📹 Chargement des vidéos...');
@@ -418,7 +554,7 @@ async function publishVideo() {
     const isMonetized = document.getElementById('monetizeVideo').checked;
     const privacy = document.getElementById('videoPrivacy').value;
     
-    if (!videoPreview || !videoPreview.src) {
+    if (!appState.currentVideoFile) {
         showNotification('Veuillez sélectionner une vidéo', 'error');
         return;
     }
@@ -431,15 +567,44 @@ async function publishVideo() {
     try {
         showNotification('Publication en cours...', 'info');
         
-        // Pour le moment, on utilise une URL de démo
-        // En production, vous uploaderez vers Firebase Storage
-        const videoUrl = videoPreview.src;
-        const thumbnailUrl = 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=400&h=600&fit=crop';
+        // Afficher la barre de progression
+        showUploadProgress();
         
-        // Extraire les hashtags
+        let videoUrl, thumbnailUrl;
+        
+        // 1. Upload de la vidéo vers Firebase Storage
+        try {
+            const videoUploadResult = await uploadVideoToStorage(appState.currentVideoFile, appState.user.uid);
+            videoUrl = videoUploadResult.url;
+            console.log('✅ Vidéo uploadée:', videoUrl);
+        } catch (uploadError) {
+            console.error('❌ Erreur upload vidéo:', uploadError);
+            
+            // Mode dégradé : utiliser une URL de démo
+            showNotification('Erreur upload vidéo, mode démo activé', 'warning');
+            videoUrl = "https://assets.mixkit.co/videos/preview/mixkit-woman-dancing-under-neon-lights-1230-large.mp4";
+        }
+        
+        // 2. Upload de la miniature vers Firebase Storage
+        if (appState.currentThumbnailBlob) {
+            try {
+                const thumbnailFile = new File([appState.currentThumbnailBlob], 'thumbnail.jpg', { type: 'image/jpeg' });
+                const thumbnailUploadResult = await uploadImageToStorage(thumbnailFile, appState.user.uid);
+                thumbnailUrl = thumbnailUploadResult.url;
+                console.log('✅ Miniature uploadée:', thumbnailUrl);
+            } catch (thumbnailError) {
+                console.error('❌ Erreur upload miniature:', thumbnailError);
+                thumbnailUrl = 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=400&h=600&fit=crop';
+            }
+        } else {
+            // Utiliser une miniature par défaut
+            thumbnailUrl = 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=400&h=600&fit=crop';
+        }
+        
+        // 3. Extraire les hashtags
         const tags = extractHashtags(caption);
         
-        // Créer la nouvelle vidéo
+        // 4. Créer la nouvelle vidéo
         const newVideo = {
             userId: appState.user.uid,
             username: appState.userProfile.username,
@@ -462,34 +627,131 @@ async function publishVideo() {
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
         
-        // Enregistrer dans Firestore
+        // 5. Enregistrer dans Firestore
         const videoRef = await db.collection('videos').add(newVideo);
         const videoId = videoRef.id;
         
-        // Incrémenter le compteur de vidéos de l'utilisateur
+        // 6. Incrémenter le compteur de vidéos de l'utilisateur
         await db.collection('users').doc(appState.user.uid).update({
             videosCount: firebase.firestore.FieldValue.increment(1),
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         
-        // Ajouter la vidéo à la liste locale
+        // 7. Ajouter la vidéo à la liste locale
         appState.videos.unshift({
             id: videoId,
             ...newVideo
         });
         
-        // Re-rendre les vidéos
+        // 8. Re-rendre les vidéos
         renderVideos();
         
+        // 9. Cacher la barre de progression
+        hideUploadProgress();
+        
+        // 10. Fermer le modal et montrer la notification
         closeCreateModal();
         showNotification('Vidéo publiée avec succès!', 'success');
         
-        // Faire défiler vers le haut
+        // 11. Réinitialiser les fichiers
+        appState.currentVideoFile = null;
+        appState.currentThumbnailBlob = null;
+        
+        // 12. Faire défiler vers le haut
         window.scrollTo(0, 0);
         
     } catch (error) {
-        console.error('Erreur publication:', error);
+        console.error('❌ Erreur publication:', error);
+        hideUploadProgress();
         showNotification('Erreur lors de la publication: ' + error.message, 'error');
+    }
+}
+
+// ==================== GESTION DU TÉLÉVERSEMENT ====================
+function handleVideoUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Vérifier la taille du fichier (max 50MB)
+    const maxSize = 50 * 1024 * 1024; // 50MB
+    if (file.size > maxSize) {
+        showNotification('La vidéo est trop grande (max 50MB)', 'error');
+        return;
+    }
+
+    // Vérifier le type de fichier
+    if (!file.type.includes('video/')) {
+        showNotification('Veuillez sélectionner un fichier vidéo', 'error');
+        return;
+    }
+
+    // Sauvegarder le fichier
+    appState.currentVideoFile = file;
+
+    // Afficher la prévisualisation
+    const videoPreview = document.getElementById('previewVideo');
+    if (videoPreview) {
+        videoPreview.src = URL.createObjectURL(file);
+        videoPreview.load();
+        
+        // Générer une miniature automatiquement
+        videoPreview.addEventListener('loadeddata', function() {
+            generateThumbnail(videoPreview).then(thumbnailBlob => {
+                // Afficher la miniature
+                const thumbnailPreview = document.getElementById('thumbnailPreview');
+                if (thumbnailPreview) {
+                    thumbnailPreview.src = URL.createObjectURL(thumbnailBlob);
+                }
+                // Stocker le blob de la miniature
+                appState.currentThumbnailBlob = thumbnailBlob;
+            });
+        });
+    }
+
+    // Activer le bouton de publication
+    const publishBtn = document.getElementById('publishBtn');
+    if (publishBtn) {
+        publishBtn.disabled = false;
+    }
+
+    console.log('✅ Vidéo sélectionnée:', file.name, file.size);
+}
+
+async function generateThumbnail(videoElement) {
+    return new Promise((resolve) => {
+        const canvas = document.createElement('canvas');
+        canvas.width = videoElement.videoWidth;
+        canvas.height = videoElement.videoHeight;
+        
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+        
+        canvas.toBlob((blob) => {
+            resolve(blob);
+        }, 'image/jpeg', 0.8);
+    });
+}
+
+function showUploadProgress() {
+    const progressContainer = document.getElementById('uploadProgressContainer');
+    const progressBar = document.getElementById('uploadProgress');
+    
+    if (progressContainer) {
+        progressContainer.style.display = 'block';
+    }
+    
+    if (progressBar) {
+        progressBar.style.width = '0%';
+        progressBar.textContent = '0%';
+    }
+}
+
+function hideUploadProgress() {
+    const progressContainer = document.getElementById('uploadProgressContainer');
+    if (progressContainer) {
+        setTimeout(() => {
+            progressContainer.style.display = 'none';
+        }, 1000);
     }
 }
 
@@ -1010,6 +1272,48 @@ function debounce(func, wait) {
         clearTimeout(timeout);
         timeout = setTimeout(later, wait);
     };
+}
+
+// ==================== FONCTIONS UI (À AJOUTER DANS VOTRE HTML SI ABSENTES) ====================
+function openCreateModal() {
+    if (!appState.user) {
+        showLoginModal();
+        return;
+    }
+    document.getElementById('createModal').style.display = 'block';
+}
+
+function closeCreateModal() {
+    document.getElementById('createModal').style.display = 'none';
+    // Réinitialiser le formulaire
+    document.getElementById('videoCaption').value = '';
+    document.getElementById('previewVideo').src = '';
+    document.getElementById('thumbnailPreview').src = '';
+    appState.currentVideoFile = null;
+    appState.currentThumbnailBlob = null;
+}
+
+function showLoginModal() {
+    document.getElementById('loginModal').style.display = 'block';
+}
+
+function hideLoginModal() {
+    document.getElementById('loginModal').style.display = 'none';
+}
+
+function showApp() {
+    document.getElementById('appContainer').style.display = 'block';
+}
+
+function hideApp() {
+    document.getElementById('appContainer').style.display = 'none';
+}
+
+function switchAuthTab(tab) {
+    document.querySelectorAll('.auth-form').forEach(form => {
+        form.style.display = 'none';
+    });
+    document.getElementById(`${tab}Form`).style.display = 'block';
 }
 
 // ==================== INITIALISATION ====================
