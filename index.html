@@ -436,38 +436,6 @@
             if (loginModal) loginModal.style.display = 'none';
         }
         
-        function openCreateModal() {
-            if (!window.appState || !window.appState.user) {
-                const loginModal = document.getElementById('loginModal');
-                if (loginModal) loginModal.style.display = 'block';
-                return;
-            }
-            const createModal = document.getElementById('createModal');
-            if (createModal) createModal.style.display = 'block';
-        }
-        
-        function closeCreateModal() {
-            const modal = document.getElementById('createModal');
-            if (!modal) return;
-            
-            modal.style.display = 'none';
-            document.getElementById('videoCaption').value = '';
-            document.getElementById('previewVideo').style.display = 'none';
-            document.getElementById('previewVideo').src = '';
-            document.getElementById('thumbnailPreview').style.display = 'none';
-            document.getElementById('thumbnailPreview').src = '';
-            document.getElementById('uploadProgressContainer').style.display = 'none';
-            document.getElementById('uploadProgressFill').style.width = '0%';
-            document.getElementById('uploadProgressText').textContent = '0%';
-            document.getElementById('uploadPercentage').textContent = '0%';
-            document.getElementById('uploadStatus').textContent = 'Préparation de l\'upload...';
-            document.getElementById('publishBtn').disabled = true;
-            document.getElementById('videoFileInfo').innerHTML = '<i class="fas fa-file-video"></i><span>Aucun fichier sélectionné</span>';
-            document.getElementById('monetizeVideo').checked = false;
-            document.getElementById('videoPrivacy').value = 'public';
-            document.querySelector('.preview-placeholder').style.display = 'flex';
-        }
-        
         function openLiveSetup() {
             if (!window.appState || !window.appState.user) {
                 const loginModal = document.getElementById('loginModal');
