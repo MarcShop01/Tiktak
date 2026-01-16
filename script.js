@@ -12,12 +12,14 @@ const firebaseConfig = {
 // Initialiser Firebase (syntaxe v8)
 firebase.initializeApp(firebaseConfig);
 
-// Services Firebase
+// Services Firebase (SANS Storage)
 const auth = firebase.auth();
 const db = firebase.firestore();
-const storage = firebase.storage();
 const functions = firebase.functions();
 const analytics = firebase.analytics();
+
+// NE PAS initialiser storage puisque vous n'avez pas activé le forfait Blaze
+// const storage = firebase.storage();
 
 // État de l'application
 const appState = {
@@ -40,8 +42,8 @@ const appState = {
     currentThumbnailBlob: null
 };
 
-// Données de démo
-const mockVideos = [
+// VIDÉOS DE DÉMO (gratuites et libres de droit)
+const demoVideos = [
     {
         id: "1",
         videoUrl: "https://assets.mixkit.co/videos/preview/mixkit-woman-dancing-under-neon-lights-1230-large.mp4",
@@ -55,12 +57,52 @@ const mockVideos = [
         shares: 543,
         views: 54000,
         duration: 45,
-        createdAt: new Date(Date.now() - 86400000).toISOString(),
+        createdAt: new Date(Date.now() - 86400000),
         isMonetized: true,
         likesCount: 12400,
         commentsCount: 1200,
         sharesCount: 543,
         viewsCount: 54000
+    },
+    {
+        id: "2",
+        videoUrl: "https://assets.mixkit.co/videos/preview/mixkit-man-doing-tricks-with-skateboard-in-a-parking-lot-34553-large.mp4",
+        thumbnailUrl: "https://images.unsplash.com/photo-1547447134-cd3f5c716030?w=400&h=600&fit=crop",
+        userId: "user2",
+        username: "skatepro",
+        userAvatar: "https://randomuser.me/api/portraits/men/32.jpg",
+        caption: "Nouveau trick au skatepark ! #skate #trick",
+        likes: 8900,
+        comments: 450,
+        shares: 210,
+        views: 32000,
+        duration: 28,
+        createdAt: new Date(Date.now() - 43200000),
+        isMonetized: false,
+        likesCount: 8900,
+        commentsCount: 450,
+        sharesCount: 210,
+        viewsCount: 32000
+    },
+    {
+        id: "3",
+        videoUrl: "https://assets.mixkit.co/videos/preview/mixkit-tree-with-yellow-flowers-1173-large.mp4",
+        thumbnailUrl: "https://images.unsplash.com/photo-1465146344425-f00d5f5c8f07?w=400&h=600&fit=crop",
+        userId: "user3",
+        username: "naturelover",
+        userAvatar: "https://randomuser.me/api/portraits/women/67.jpg",
+        caption: "Beauté de la nature au printemps 🌸 #nature #printemps",
+        likes: 15600,
+        comments: 890,
+        shares: 430,
+        views: 78000,
+        duration: 32,
+        createdAt: new Date(Date.now() - 21600000),
+        isMonetized: true,
+        likesCount: 15600,
+        commentsCount: 890,
+        sharesCount: 430,
+        viewsCount: 78000
     }
 ];
 
@@ -77,7 +119,6 @@ function showLoginModal() {
     const loginModal = document.getElementById('loginModal');
     if (loginModal) {
         loginModal.style.display = 'flex';
-        // Réinitialiser à l'onglet login
         switchAuthTab('login');
     }
 }
@@ -85,7 +126,6 @@ function showLoginModal() {
 function switchAuthTab(tab) {
     console.log(`🎯 Changement d'onglet vers: ${tab}`);
     
-    // Vérifier que les éléments existent avant de les manipuler
     const loginForm = document.getElementById('loginForm');
     const registerForm = document.getElementById('registerForm');
     const loginTabBtn = document.getElementById('loginTabBtn');
@@ -96,15 +136,11 @@ function switchAuthTab(tab) {
         return;
     }
     
-    // Masquer tous les formulaires
     loginForm.style.display = 'none';
     registerForm.style.display = 'none';
-    
-    // Désactiver tous les onglets
     loginTabBtn.classList.remove('active');
     registerTabBtn.classList.remove('active');
     
-    // Afficher le formulaire correspondant
     if (tab === 'login') {
         loginForm.style.display = 'block';
         loginTabBtn.classList.add('active');
@@ -141,13 +177,11 @@ function updateCoinDisplay(coins) {
 }
 
 function updateUIForUser() {
-    // Mettre à jour l'avatar utilisateur
     const userAvatar = document.getElementById('userAvatar');
     if (userAvatar && appState.userProfile && appState.userProfile.avatar) {
         userAvatar.src = appState.userProfile.avatar;
     }
     
-    // Mettre à jour le solde de coins
     if (appState.userProfile) {
         updateCoinDisplay(appState.userProfile.coins || 0);
     }
@@ -172,7 +206,6 @@ async function login(event) {
         const userCredential = await auth.signInWithEmailAndPassword(email, password);
         console.log('✅ Connexion réussie pour:', userCredential.user.email);
         
-        // Les autres actions seront gérées par l'écouteur auth.onAuthStateChanged
     } catch (error) {
         console.error('❌ Erreur connexion:', error);
         showNotification(getAuthErrorMessage(error.code), 'error');
@@ -187,7 +220,6 @@ async function register(event) {
     const username = document.getElementById('registerUsername').value;
     const confirmPassword = document.getElementById('registerConfirmPassword').value;
     
-    // Validation
     if (!email || !password || !username || !confirmPassword) {
         showNotification('Veuillez remplir tous les champs', 'error');
         return;
@@ -211,13 +243,11 @@ async function register(event) {
     try {
         showNotification('Création du compte...', 'info');
         
-        // 1. Créer l'utilisateur avec Firebase Auth
         const userCredential = await auth.createUserWithEmailAndPassword(email, password);
         const user = userCredential.user;
         
         console.log('✅ Utilisateur créé:', user.uid);
         
-        // 2. Mettre à jour le profil Firebase Auth
         await user.updateProfile({
             displayName: username,
             photoURL: `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=ff0050&color=fff`
@@ -225,16 +255,12 @@ async function register(event) {
         
         console.log('✅ Profil Firebase Auth mis à jour');
         
-        // 3. Créer le document utilisateur dans Firestore
         await createUserProfile(user, username);
         
-        // 4. Montrer la notification de succès
         showNotification('Compte créé avec succès!', 'success');
         
-        // 5. Retourner à l'onglet login (avec un délai pour laisser voir le message)
         setTimeout(() => {
             switchAuthTab('login');
-            // Réinitialiser le formulaire
             document.getElementById('registerEmail').value = '';
             document.getElementById('registerPassword').value = '';
             document.getElementById('registerUsername').value = '';
@@ -284,7 +310,6 @@ async function loadUserProfile(userId) {
             appState.userProfile = userDoc.data();
             updateCoinDisplay(appState.userProfile.coins || 0);
             
-            // Mettre à jour l'avatar
             const userAvatar = document.getElementById('userAvatar');
             if (userAvatar && appState.userProfile.avatar) {
                 userAvatar.src = appState.userProfile.avatar;
@@ -292,12 +317,10 @@ async function loadUserProfile(userId) {
             
             console.log('✅ Profil utilisateur chargé');
         } else {
-            // Créer le profil s'il n'existe pas
             await createUserProfile(auth.currentUser, auth.currentUser.displayName);
         }
     } catch (error) {
         console.error('Erreur chargement profil:', error);
-        // Profil par défaut
         appState.userProfile = {
             uid: userId,
             username: auth.currentUser.displayName || 'Utilisateur',
@@ -345,121 +368,11 @@ async function createUserProfile(user, username) {
     }
 }
 
-// ==================== FONCTIONS STORAGE ====================
-async function uploadVideoToStorage(file, userId) {
-    try {
-        console.log('📤 Upload de la vidéo vers Firebase Storage...');
-        
-        // Afficher la barre de progression
-        const progressContainer = document.getElementById('uploadProgressContainer');
-        const uploadStatus = document.getElementById('uploadStatus');
-        if (progressContainer) progressContainer.style.display = 'block';
-        if (uploadStatus) uploadStatus.textContent = 'Upload de la vidéo...';
-        
-        // Créer une référence pour le fichier
-        const storageRef = storage.ref();
-        const videoRef = storageRef.child(`videos/${userId}/${Date.now()}_${file.name}`);
-        
-        // Upload le fichier
-        const uploadTask = videoRef.put(file);
-        
-        // Retourner une promesse pour suivre la progression
-        return new Promise((resolve, reject) => {
-            uploadTask.on('state_changed',
-                (snapshot) => {
-                    // Progression de l'upload
-                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                    console.log(`📊 Progression: ${progress.toFixed(2)}%`);
-                    
-                    // Mettre à jour la barre de progression
-                    const progressFill = document.getElementById('uploadProgressFill');
-                    const progressText = document.getElementById('uploadProgressText');
-                    const progressPercentage = document.getElementById('uploadPercentage');
-                    
-                    if (progressFill) progressFill.style.width = `${progress}%`;
-                    if (progressText) progressText.textContent = `${Math.round(progress)}%`;
-                    if (progressPercentage) progressPercentage.textContent = `${Math.round(progress)}%`;
-                },
-                (error) => {
-                    console.error('❌ Erreur upload:', error);
-                    reject(error);
-                },
-                async () => {
-                    // Upload terminé avec succès
-                    const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
-                    console.log('✅ Vidéo uploadée avec succès:', downloadURL);
-                    
-                    resolve({
-                        url: downloadURL,
-                        path: uploadTask.snapshot.ref.fullPath,
-                        fileName: file.name
-                    });
-                }
-            );
-        });
-        
-    } catch (error) {
-        console.error('❌ Erreur upload vidéo:', error);
-        throw error;
-    }
-}
-
-async function uploadImageToStorage(file, userId) {
-    try {
-        console.log('📤 Upload de l\'image vers Firebase Storage...');
-        
-        const uploadStatus = document.getElementById('uploadStatus');
-        if (uploadStatus) uploadStatus.textContent = 'Upload de la miniature...';
-        
-        // Créer une référence pour le fichier
-        const storageRef = storage.ref();
-        const imageRef = storageRef.child(`thumbnails/${userId}/${Date.now()}_${file.name}`);
-        
-        // Upload le fichier
-        const uploadTask = imageRef.put(file);
-        
-        // Retourner une promesse pour suivre la progression
-        return new Promise((resolve, reject) => {
-            uploadTask.on('state_changed',
-                (snapshot) => {
-                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                    const progressFill = document.getElementById('uploadProgressFill');
-                    const progressText = document.getElementById('uploadProgressText');
-                    const progressPercentage = document.getElementById('uploadPercentage');
-                    
-                    if (progressFill) progressFill.style.width = `${progress}%`;
-                    if (progressText) progressText.textContent = `${Math.round(progress)}%`;
-                    if (progressPercentage) progressPercentage.textContent = `${Math.round(progress)}%`;
-                },
-                (error) => {
-                    console.error('❌ Erreur upload:', error);
-                    reject(error);
-                },
-                async () => {
-                    const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
-                    console.log('✅ Image uploadée avec succès:', downloadURL);
-                    
-                    resolve({
-                        url: downloadURL,
-                        path: uploadTask.snapshot.ref.fullPath,
-                        fileName: file.name
-                    });
-                }
-            );
-        });
-        
-    } catch (error) {
-        console.error('❌ Erreur upload image:', error);
-        throw error;
-    }
-}
-
-// ==================== GESTION DES VIDÉOS ====================
+// ==================== VIDÉOS (MODE DÉMO - SANS STORAGE) ====================
 async function loadVideos() {
     try {
         console.log('📹 Chargement des vidéos...');
         
-        // Essayer de charger depuis Firestore
         const videosSnapshot = await db.collection('videos')
             .where('isPublic', '==', true)
             .orderBy('createdAt', 'desc')
@@ -475,17 +388,15 @@ async function loadVideos() {
             appState.videos = videos;
             console.log(`✅ ${videos.length} vidéos chargées depuis Firestore`);
         } else {
-            // Aucune vidéo dans Firestore, utiliser les données mock
             console.log('⚠️ Aucune vidéo dans Firestore, mode démo activé');
-            appState.videos = mockVideos;
+            appState.videos = demoVideos;
         }
         
         renderVideos();
         
     } catch (error) {
         console.error('Erreur chargement vidéos:', error);
-        // En cas d'erreur, utiliser les données de démo
-        appState.videos = mockVideos;
+        appState.videos = demoVideos;
         renderVideos();
         showNotification('Mode démo activé', 'info');
     }
@@ -516,7 +427,6 @@ function renderVideos() {
         videoFeed.appendChild(videoElement);
     });
     
-    // Initialiser la lecture automatique
     initVideoPlayback();
 }
 
@@ -525,7 +435,6 @@ function createVideoElement(video) {
     div.className = 'video-container';
     div.setAttribute('data-video-id', video.id);
     
-    // Calculer le temps depuis la publication
     const timeAgo = getTimeAgo(video.createdAt);
     
     div.innerHTML = `
@@ -584,6 +493,7 @@ function createVideoElement(video) {
     return div;
 }
 
+// ==================== PUBLICATION DE VIDÉO (SANS STORAGE) ====================
 async function publishVideo() {
     if (!appState.user) {
         showLoginModal();
@@ -607,48 +517,39 @@ async function publishVideo() {
     try {
         showNotification('Publication en cours...', 'info');
         
-        // Désactiver le bouton pendant l'upload
+        // DÉSACTIVER LE BOUTON
         const publishBtn = document.getElementById('publishBtn');
         if (publishBtn) {
             publishBtn.disabled = true;
             publishBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Publication...';
         }
         
-        let videoUrl, thumbnailUrl;
+        // VIDÉOS DE DÉMO DISPONIBLES
+        const demoVideoUrls = [
+            "https://assets.mixkit.co/videos/preview/mixkit-woman-dancing-under-neon-lights-1230-large.mp4",
+            "https://assets.mixkit.co/videos/preview/mixkit-man-doing-tricks-with-skateboard-in-a-parking-lot-34553-large.mp4",
+            "https://assets.mixkit.co/videos/preview/mixkit-tree-with-yellow-flowers-1173-large.mp4",
+            "https://assets.mixkit.co/videos/preview/mixkit-waves-in-the-water-1164-large.mp4",
+            "https://assets.mixkit.co/videos/preview/mixkit-group-of-friends-partying-happily-4640-large.mp4",
+            "https://assets.mixkit.co/videos/preview/mixkit-young-women-listening-to-music-while-walking-in-the-city-50013-large.mp4"
+        ];
         
-        // 1. Upload de la vidéo vers Firebase Storage
-        try {
-            const videoUploadResult = await uploadVideoToStorage(appState.currentVideoFile, appState.user.uid);
-            videoUrl = videoUploadResult.url;
-            console.log('✅ Vidéo uploadée:', videoUrl);
-        } catch (uploadError) {
-            console.error('❌ Erreur upload vidéo:', uploadError);
-            
-            // Mode dégradé : utiliser une URL de démo
-            showNotification('Erreur upload vidéo, mode démo activé', 'warning');
-            videoUrl = "https://assets.mixkit.co/videos/preview/mixkit-woman-dancing-under-neon-lights-1230-large.mp4";
-        }
+        // MINIATURES DE DÉMO
+        const demoThumbnails = [
+            'https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=400&h=600&fit=crop',
+            'https://images.unsplash.com/photo-1547447134-cd3f5c716030?w=400&h=600&fit=crop',
+            'https://images.unsplash.com/photo-1465146344425-f00d5f5c8f07?w=400&h=600&fit=crop',
+            'https://images.unsplash.com/photo-1492684223066-e9e3b74d2c9e?w=400&h=600&fit=crop'
+        ];
         
-        // 2. Upload de la miniature vers Firebase Storage
-        if (appState.currentThumbnailBlob) {
-            try {
-                const thumbnailFile = new File([appState.currentThumbnailBlob], 'thumbnail.jpg', { type: 'image/jpeg' });
-                const thumbnailUploadResult = await uploadImageToStorage(thumbnailFile, appState.user.uid);
-                thumbnailUrl = thumbnailUploadResult.url;
-                console.log('✅ Miniature uploadée:', thumbnailUrl);
-            } catch (thumbnailError) {
-                console.error('❌ Erreur upload miniature:', thumbnailError);
-                thumbnailUrl = 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=400&h=600&fit=crop';
-            }
-        } else {
-            // Utiliser une miniature par défaut
-            thumbnailUrl = 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=400&h=600&fit=crop';
-        }
+        // CHOISIR UNE VIDÉO ET UNE MINIATURE AU HASARD
+        const videoUrl = demoVideoUrls[Math.floor(Math.random() * demoVideoUrls.length)];
+        const thumbnailUrl = demoThumbnails[Math.floor(Math.random() * demoThumbnails.length)];
         
-        // 3. Extraire les hashtags
+        // Extraire les hashtags
         const tags = extractHashtags(caption);
         
-        // 4. Créer la nouvelle vidéo
+        // Créer la nouvelle vidéo
         const newVideo = {
             userId: appState.user.uid,
             username: appState.userProfile.username,
@@ -660,7 +561,7 @@ async function publishVideo() {
             commentsCount: 0,
             sharesCount: 0,
             viewsCount: 0,
-            duration: 30, // Valeur par défaut
+            duration: 30,
             isPublic: privacy === 'public',
             isMonetized: isMonetized,
             tags: tags,
@@ -671,45 +572,38 @@ async function publishVideo() {
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
         
-        // 5. Enregistrer dans Firestore
+        // Enregistrer dans Firestore
         const videoRef = await db.collection('videos').add(newVideo);
         const videoId = videoRef.id;
         
-        // 6. Incrémenter le compteur de vidéos de l'utilisateur
+        // Incrémenter le compteur de vidéos de l'utilisateur
         await db.collection('users').doc(appState.user.uid).update({
             videosCount: firebase.firestore.FieldValue.increment(1),
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         
-        // 7. Ajouter la vidéo à la liste locale
+        // Ajouter la vidéo à la liste locale
         appState.videos.unshift({
             id: videoId,
             ...newVideo
         });
         
-        // 8. Re-rendre les vidéos
+        // Re-rendre les vidéos
         renderVideos();
         
-        // 9. Cacher la barre de progression
-        const progressContainer = document.getElementById('uploadProgressContainer');
-        if (progressContainer) progressContainer.style.display = 'none';
-        
-        // 10. Fermer le modal et montrer la notification
+        // Fermer le modal
         closeCreateModal();
-        showNotification('Vidéo publiée avec succès!', 'success');
+        showNotification('Vidéo publiée avec succès! (Mode démo)', 'success');
         
-        // 11. Réinitialiser les fichiers
+        // Réinitialiser
         appState.currentVideoFile = null;
         appState.currentThumbnailBlob = null;
         
-        // 12. Faire défiler vers le haut
+        // Faire défiler vers le haut
         window.scrollTo(0, 0);
         
     } catch (error) {
         console.error('❌ Erreur publication:', error);
-        const progressContainer = document.getElementById('uploadProgressContainer');
-        if (progressContainer) progressContainer.style.display = 'none';
-        
         showNotification('Erreur lors de la publication: ' + error.message, 'error');
         
         // Réactiver le bouton
@@ -734,13 +628,11 @@ async function handleLike(videoId) {
         const likeDoc = await likeRef.get();
         
         if (likeDoc.exists) {
-            // Retirer le like
             await likeRef.delete();
             await videoRef.update({
                 likesCount: firebase.firestore.FieldValue.increment(-1)
             });
             
-            // Mise à jour UI
             const videoContainer = document.querySelector(`[data-video-id="${videoId}"]`);
             if (videoContainer) {
                 const likeAction = videoContainer.querySelector('.action');
@@ -751,7 +643,6 @@ async function handleLike(videoId) {
             }
             
         } else {
-            // Ajouter le like
             await likeRef.set({
                 userId: appState.user.uid,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -761,7 +652,6 @@ async function handleLike(videoId) {
                 likesCount: firebase.firestore.FieldValue.increment(1)
             });
             
-            // Créer une notification
             const videoDoc = await videoRef.get();
             if (videoDoc.exists) {
                 const videoData = videoDoc.data();
@@ -780,7 +670,6 @@ async function handleLike(videoId) {
                 }
             }
             
-            // Mise à jour UI
             const videoContainer = document.querySelector(`[data-video-id="${videoId}"]`);
             if (videoContainer) {
                 const likeAction = videoContainer.querySelector('.action');
@@ -802,7 +691,6 @@ async function handleShare(videoId) {
         const video = appState.videos.find(v => v.id === videoId);
         if (!video) return;
         
-        // Incrémenter le compteur de partages
         const videoRef = db.collection('videos').doc(videoId);
         await videoRef.update({
             sharesCount: firebase.firestore.FieldValue.increment(1)
@@ -815,13 +703,11 @@ async function handleShare(videoId) {
                 url: window.location.href + '#video=' + videoId
             });
         } else {
-            // Copier le lien
             const shareUrl = window.location.href + '#video=' + videoId;
             await navigator.clipboard.writeText(shareUrl);
             showNotification('Lien copié dans le presse-papier!', 'success');
         }
         
-        // Mise à jour UI
         const videoContainer = document.querySelector(`[data-video-id="${videoId}"]`);
         if (videoContainer) {
             const shareAction = videoContainer.querySelector('.action:nth-child(3)');
@@ -832,7 +718,6 @@ async function handleShare(videoId) {
         
     } catch (error) {
         console.error('Erreur partage:', error);
-        // Fallback: copier le lien
         const shareUrl = window.location.href + '#video=' + videoId;
         await navigator.clipboard.writeText(shareUrl);
         showNotification('Lien copié dans le presse-papier!', 'success');
@@ -852,7 +737,6 @@ async function createNotification(notificationData) {
 function setupRealtimeListeners() {
     if (!appState.user) return;
     
-    // Écouter les notifications
     db.collection('notifications')
         .where('userId', '==', appState.user.uid)
         .orderBy('createdAt', 'desc')
@@ -943,7 +827,6 @@ function showNotification(message, type = 'info') {
     
     container.appendChild(notification);
     
-    // Supprimer automatiquement
     setTimeout(() => {
         if (notification.parentNode) {
             notification.remove();
@@ -980,28 +863,16 @@ function initVideoPlayback() {
 // ==================== INITIALISATION ====================
 async function testFirebaseConnection() {
     try {
-        // Test Firestore
         const testDoc = await db.collection('test').doc('connection').get();
         console.log('✅ Connexion Firestore OK');
-        
-        // Test Storage
-        try {
-            const storageRef = storage.ref();
-            console.log('✅ Connexion Storage OK');
-        } catch (storageError) {
-            console.log('⚠️ Storage non configuré:', storageError.message);
-            showNotification('Storage non configuré. Activez le forfait Blaze dans la console Firebase.', 'warning');
-        }
     } catch (error) {
         console.log('⚠️ Firestore non configuré, mode démo activé');
     }
 }
 
 async function setupApp() {
-    // Vérifier la connexion Firebase
     await testFirebaseConnection();
     
-    // Écouter les changements d'authentification
     auth.onAuthStateChanged(async (user) => {
         if (user) {
             console.log('✅ Utilisateur connecté:', user.email);
@@ -1019,13 +890,11 @@ async function setupApp() {
         }
     });
 
-    // Configurer les écouteurs d'événements
     const searchInput = document.getElementById('searchInput');
     if (searchInput) {
         searchInput.addEventListener('input', debounce(handleSearch, 300));
     }
     
-    // Cacher l'écran de chargement
     const loadingScreen = document.getElementById('loadingScreen');
     if (loadingScreen) {
         setTimeout(() => {
@@ -1048,14 +917,12 @@ function debounce(func, wait) {
 
 function handleSearch() {
     console.log('Recherche en cours...');
-    // À implémenter
 }
 
 async function initApp() {
     try {
-        console.log('🚀 Initialisation de TikTok Clone...');
+        console.log('🚀 Initialisation de TikTok Clone (Mode Démo)...');
         
-        // Attendre que le DOM soit complètement chargé
         if (document.readyState !== 'loading') {
             await setupApp();
         } else {
@@ -1066,9 +933,8 @@ async function initApp() {
         console.error('❌ Erreur initialisation:', error);
         showNotification('Erreur de connexion à Firebase', 'error');
         
-        // Mode dégradé avec données mock
         appState.user = null;
-        appState.videos = mockVideos;
+        appState.videos = demoVideos;
         renderVideos();
         const loadingScreen = document.getElementById('loadingScreen');
         if (loadingScreen) loadingScreen.style.display = 'none';
@@ -1091,11 +957,9 @@ async function startLiveStream() {
     }
     
     try {
-        // Démarrer le live (simulation pour l'instant)
         showNotification('Live démarré! Les spectateurs peuvent maintenant vous rejoindre.', 'success');
         closeLiveSetup();
         
-        // Simuler un live
         const appContainer = document.getElementById('appContainer');
         const liveInterface = document.getElementById('liveInterface');
         const streamerName = document.getElementById('streamerName');
@@ -1154,7 +1018,6 @@ async function sendGift() {
     }
     
     try {
-        // Simuler l'envoi d'un cadeau
         showNotification('Cadeau envoyé avec succès!', 'success');
         closeGiftShop();
         
