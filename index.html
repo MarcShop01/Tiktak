@@ -657,4 +657,17 @@
         });
     </script>
 </body>
-</html>
+</html><!-- Fenêtre modale de création -->
+<div id="createModal" class="modal">
+  <div class="modal-content">
+    <span onclick="closeCreateModal()" class="close">&times;</span>
+    <h2>Créer une nouvelle vidéo</h2>
+    <form id="createForm">
+      <input type="text" placeholder="Titre de la vidéo" required>
+      <textarea placeholder="Description" required></textarea>
+      <button type="submit">Publier</button>
+    </form>
+  </div>
+</div>
+
+
