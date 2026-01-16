@@ -1,857 +1,298 @@
-// ==================== INITIALISATION ====================
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TikTok Clone</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loadingScreen" class="loading-screen">
+        <div class="loading-spinner"></div>
+        <p>Chargement...</p>
+    </div>
 
-// État de l'application
-const appState = {
-    user: null,
-    userProfile: null,
-    videos: [],
-    currentVideoIndex: 0,
-    currentVideoFile: null,
-    currentThumbnailBlob: null,
-    isLive: false,
-    selectedGift: null,
-    selectedVideoForGift: null,
-    selectedReceiverForGift: null
-};
+    <!-- Login Modal -->
+    <div id="loginModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content auth-modal">
+            <span class="close-btn" onclick="hideLoginModal()">&times;</span>
+            <h2>Connexion</h2>
+            <p style="margin-bottom: 20px; color: #aaa;">Mode démo activé - Connectez-vous pour tester les fonctionnalités</p>
+            <button class="btn btn-primary" onclick="hideLoginModal(); document.getElementById('appContainer').style.display='block'">
+                Se connecter (Démo)
+            </button>
+        </div>
+    </div>
 
-// VIDÉOS DE DÉMO
-const demoVideos = [
-    {
-        id: "1",
-        videoUrl: "https://assets.mixkit.co/videos/preview/mixkit-woman-dancing-under-neon-lights-1230-large.mp4",
-        thumbnailUrl: "https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=400&h=600&fit=crop",
-        userId: "user1",
-        username: "dancequeen",
-        userAvatar: "https://randomuser.me/api/portraits/women/44.jpg",
-        caption: "Apprends cette choré avec moi ! #danse #fun",
-        likes: 12400,
-        comments: 1200,
-        shares: 543,
-        views: 54000,
-        duration: 45,
-        createdAt: new Date(Date.now() - 86400000),
-        isMonetized: true
-    },
-    {
-        id: "2",
-        videoUrl: "https://assets.mixkit.co/videos/preview/mixkit-man-doing-tricks-with-skateboard-in-a-parking-lot-34553-large.mp4",
-        thumbnailUrl: "https://images.unsplash.com/photo-1547447134-cd3f5c716030?w=400&h=600&fit=crop",
-        userId: "user2",
-        username: "skatepro",
-        userAvatar: "https://randomuser.me/api/portraits/men/32.jpg",
-        caption: "Nouveau trick au skatepark ! #skate #trick",
-        likes: 8900,
-        comments: 450,
-        shares: 210,
-        views: 32000,
-        duration: 28,
-        createdAt: new Date(Date.now() - 43200000),
-        isMonetized: false
-    },
-    {
-        id: "3",
-        videoUrl: "https://assets.mixkit.co/videos/preview/mixkit-tree-with-yellow-flowers-1173-large.mp4",
-        thumbnailUrl: "https://images.unsplash.com/photo-1465146344425-f00d5f5c8f07?w=400&h=600&fit=crop",
-        userId: "user3",
-        username: "naturelover",
-        userAvatar: "https://randomuser.me/api/portraits/women/67.jpg",
-        caption: "Beauté de la nature au printemps 🌸 #nature #printemps",
-        likes: 15600,
-        comments: 890,
-        shares: 430,
-        views: 78000,
-        duration: 32,
-        createdAt: new Date(Date.now() - 21600000),
-        isMonetized: true
-    }
-];
-
-// ==================== FONCTIONS UI DE BASE ====================
-
-function openFilePicker() {
-    const videoInput = document.getElementById('videoInput');
-    if (videoInput) videoInput.click();
-}
-
-function toggleUserMenu() {
-    const dropdown = document.getElementById('userDropdown');
-    if (dropdown) {
-        dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
-    }
-}
-
-function openProfile() {
-    alert('Profil - Fonctionnalité à venir');
-}
-
-function openWallet() {
-    alert('Portefeuille - Fonctionnalité à venir');
-}
-
-function openSettings() {
-    alert('Paramètres - Fonctionnalité à venir');
-}
-
-function openCoinShop() {
-    alert('Boutique de coins - Fonctionnalité à venir');
-}
-
-function showForgotPassword() {
-    alert('Mot de passe oublié - Fonctionnalité à venir');
-}
-
-function startRecording() {
-    alert('Enregistrement vidéo - Fonctionnalité à venir');
-}
-
-// ==================== GESTION DES MODALES ====================
-
-function hideLoginModal() {
-    const loginModal = document.getElementById('loginModal');
-    if (loginModal) {
-        loginModal.style.display = 'none';
-    }
-}
-
-function openCreateModal() {
-    if (!appState.user) {
-        const loginModal = document.getElementById('loginModal');
-        if (loginModal) loginModal.style.display = 'flex';
-        return;
-    }
-    const createModal = document.getElementById('createModal');
-    if (createModal) createModal.style.display = 'flex';
-}
-
-function closeCreateModal() {
-    const modal = document.getElementById('createModal');
-    if (!modal) return;
-    
-    modal.style.display = 'none';
-    document.getElementById('videoCaption').value = '';
-    document.getElementById('previewVideo').style.display = 'none';
-    document.getElementById('previewVideo').src = '';
-    document.getElementById('thumbnailPreview').style.display = 'none';
-    document.getElementById('thumbnailPreview').src = '';
-    document.getElementById('uploadProgressContainer').style.display = 'none';
-    document.getElementById('uploadProgressFill').style.width = '0%';
-    document.getElementById('uploadProgressText').textContent = '0%';
-    document.getElementById('uploadPercentage').textContent = '0%';
-    document.getElementById('uploadStatus').textContent = 'Préparation de l\'upload...';
-    document.getElementById('publishBtn').disabled = true;
-    document.getElementById('videoFileInfo').innerHTML = '<i class="fas fa-file-video"></i><span>Aucun fichier sélectionné</span>';
-    document.getElementById('monetizeVideo').checked = false;
-    document.getElementById('videoPrivacy').value = 'public';
-    const placeholder = document.querySelector('.preview-placeholder');
-    if (placeholder) placeholder.style.display = 'flex';
-    
-    appState.currentVideoFile = null;
-    appState.currentThumbnailBlob = null;
-}
-
-function openLiveSetup() {
-    if (!appState.user) {
-        const loginModal = document.getElementById('loginModal');
-        if (loginModal) loginModal.style.display = 'block';
-        return;
-    }
-    const liveSetupModal = document.getElementById('liveSetupModal');
-    if (liveSetupModal) liveSetupModal.style.display = 'block';
-}
-
-function closeLiveSetup() {
-    const modal = document.getElementById('liveSetupModal');
-    if (modal) modal.style.display = 'none';
-}
-
-function openGiftShop() {
-    const modal = document.getElementById('giftShopModal');
-    if (modal) modal.style.display = 'block';
-}
-
-function closeGiftShop() {
-    const modal = document.getElementById('giftShopModal');
-    if (!modal) return;
-    
-    modal.style.display = 'none';
-    document.getElementById('selectedGift').style.display = 'none';
-    document.getElementById('giftMessage').value = '';
-    document.querySelectorAll('.gift-item').forEach(item => {
-        item.classList.remove('selected');
-    });
-    
-    appState.selectedGift = null;
-}
-
-function selectGift(type, price) {
-    // Désélectionner tous les cadeaux
-    document.querySelectorAll('.gift-item').forEach(item => {
-        item.classList.remove('selected');
-    });
-    
-    // Sélectionner le cadeau cliqué
-    if (event && event.currentTarget) {
-        event.currentTarget.classList.add('selected');
-    }
-    
-    // Mettre à jour l'affichage
-    const iconMap = {
-        'rose': '🌹',
-        'crown': '👑',
-        'diamond': '💎',
-        'rocket': '🚀'
-    };
-    
-    const nameMap = {
-        'rose': 'Rose',
-        'crown': 'Couronne',
-        'diamond': 'Diamant',
-        'rocket': 'Fusée'
-    };
-    
-    const selectedGiftIcon = document.getElementById('selectedGiftIcon');
-    const selectedGiftName = document.getElementById('selectedGiftName');
-    const selectedGiftPrice = document.getElementById('selectedGiftPrice');
-    const selectedGiftContainer = document.getElementById('selectedGift');
-    
-    if (selectedGiftIcon) selectedGiftIcon.textContent = iconMap[type] || '🎁';
-    if (selectedGiftName) selectedGiftName.textContent = nameMap[type] || 'Cadeau';
-    if (selectedGiftPrice) selectedGiftPrice.textContent = price;
-    if (selectedGiftContainer) selectedGiftContainer.style.display = 'block';
-    
-    // Stocker dans l'état global
-    appState.selectedGift = { type, price };
-}
-
-function sendGift() {
-    if (!appState.user || !appState.selectedGift) {
-        alert('Veuillez vous connecter et sélectionner un cadeau');
-        return;
-    }
-    
-    showNotification('Cadeau envoyé avec succès!', 'success');
-    closeGiftShop();
-}
-
-function openGiftShopForVideo(videoId, receiverId) {
-    appState.selectedVideoForGift = videoId;
-    appState.selectedReceiverForGift = receiverId;
-    openGiftShop();
-}
-
-// ==================== GESTION DES VIDÉOS ====================
-
-function handleVideoInput() {
-    const videoInput = document.getElementById('videoInput');
-    if (!videoInput) return;
-    
-    videoInput.addEventListener('change', function(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-        
-        // Vérifier la taille (max 100MB)
-        const maxSize = 100 * 1024 * 1024;
-        if (file.size > maxSize) {
-            alert('Le fichier est trop volumineux (max 100MB)');
-            return;
-        }
-        
-        // Mettre à jour l'affichage du fichier
-        const fileInfo = document.getElementById('videoFileInfo');
-        if (fileInfo) {
-            fileInfo.innerHTML = `
-                <i class="fas fa-file-video"></i>
-                <span>${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB)</span>
-            `;
-        }
-        
-        // Activer le bouton de publication
-        const publishBtn = document.getElementById('publishBtn');
-        if (publishBtn) publishBtn.disabled = false;
-        
-        // Afficher la prévisualisation
-        const previewVideo = document.getElementById('previewVideo');
-        if (previewVideo) {
-            previewVideo.style.display = 'block';
-            previewVideo.src = URL.createObjectURL(file);
-            previewVideo.load();
+    <!-- Main App -->
+    <div class="app-container" id="appContainer" style="display: none;">
+        <!-- Navigation -->
+        <nav class="navbar">
+            <div class="logo">
+                <i class="fas fa-video"></i> TikTok Clone
+            </div>
             
-            // Cacher le placeholder
-            const placeholder = document.querySelector('.preview-placeholder');
-            if (placeholder) placeholder.style.display = 'none';
+            <div class="search-bar">
+                <input type="text" id="searchInput" placeholder="Rechercher...">
+                <button class="search-btn"><i class="fas fa-search"></i></button>
+            </div>
             
-            // Générer et afficher la miniature
-            previewVideo.addEventListener('loadeddata', function() {
-                const canvas = document.createElement('canvas');
-                canvas.width = previewVideo.videoWidth || 400;
-                canvas.height = previewVideo.videoHeight || 600;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(previewVideo, 0, 0, canvas.width, canvas.height);
+            <div class="nav-right">
+                <div class="coin-balance" id="coinBalance" onclick="openCoinShop()">
+                    <i class="fas fa-coins"></i>
+                    <span>100</span>
+                </div>
                 
-                canvas.toBlob(function(blob) {
-                    const thumbnailPreview = document.getElementById('thumbnailPreview');
-                    if (thumbnailPreview) {
-                        thumbnailPreview.style.display = 'block';
-                        thumbnailPreview.src = URL.createObjectURL(blob);
+                <button class="btn btn-live" onclick="openLiveSetup()">
+                    <i class="fas fa-broadcast-tower"></i> Live
+                </button>
+                
+                <button class="btn btn-upload" onclick="openCreateModal()">
+                    <i class="fas fa-plus"></i> Créer
+                </button>
+                
+                <div class="user-menu" onclick="toggleUserMenu()">
+                    <img id="userAvatar" src="https://randomuser.me/api/portraits/lego/1.jpg" alt="Profil">
+                </div>
+            </div>
+            
+            <div class="dropdown-menu" id="userDropdown" style="display: none;">
+                <a href="#" onclick="openProfile()"><i class="fas fa-user"></i> Mon profil</a>
+                <a href="#" onclick="openWallet()"><i class="fas fa-wallet"></i> Mon portefeuille</a>
+                <a href="#" onclick="openSettings()"><i class="fas fa-cog"></i> Paramètres</a>
+                <div class="divider"></div>
+                <a href="#" onclick="hideLoginModal()"><i class="fas fa-sign-out-alt"></i> Déconnexion</a>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="video-feed" id="videoFeed">
+                <!-- Les vidéos seront chargées ici -->
+            </div>
+            
+            <!-- Sidebar (visible sur desktop) -->
+            <aside class="sidebar">
+                <div class="sidebar-section">
+                    <h3>Découvrir</h3>
+                    <a href="#"><i class="fas fa-fire"></i> Tendances</a>
+                    <a href="#"><i class="fas fa-music"></i> Musique</a>
+                    <a href="#"><i class="fas fa-gamepad"></i> Gaming</a>
+                    <a href="#"><i class="fas fa-graduation-cap"></i> Éducation</a>
+                </div>
+            </aside>
+        </main>
+
+        <!-- Bottom Navigation (Mobile) -->
+        <div class="bottom-nav">
+            <a href="#" class="nav-item active"><i class="fas fa-home"></i></a>
+            <a href="#" class="nav-item"><i class="fas fa-search"></i></a>
+            <a href="#" class="nav-item" onclick="openCreateModal()"><i class="fas fa-plus-square"></i></a>
+            <a href="#" class="nav-item"><i class="fas fa-inbox"></i></a>
+            <a href="#" class="nav-item" onclick="openProfile()"><i class="fas fa-user"></i></a>
+        </div>
+
+        <!-- Modales -->
+        <div id="createModal" class="modal-overlay" style="display: none;">
+            <div class="modal-content">
+                <span class="close-btn" onclick="closeCreateModal()">&times;</span>
+                <h2>Créer une vidéo</h2>
+                
+                <div class="video-preview" id="videoPreview">
+                    <video id="previewVideo" style="display: none;"></video>
+                    <div class="preview-placeholder">
+                        <i class="fas fa-video"></i>
+                        <p>Aucune vidéo sélectionnée</p>
+                    </div>
+                </div>
+                
+                <div class="modal-actions">
+                    <button class="btn btn-action" onclick="startRecording()">
+                        <i class="fas fa-video"></i> Filmer
+                    </button>
+                    <button class="btn btn-action" onclick="openFilePicker()">
+                        <i class="fas fa-upload"></i> Importer
+                    </button>
+                    <input type="file" id="videoInput" accept="video/*" style="display: none;">
+                </div>
+                
+                <div class="form-section">
+                    <label>Légende</label>
+                    <textarea id="videoCaption" placeholder="Ajoutez une légende... #hashtag" rows="3"></textarea>
+                    
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="monetizeVideo">
+                            Monétiser cette vidéo
+                        </label>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Visibilité</label>
+                        <select id="videoPrivacy">
+                            <option value="public">Public</option>
+                            <option value="private">Privé</option>
+                        </select>
+                    </div>
+                    
+                    <div id="videoFileInfo" class="file-info">
+                        <i class="fas fa-file-video"></i>
+                        <span>Aucun fichier sélectionné</span>
+                    </div>
+                </div>
+                
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeCreateModal()">Annuler</button>
+                    <button class="btn btn-primary" onclick="publishVideo()" id="publishBtn" disabled>
+                        <i class="fas fa-paper-plane"></i> Publier
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Live Setup Modal -->
+        <div id="liveSetupModal" class="modal-overlay" style="display: none;">
+            <div class="modal-content">
+                <span class="close-btn" onclick="closeLiveSetup()">&times;</span>
+                <h2>Démarrer un live</h2>
+                
+                <div class="form-section">
+                    <div class="form-group">
+                        <label>Titre du live</label>
+                        <input type="text" id="liveTitle" placeholder="Titre de votre live...">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea id="liveDescription" placeholder="Décrivez votre live..." rows="3"></textarea>
+                    </div>
+                </div>
+                
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeLiveSetup()">Annuler</button>
+                    <button class="btn btn-primary" onclick="startLiveStream()">
+                        <i class="fas fa-broadcast-tower"></i> Démarrer
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Live Interface -->
+        <div id="liveInterface" class="live-interface" style="display: none;">
+            <div class="live-header">
+                <div class="streamer-info">
+                    <img id="streamerAvatar" src="" alt="">
+                    <div>
+                        <h3 id="streamerName"></h3>
+                        <span class="viewer-count"><i class="fas fa-eye"></i> <span id="viewerCount">0</span> spectateurs</span>
+                    </div>
+                </div>
+                
+                <div class="live-controls">
+                    <button class="btn btn-gift" onclick="openGiftShop()">
+                        <i class="fas fa-gift"></i> Cadeaux
+                    </button>
+                    <button class="btn btn-danger" onclick="endLiveStream()">
+                        <i class="fas fa-stop"></i> Terminer
+                    </button>
+                </div>
+            </div>
+            
+            <div class="live-content">
+                <div class="video-container">
+                    <div class="live-placeholder">
+                        <i class="fas fa-broadcast-tower"></i>
+                        <p>Live en cours (Mode démo)</p>
+                    </div>
+                    <div class="live-stats">
+                        <span class="stat"><i class="fas fa-heart"></i> <span id="liveLikes">0</span></span>
+                        <span class="stat"><i class="fas fa-gift"></i> <span id="liveGifts">0</span></span>
+                        <span class="stat"><i class="fas fa-comment"></i> <span id="liveComments">0</span></span>
+                    </div>
+                </div>
+                
+                <div class="live-sidebar">
+                    <div class="chat-container">
+                        <div class="chat-header">
+                            <h4>Chat en direct</h4>
+                            <span>0 en ligne</span>
+                        </div>
                         
-                        // Stocker dans l'état global
-                        appState.currentVideoFile = file;
-                        appState.currentThumbnailBlob = blob;
-                    }
-                }, 'image/jpeg', 0.8);
-            });
-        }
-    });
-}
-
-function publishVideo() {
-    if (!appState.user) {
-        openCreateModal();
-        return;
-    }
-    
-    const caption = document.getElementById('videoCaption').value.trim();
-    const isMonetized = document.getElementById('monetizeVideo').checked;
-    const privacy = document.getElementById('videoPrivacy').value;
-    
-    if (!appState.currentVideoFile) {
-        alert('Veuillez sélectionner une vidéo');
-        return;
-    }
-    
-    if (!caption) {
-        alert('Veuillez ajouter une légende');
-        return;
-    }
-    
-    try {
-        const publishBtn = document.getElementById('publishBtn');
-        if (publishBtn) {
-            publishBtn.disabled = true;
-            publishBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Publication...';
-        }
-        
-        // Simuler l'upload
-        showNotification('Publication en cours... (Mode démo)', 'info');
-        
-        // VIDÉOS DE DÉMO
-        const demoVideoUrls = [
-            "https://assets.mixkit.co/videos/preview/mixkit-woman-dancing-under-neon-lights-1230-large.mp4",
-            "https://assets.mixkit.co/videos/preview/mixkit-man-doing-tricks-with-skateboard-in-a-parking-lot-34553-large.mp4",
-            "https://assets.mixkit.co/videos/preview/mixkit-tree-with-yellow-flowers-1173-large.mp4"
-        ];
-        
-        // MINIATURES DE DÉMO
-        const demoThumbnails = [
-            'https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=400&h=600&fit=crop',
-            'https://images.unsplash.com/photo-1547447134-cd3f5c716030?w=400&h=600&fit=crop',
-            'https://images.unsplash.com/photo-1465146344425-f00d5f5c8f07?w=400&h=600&fit=crop'
-        ];
-        
-        // Simuler un délai d'upload
-        setTimeout(() => {
-            const videoUrl = demoVideoUrls[Math.floor(Math.random() * demoVideoUrls.length)];
-            const thumbnailUrl = demoThumbnails[Math.floor(Math.random() * demoThumbnails.length)];
-            
-            // Créer la nouvelle vidéo
-            const newVideo = {
-                id: Date.now().toString(),
-                videoUrl: videoUrl,
-                thumbnailUrl: thumbnailUrl,
-                userId: "demo_user",
-                username: appState.userProfile?.username || "Utilisateur",
-                userAvatar: appState.userProfile?.avatar || "https://randomuser.me/api/portraits/lego/1.jpg",
-                caption: caption,
-                likes: 0,
-                comments: 0,
-                shares: 0,
-                views: 0,
-                duration: 30,
-                createdAt: new Date(),
-                isMonetized: isMonetized
-            };
-            
-            // Ajouter à la liste
-            appState.videos.unshift(newVideo);
-            
-            // Re-rendre les vidéos
-            renderVideos();
-            
-            // Fermer le modal et montrer une notification
-            closeCreateModal();
-            showNotification('Vidéo publiée avec succès! (Mode démo)', 'success');
-            
-            // Réinitialiser le bouton
-            if (publishBtn) {
-                publishBtn.disabled = false;
-                publishBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Publier';
-            }
-        }, 2000);
-        
-    } catch (error) {
-        console.error('Erreur publication:', error);
-        alert('Erreur lors de la publication: ' + error.message);
-        
-        const publishBtn = document.getElementById('publishBtn');
-        if (publishBtn) {
-            publishBtn.disabled = false;
-            publishBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Publier';
-        }
-    }
-}
-
-// ==================== GESTION DES COMMENTAIRES ====================
-
-function openComments(videoId) {
-    const commentsSection = document.getElementById(`comments-${videoId}`);
-    if (commentsSection) {
-        commentsSection.style.display = 'block';
-    } else {
-        // Si la section n'existe pas, la créer
-        const videoContainer = document.querySelector(`[data-video-id="${videoId}"]`);
-        if (videoContainer) {
-            const commentsHTML = `
-                <div id="comments-${videoId}" class="comments-section" style="display: block;">
-                    <div class="comments-header">
-                        <h4>Commentaires</h4>
-                        <button onclick="closeComments('${videoId}')" class="close-comments-btn">×</button>
-                    </div>
-                    <div class="comments-list">
-                        <div class="comment">
-                            <strong>@user123</strong>
-                            <p>Super vidéo !</p>
+                        <div class="chat-messages" id="chatMessages">
+                            <div class="chat-message">
+                                <strong>Système:</strong> Bienvenue sur le live!
+                            </div>
                         </div>
-                        <div class="comment">
-                            <strong>@fan456</strong>
-                            <p>J'adore 😍</p>
+                        
+                        <div class="chat-input">
+                            <input type="text" id="chatInput" placeholder="Envoyer un message...">
+                            <button id="sendChatBtn"><i class="fas fa-paper-plane"></i></button>
                         </div>
                     </div>
-                    <div class="comment-form">
-                        <textarea placeholder="Ajouter un commentaire..." rows="2"></textarea>
-                        <button onclick="postComment('${videoId}')">Publier</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gift Shop Modal -->
+        <div id="giftShopModal" class="modal-overlay" style="display: none;">
+            <div class="modal-content">
+                <span class="close-btn" onclick="closeGiftShop()">&times;</span>
+                <h2>Envoyer un cadeau</h2>
+                
+                <div class="gifts-grid">
+                    <div class="gift-item" onclick="selectGift('rose', 1)">
+                        <div class="gift-icon">🌹</div>
+                        <div class="gift-name">Rose</div>
+                        <div class="gift-price">1 coin</div>
+                    </div>
+                    
+                    <div class="gift-item" onclick="selectGift('crown', 10)">
+                        <div class="gift-icon">👑</div>
+                        <div class="gift-name">Couronne</div>
+                        <div class="gift-price">10 coins</div>
+                    </div>
+                    
+                    <div class="gift-item" onclick="selectGift('diamond', 50)">
+                        <div class="gift-icon">💎</div>
+                        <div class="gift-name">Diamant</div>
+                        <div class="gift-price">50 coins</div>
+                    </div>
+                    
+                    <div class="gift-item" onclick="selectGift('rocket', 100)">
+                        <div class="gift-icon">🚀</div>
+                        <div class="gift-name">Fusée</div>
+                        <div class="gift-price">100 coins</div>
                     </div>
                 </div>
-            `;
-            videoContainer.insertAdjacentHTML('beforeend', commentsHTML);
-        }
-    }
-}
-
-function closeComments(videoId) {
-    const commentsSection = document.getElementById(`comments-${videoId}`);
-    if (commentsSection) {
-        commentsSection.style.display = 'none';
-    }
-}
-
-function postComment(videoId) {
-    const commentInput = document.querySelector(`#comments-${videoId} textarea`);
-    if (!commentInput || !commentInput.value.trim()) {
-        alert('Veuillez écrire un commentaire');
-        return;
-    }
-    
-    showNotification('Commentaire publié! (Mode démo)', 'success');
-    commentInput.value = '';
-}
-
-// ==================== LIKES ET PARTAGES ====================
-
-function handleLike(videoId) {
-    const video = appState.videos.find(v => v.id === videoId);
-    if (!video) return;
-    
-    // Mettre à jour le compteur
-    video.likes += 1;
-    
-    // Mettre à jour l'affichage
-    const videoContainer = document.querySelector(`[data-video-id="${videoId}"]`);
-    if (videoContainer) {
-        const likeCount = videoContainer.querySelector('.action:nth-child(1) span');
-        if (likeCount) {
-            likeCount.textContent = formatNumber(video.likes);
-        }
-        
-        // Ajouter la classe liked
-        const likeButton = videoContainer.querySelector('.action:nth-child(1)');
-        if (likeButton) {
-            likeButton.classList.add('liked');
-        }
-    }
-    
-    showNotification('Vous avez aimé cette vidéo!', 'success');
-}
-
-function handleShare(videoId) {
-    const video = appState.videos.find(v => v.id === videoId);
-    if (!video) return;
-    
-    // Mettre à jour le compteur
-    video.shares += 1;
-    
-    // Mettre à jour l'affichage
-    const videoContainer = document.querySelector(`[data-video-id="${videoId}"]`);
-    if (videoContainer) {
-        const shareCount = videoContainer.querySelector('.action:nth-child(3) span');
-        if (shareCount) {
-            shareCount.textContent = formatNumber(video.shares);
-        }
-    }
-    
-    // Partager le lien
-    if (navigator.share) {
-        navigator.share({
-            title: `Regarde cette vidéo de @${video.username}`,
-            text: video.caption,
-            url: window.location.href
-        });
-    } else {
-        navigator.clipboard.writeText(window.location.href);
-        showNotification('Lien copié dans le presse-papier!', 'success');
-    }
-}
-
-// ==================== STREAMING ====================
-
-function startLiveStream() {
-    const title = document.getElementById('liveTitle').value.trim();
-    
-    if (!title) {
-        alert('Veuillez entrer un titre pour le live');
-        return;
-    }
-    
-    if (!appState.user) {
-        alert('Veuillez vous connecter pour démarrer un live');
-        return;
-    }
-    
-    showNotification('Live démarré! (Mode démo)', 'success');
-    closeLiveSetup();
-    
-    // Simuler l'interface de live
-    const appContainer = document.getElementById('appContainer');
-    const liveInterface = document.getElementById('liveInterface');
-    
-    if (appContainer) appContainer.style.display = 'none';
-    if (liveInterface) liveInterface.style.display = 'block';
-    
-    appState.isLive = true;
-    
-    // Mettre à jour les infos du streamer
-    const streamerName = document.getElementById('streamerName');
-    const streamerAvatar = document.getElementById('streamerAvatar');
-    
-    if (streamerName) streamerName.textContent = appState.userProfile?.username || "Streamer";
-    if (streamerAvatar) streamerAvatar.src = appState.userProfile?.avatar || "https://randomuser.me/api/portraits/lego/1.jpg";
-}
-
-function endLiveStream() {
-    appState.isLive = false;
-    
-    const appContainer = document.getElementById('appContainer');
-    const liveInterface = document.getElementById('liveInterface');
-    
-    if (appContainer) appContainer.style.display = 'block';
-    if (liveInterface) liveInterface.style.display = 'none';
-    
-    showNotification('Live terminé avec succès', 'success');
-}
-
-// ==================== RENDU DES VIDÉOS ====================
-
-function renderVideos() {
-    const videoFeed = document.getElementById('videoFeed');
-    if (!videoFeed) return;
-    
-    if (appState.videos.length === 0) {
-        appState.videos = [...demoVideos];
-    }
-    
-    videoFeed.innerHTML = '';
-    
-    appState.videos.forEach((video) => {
-        const videoElement = createVideoElement(video);
-        videoFeed.appendChild(videoElement);
-    });
-    
-    initVideoPlayback();
-}
-
-function createVideoElement(video) {
-    const div = document.createElement('div');
-    div.className = 'video-container';
-    div.setAttribute('data-video-id', video.id);
-    
-    const timeAgo = getTimeAgo(video.createdAt);
-    
-    div.innerHTML = `
-        <video loop muted playsinline>
-            <source src="${video.videoUrl}" type="video/mp4">
-        </video>
-        
-        <div class="video-overlay">
-            <div class="creator-info">
-                <img src="${video.userAvatar}" alt="${video.username}">
-                <div>
-                    <h4>@${video.username}</h4>
-                    <p>${video.caption}</p>
-                    <small class="time-ago">${timeAgo}</small>
-                </div>
-            </div>
-            
-            <div class="video-actions">
-                <div class="action" onclick="handleLike('${video.id}')">
-                    <i class="fas fa-heart"></i>
-                    <span>${formatNumber(video.likes)}</span>
-                </div>
                 
-                <div class="action" onclick="openComments('${video.id}')">
-                    <i class="fas fa-comment"></i>
-                    <span>${formatNumber(video.comments)}</span>
+                <div class="selected-gift" id="selectedGift" style="display: none;">
+                    <h3>Cadeau sélectionné</h3>
+                    <div class="gift-preview">
+                        <span id="selectedGiftIcon">🌹</span>
+                        <div>
+                            <h4 id="selectedGiftName">Rose</h4>
+                            <p>Coût: <span id="selectedGiftPrice">1</span> coins</p>
+                        </div>
+                    </div>
+                    
+                    <div class="gift-message">
+                        <input type="text" id="giftMessage" placeholder="Ajouter un message...">
+                    </div>
+                    
+                    <button class="btn btn-primary" onclick="sendGift()">
+                        <i class="fas fa-gift"></i> Envoyer le cadeau
+                    </button>
                 </div>
-                
-                <div class="action" onclick="handleShare('${video.id}')">
-                    <i class="fas fa-share"></i>
-                    <span>${formatNumber(video.shares)}</span>
-                </div>
-                
-                ${video.isMonetized ? `
-                <div class="action" onclick="openGiftShopForVideo('${video.id}', '${video.userId}')">
-                    <i class="fas fa-gift"></i>
-                    <span>Donner</span>
-                </div>
-                ` : ''}
             </div>
-            
-            <div class="video-stats">
-                <span class="view-count"><i class="fas fa-eye"></i> ${formatNumber(video.views)}</span>
-                ${video.duration ? `<span class="duration">${formatDuration(video.duration)}</span>` : ''}
-            </div>
-            
-            ${video.isMonetized ? `
-            <div class="monetization-badge">
-                <i class="fas fa-coins"></i> Monétisé
-            </div>
-            ` : ''}
         </div>
-    `;
-    
-    return div;
-}
 
-function initVideoPlayback() {
-    const videos = document.querySelectorAll('.video-container video');
-    
-    const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            const video = entry.target;
-            if (entry.isIntersecting) {
-                video.play().catch(e => console.log('Lecture bloquée:', e));
-            } else {
-                video.pause();
-            }
-        });
-    }, { threshold: 0.5 });
-    
-    videos.forEach(video => observer.observe(video));
-}
+        <!-- Notifications -->
+        <div id="notificationsContainer" class="notifications-container"></div>
+    </div>
 
-// ==================== UTILITAIRES ====================
-
-function formatNumber(num) {
-    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-    return num.toString();
-}
-
-function formatDuration(seconds) {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-}
-
-function getTimeAgo(date) {
-    const now = new Date();
-    const diffInSeconds = Math.floor((now - date) / 1000);
-    
-    if (diffInSeconds < 60) return 'À l\'instant';
-    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} min`;
-    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} h`;
-    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} j`;
-    return `${Math.floor(diffInSeconds / 604800)} sem`;
-}
-
-function showNotification(message, type = 'info') {
-    const container = document.getElementById('notificationsContainer');
-    if (!container) return;
-    
-    const notification = document.createElement('div');
-    notification.className = `notification notification-${type}`;
-    notification.innerHTML = `
-        <div class="notification-content">
-            <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
-            <span>${message}</span>
-        </div>
-        <button class="close-notification" onclick="this.parentElement.remove()">&times;</button>
-    `;
-    
-    container.appendChild(notification);
-    
-    setTimeout(() => {
-        if (notification.parentNode) {
-            notification.remove();
-        }
-    }, 5000);
-}
-
-// ==================== ÉVÉNEMENTS GLOBAUX ====================
-
-function setupEventListeners() {
-    // Fermer les modales en cliquant à l'extérieur
-    document.addEventListener('click', function(event) {
-        // Fermer le menu utilisateur
-        const userMenu = document.getElementById('userMenu');
-        const dropdown = document.getElementById('userDropdown');
-        
-        if (userMenu && dropdown && !userMenu.contains(event.target) && !dropdown.contains(event.target)) {
-            dropdown.style.display = 'none';
-        }
-        
-        // Fermer les modales
-        const modals = document.querySelectorAll('.modal-overlay');
-        modals.forEach(modal => {
-            if (modal.style.display === 'flex' && event.target === modal) {
-                modal.style.display = 'none';
-                
-                // Réinitialiser la modale de création si c'est elle
-                if (modal.id === 'createModal') {
-                    closeCreateModal();
-                }
-            }
-        });
-    });
-    
-    // Empêcher la fermeture des modales en cliquant à l'intérieur
-    document.querySelectorAll('.modal-content').forEach(modalContent => {
-        modalContent.addEventListener('click', function(event) {
-            event.stopPropagation();
-        });
-    });
-    
-    // Gestionnaire de fichier vidéo
-    handleVideoInput();
-    
-    // Recherche
-    const searchInput = document.getElementById('searchInput');
-    if (searchInput) {
-        searchInput.addEventListener('input', function() {
-            console.log('Recherche:', this.value);
-        });
-    }
-    
-    // Chat en direct
-    const chatInput = document.getElementById('chatInput');
-    const sendChatBtn = document.getElementById('sendChatBtn');
-    
-    if (chatInput && sendChatBtn) {
-        sendChatBtn.addEventListener('click', function() {
-            if (chatInput.value.trim()) {
-                showNotification('Message envoyé! (Mode démo)', 'success');
-                chatInput.value = '';
-            }
-        });
-        
-        chatInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter' && this.value.trim()) {
-                showNotification('Message envoyé! (Mode démo)', 'success');
-                this.value = '';
-            }
-        });
-    }
-}
-
-// ==================== INITIALISATION ====================
-
-function initApp() {
-    console.log('🚀 Initialisation de TikTok Clone...');
-    
-    // Cacher l'écran de chargement
-    const loadingScreen = document.getElementById('loadingScreen');
-    if (loadingScreen) {
-        setTimeout(() => {
-            loadingScreen.style.display = 'none';
-            document.getElementById('appContainer').style.display = 'block';
-        }, 1000);
-    }
-    
-    // Initialiser l'état
-    appState.videos = [...demoVideos];
-    
-    // Rendre les vidéos
-    renderVideos();
-    
-    // Configurer les événements
-    setupEventListeners();
-    
-    // Simuler un utilisateur pour la démo
-    appState.user = { uid: 'demo_user' };
-    appState.userProfile = {
-        username: 'Utilisateur Démo',
-        avatar: 'https://randomuser.me/api/portraits/lego/1.jpg',
-        coins: 100
-    };
-    
-    // Mettre à jour l'UI
-    const userAvatar = document.getElementById('userAvatar');
-    const coinBalance = document.getElementById('coinBalance');
-    
-    if (userAvatar && appState.userProfile.avatar) {
-        userAvatar.src = appState.userProfile.avatar;
-    }
-    
-    if (coinBalance) {
-        const span = coinBalance.querySelector('span');
-        if (span) span.textContent = appState.userProfile.coins;
-    }
-    
-    console.log('✅ Application initialisée (Mode Démo)');
-}
-
-// ==================== EXPORT GLOBAL ====================
-
-// Exposer toutes les fonctions globalement
-window.appState = appState;
-window.openFilePicker = openFilePicker;
-window.toggleUserMenu = toggleUserMenu;
-window.openProfile = openProfile;
-window.openWallet = openWallet;
-window.openSettings = openSettings;
-window.openCoinShop = openCoinShop;
-window.showForgotPassword = showForgotPassword;
-window.startRecording = startRecording;
-window.hideLoginModal = hideLoginModal;
-window.openCreateModal = openCreateModal;
-window.closeCreateModal = closeCreateModal;
-window.openLiveSetup = openLiveSetup;
-window.closeLiveSetup = closeLiveSetup;
-window.openGiftShop = openGiftShop;
-window.closeGiftShop = closeGiftShop;
-window.selectGift = selectGift;
-window.sendGift = sendGift;
-window.openGiftShopForVideo = openGiftShopForVideo;
-window.publishVideo = publishVideo;
-window.openComments = openComments;
-window.closeComments = closeComments;
-window.postComment = postComment;
-window.handleLike = handleLike;
-window.handleShare = handleShare;
-window.startLiveStream = startLiveStream;
-window.endLiveStream = endLiveStream;
-
-// Démarrer l'application
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initApp);
-} else {
-    setTimeout(initApp, 100);
-}
+    <!-- Script unique -->
+    <script src="script.js"></script>
+</body>
+</html>
