@@ -1058,3 +1058,27 @@ if (document.readyState === 'loading') {
 } else {
     setTimeout(initApp, 100);
 }
+// Fonction pour ouvrir la fenêtre de création
+function openCreateModal() {
+  const modal = document.getElementById("createModal");
+  if (modal) {
+    modal.style.display = "block"; // Affiche la modale
+  } else {
+    console.error("Élément #createModal introuvable");
+  }
+}
+
+// Fonction pour fermer la fenêtre de création
+function closeCreateModal() {
+  const modal = document.getElementById("createModal");
+  if (modal) {
+    modal.style.display = "none"; // Cache la modale
+  } else {
+    console.error("Élément #createModal introuvable");
+  }
+}
+
+// Attacher les fonctions à l'objet global window
+window.openCreateModal = openCreateModal;
+window.closeCreateModal = closeCreateModal;
+
