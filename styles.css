@@ -1,4 +1,5 @@
-/* Reset & Base */
+/* Le CSS reste exactement le même que dans la réponse précédente */
+/* ==================== RESET & BASE ==================== */
 * {
     margin: 0;
     padding: 0;
@@ -13,7 +14,7 @@ body {
     line-height: 1.6;
 }
 
-/* Loading Screen */
+/* ==================== LOADING SCREEN ==================== */
 .loading-screen {
     position: fixed;
     top: 0;
@@ -42,14 +43,14 @@ body {
     to { transform: rotate(360deg); }
 }
 
-/* App Container */
+/* ==================== APP CONTAINER ==================== */
 .app-container {
     max-width: 100vw;
     min-height: 100vh;
     background: #000;
 }
 
-/* Navigation */
+/* ==================== NAVIGATION ==================== */
 .navbar {
     position: fixed;
     top: 0;
@@ -210,7 +211,7 @@ body {
     margin: 10px 0;
 }
 
-/* Main Content */
+/* ==================== MAIN CONTENT ==================== */
 .main-content {
     display: flex;
     margin-top: 70px;
@@ -345,7 +346,7 @@ body {
     background: #222;
 }
 
-/* Bottom Navigation */
+/* ==================== BOTTOM NAVIGATION ==================== */
 .bottom-nav {
     position: fixed;
     bottom: 0;
@@ -374,7 +375,7 @@ body {
     color: #fff;
 }
 
-/* Modals */
+/* ==================== MODALS ==================== */
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -426,7 +427,7 @@ body {
     color: #fff;
 }
 
-/* Video Preview */
+/* ==================== VIDEO PREVIEW ==================== */
 .video-preview {
     width: 100%;
     height: 300px;
@@ -482,7 +483,7 @@ body {
     50% { opacity: 0.5; }
 }
 
-/* Forms */
+/* ==================== FORMS ==================== */
 .form-section {
     margin: 20px 0;
 }
@@ -538,7 +539,7 @@ body {
     width: auto;
 }
 
-/* Live Interface */
+/* ==================== LIVE INTERFACE ==================== */
 .live-interface {
     position: fixed;
     top: 0;
@@ -688,7 +689,7 @@ body {
     color: #888;
 }
 
-/* Gift Shop */
+/* ==================== GIFT SHOP ==================== */
 .gifts-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -757,7 +758,7 @@ body {
     margin-bottom: 15px;
 }
 
-/* Notifications */
+/* ==================== NOTIFICATIONS ==================== */
 .notifications-container {
     position: fixed;
     top: 80px;
@@ -789,7 +790,7 @@ body {
     }
 }
 
-/* Auth Modal */
+/* ==================== AUTH MODAL ==================== */
 .auth-modal {
     max-width: 400px;
 }
@@ -883,7 +884,7 @@ body {
     text-decoration: underline;
 }
 
-/* Responsive */
+/* ==================== RESPONSIVE ==================== */
 @media (max-width: 768px) {
     .navbar {
         padding: 10px;
@@ -929,7 +930,7 @@ body {
     }
 }
 
-/* Utility Classes */
+/* ==================== UTILITY CLASSES ==================== */
 .hidden {
     display: none !important;
 }
@@ -955,7 +956,7 @@ body {
 .mb-10 { margin-bottom: 10px; }
 .mb-20 { margin-bottom: 20px; }
 
-/* Scrollbar */
+/* ==================== SCROLLBAR ==================== */
 ::-webkit-scrollbar {
     width: 8px;
 }
@@ -973,9 +974,7 @@ body {
     background: #444;
 }
 
-/* ==================== NOUVEAUX STYLES ==================== */
-
-/* Barre de progression d'upload */
+/* ==================== UPLOAD PROGRESS ==================== */
 .upload-progress-container {
     display: none;
     margin: 20px 0;
@@ -1020,7 +1019,7 @@ body {
     z-index: 1;
 }
 
-/* Miniature de vidéo */
+/* ==================== THUMBNAIL PREVIEW ==================== */
 .thumbnail-preview-container {
     margin: 15px 0;
     text-align: center;
@@ -1043,7 +1042,7 @@ body {
     margin: 0 auto;
 }
 
-/* Informations sur le fichier */
+/* ==================== FILE INFO ==================== */
 .file-info {
     display: flex;
     align-items: center;
@@ -1060,7 +1059,7 @@ body {
     color: #ff0050;
 }
 
-/* Boutons d'action */
+/* ==================== ACTION BUTTONS ==================== */
 .btn-action {
     background: #333;
     color: white;
@@ -1071,7 +1070,7 @@ body {
     background: #444;
 }
 
-/* Animation pour l'upload */
+/* ==================== ANIMATIONS ==================== */
 @keyframes uploading {
     0% { opacity: 0.7; }
     50% { opacity: 1; }
@@ -1082,7 +1081,7 @@ body {
     animation: uploading 1.5s infinite;
 }
 
-/* Styles pour le formulaire amélioré */
+/* ==================== IMPROVED FORM ==================== */
 .form-section {
     background: #111;
     padding: 20px;
@@ -1099,7 +1098,7 @@ body {
     border-top: 1px solid #333;
 }
 
-/* Styles pour les boutons désactivés */
+/* ==================== DISABLED BUTTONS ==================== */
 .btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
@@ -1109,7 +1108,7 @@ body {
     background: #ff0050;
 }
 
-/* Styles pour le placeholder amélioré */
+/* ==================== IMPROVED PLACEHOLDER ==================== */
 .preview-placeholder {
     padding: 40px;
     text-align: center;
@@ -1126,7 +1125,7 @@ body {
     font-size: 16px;
 }
 
-/* Empty State */
+/* ==================== EMPTY STATE ==================== */
 .empty-state {
     text-align: center;
     padding: 40px 20px;
@@ -1148,7 +1147,7 @@ body {
     margin-bottom: 20px;
 }
 
-/* Chat amélioré */
+/* ==================== IMPROVED CHAT ==================== */
 .chat-messages {
     display: flex;
     flex-direction: column;
@@ -1169,7 +1168,7 @@ body {
     font-size: 14px;
 }
 
-/* Animations */
+/* ==================== ANIMATIONS ==================== */
 @keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
@@ -1194,7 +1193,7 @@ body {
     animation: slideUp 0.3s ease;
 }
 
-/* Section des commentaires */
+/* ==================== COMMENTS SECTION ==================== */
 .comments-section {
     display: none;
     background: rgba(0, 0, 0, 0.9);
@@ -1250,7 +1249,7 @@ body {
     cursor: pointer;
 }
 
-/* Styles pour le feed vidéo */
+/* ==================== VIDEO FEED STYLES ==================== */
 .video-stats {
     margin-top: 10px;
     font-size: 14px;
