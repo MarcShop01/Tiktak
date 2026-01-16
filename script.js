@@ -1,3 +1,44 @@
+// ==================== FONCTIONS MODALES ====================
+
+// Fonction pour ouvrir la modale de création
+function openCreateModal() {
+    const modal = document.getElementById("createModal");
+    if (modal) {
+        modal.style.display = "flex"; // Affiche la fenêtre modale
+    } else {
+        console.error("Élément #createModal introuvable");
+    }
+}
+
+// Fonction pour fermer la modale de création
+function closeCreateModal() {
+    const modal = document.getElementById("createModal");
+    if (modal) {
+        modal.style.display = "none";
+        // Réinitialiser les champs
+        document.getElementById('videoCaption').value = '';
+        document.getElementById('previewVideo').style.display = 'none';
+        document.getElementById('previewVideo').src = '';
+        document.getElementById('thumbnailPreview').style.display = 'none';
+        document.getElementById('thumbnailPreview').src = '';
+        document.getElementById('uploadProgressContainer').style.display = 'none';
+        document.getElementById('uploadProgressFill').style.width = '0%';
+        document.getElementById('uploadProgressText').textContent = '0%';
+        document.getElementById('uploadPercentage').textContent = '0%';
+        document.getElementById('uploadStatus').textContent = 'Préparation de l\'upload...';
+        document.getElementById('publishBtn').disabled = true;
+        document.getElementById('videoFileInfo').innerHTML = '<i class="fas fa-file-video"></i><span>Aucun fichier sélectionné</span>';
+        document.getElementById('monetizeVideo').checked = false;
+        document.getElementById('videoPrivacy').value = 'public';
+        document.querySelector('.preview-placeholder').style.display = 'flex';
+        // Réinitialiser l'état
+        if (window.appState) {
+            window.appState.currentVideoFile = null;
+            window.appState.currentThumbnailBlob = null;
+        }
+    }
+}
+
 // ==================== CONFIGURATION FIREBASE V8 ====================
 const firebaseConfig = {
     apiKey: "AIzaSyD6UBg16fK3WP6ttzzmGMLglruXO4-KEzA",
