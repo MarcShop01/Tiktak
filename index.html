@@ -7,32 +7,10 @@
     <meta name="keywords" content="vidéos, réseaux sociaux, tiktok, partage, créativité">
     <meta name="author" content="TikTok Clone">
     
-    <!-- Open Graph -->
-    <meta property="og:title" content="TikTok Clone - Partagez vos vidéos">
-    <meta property="og:description" content="Plateforme de partage de vidéos courtes créatives">
-    <meta property="og:type" content="website">
-    <meta property="og:image" content="/assets/og-image.jpg">
-    
-    <!-- Twitter Card -->
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="TikTok Clone">
-    <meta name="twitter:description" content="Partagez vos vidéos créatives">
-    
     <title>TikTok Clone - Partagez vos vidéos</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
-    
-    <!-- Structured Data -->
-    <script type="application/ld+json">
-    {
-        "@context": "https://schema.org",
-        "@type": "WebSite",
-        "name": "TikTok Clone",
-        "url": "https://tiktok-clone.com",
-        "description": "Plateforme de partage de vidéos courtes créatives"
-    }
-    </script>
 </head>
 <body>
     <!-- Loading Screen -->
@@ -50,7 +28,7 @@
                 <div class="auth-tab" onclick="switchAuthTab('register')">Inscription</div>
             </div>
             
-            <form id="loginForm" class="auth-form" onsubmit="login(event)">
+            <form id="loginForm" class="auth-form" onsubmit="login(event); return false;">
                 <div class="form-group">
                     <input type="email" id="loginEmail" placeholder="Email" required>
                 </div>
@@ -72,7 +50,7 @@
                 </div>
             </form>
             
-            <form id="registerForm" class="auth-form" style="display: none;" onsubmit="register(event)">
+            <form id="registerForm" class="auth-form" style="display: none;" onsubmit="register(event); return false;">
                 <div class="form-group">
                     <input type="text" id="registerUsername" placeholder="Nom d'utilisateur" required>
                 </div>
@@ -210,10 +188,10 @@
                 </div>
                 
                 <div class="modal-actions">
-                    <button class="btn btn-action" onclick="startRecording()" id="recordBtn">
+                    <button type="button" class="btn btn-action" onclick="startRecording()" id="recordBtn">
                         <i class="fas fa-video"></i> Filmer
                     </button>
-                    <button class="btn btn-action" onclick="openFilePicker()">
+                    <button type="button" class="btn btn-action" onclick="openFilePicker()">
                         <i class="fas fa-upload"></i> Importer
                     </button>
                     <input type="file" id="videoInput" accept="video/*" style="display: none;">
@@ -249,8 +227,8 @@
                 </div>
                 
                 <div class="modal-footer">
-                    <button class="btn btn-secondary" onclick="closeCreateModal()">Annuler</button>
-                    <button class="btn btn-primary" onclick="publishVideo()" id="publishBtn" disabled>
+                    <button type="button" class="btn btn-secondary" onclick="closeCreateModal()">Annuler</button>
+                    <button type="button" class="btn btn-primary" onclick="publishVideo()" id="publishBtn" disabled>
                         <i class="fas fa-paper-plane"></i> Publier
                     </button>
                 </div>
@@ -301,8 +279,8 @@
                 </div>
                 
                 <div class="modal-footer">
-                    <button class="btn btn-secondary" onclick="closeLiveSetup()">Annuler</button>
-                    <button class="btn btn-primary" onclick="startLiveStream()">
+                    <button type="button" class="btn btn-secondary" onclick="closeLiveSetup()">Annuler</button>
+                    <button type="button" class="btn btn-primary" onclick="startLiveStream()">
                         <i class="fas fa-broadcast-tower"></i> Démarrer le live
                     </button>
                 </div>
@@ -321,10 +299,10 @@
                 </div>
                 
                 <div class="live-controls">
-                    <button class="btn btn-gift" onclick="openGiftShop()">
+                    <button type="button" class="btn btn-gift" onclick="openGiftShop()">
                         <i class="fas fa-gift"></i> Cadeaux
                     </button>
-                    <button class="btn btn-danger" onclick="endLiveStream()">
+                    <button type="button" class="btn btn-danger" onclick="endLiveStream()">
                         <i class="fas fa-stop"></i> Terminer
                     </button>
                 </div>
@@ -353,7 +331,7 @@
                         
                         <div class="chat-input">
                             <input type="text" id="chatInput" placeholder="Envoyer un message..." maxlength="200">
-                            <button id="sendChatBtn"><i class="fas fa-paper-plane"></i></button>
+                            <button type="button" id="sendChatBtn"><i class="fas fa-paper-plane"></i></button>
                         </div>
                     </div>
                     
@@ -413,7 +391,7 @@
                         <input type="text" id="giftMessage" placeholder="Ajouter un message...">
                     </div>
                     
-                    <button class="btn btn-primary" onclick="sendGift()">
+                    <button type="button" class="btn btn-primary" onclick="sendGift()">
                         <i class="fas fa-gift"></i> Envoyer le cadeau
                     </button>
                 </div>
@@ -424,26 +402,19 @@
         <div id="notificationsContainer" class="notifications-container"></div>
     </div>
 
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-firestore.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-storage.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-functions.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.5.0/firebase-analytics.js"></script>
+    <!-- ========== FIREBASE V8 (Compatibilité maximale) ========== -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-functions.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-analytics.js"></script>
     
     <!-- Main Script -->
     <script src="script.js"></script>
     
-    <!-- Service Worker Registration -->
     <script>
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/sw.js')
-                .then(reg => console.log('Service Worker enregistré'))
-                .catch(err => console.log('Erreur Service Worker:', err));
-        }
-        
-        // Fonctions UI supplémentaires
+        // Fonctions UI de base
         function openFilePicker() {
             document.getElementById('videoInput').click();
         }
@@ -467,7 +438,6 @@
         
         function closeCreateModal() {
             document.getElementById('createModal').style.display = 'none';
-            // Réinitialiser le formulaire
             document.getElementById('videoCaption').value = '';
             document.getElementById('previewVideo').style.display = 'none';
             document.getElementById('previewVideo').src = '';
@@ -482,6 +452,7 @@
             document.getElementById('videoFileInfo').innerHTML = '<i class="fas fa-file-video"></i><span>Aucun fichier sélectionné</span>';
             document.getElementById('monetizeVideo').checked = false;
             document.getElementById('videoPrivacy').value = 'public';
+            document.querySelector('.preview-placeholder').style.display = 'flex';
         }
         
         function openLiveSetup() {
@@ -504,25 +475,41 @@
             document.getElementById('giftShopModal').style.display = 'none';
             document.getElementById('selectedGift').style.display = 'none';
             document.getElementById('giftMessage').value = '';
+            document.querySelectorAll('.gift-item').forEach(item => {
+                item.classList.remove('selected');
+            });
         }
         
         function selectGift(type, price) {
-            const giftItems = document.querySelectorAll('.gift-item');
-            giftItems.forEach(item => item.classList.remove('selected'));
+            // Désélectionner tous les cadeaux
+            document.querySelectorAll('.gift-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            
+            // Sélectionner le cadeau cliqué
             event.currentTarget.classList.add('selected');
             
-            document.getElementById('selectedGiftIcon').textContent = 
-                type === 'rose' ? '🌹' : 
-                type === 'crown' ? '👑' : 
-                type === 'diamond' ? '💎' : '🚀';
-            document.getElementById('selectedGiftName').textContent = 
-                type === 'rose' ? 'Rose' : 
-                type === 'crown' ? 'Couronne' : 
-                type === 'diamond' ? 'Diamant' : 'Fusée';
+            // Mettre à jour l'affichage
+            const iconMap = {
+                'rose': '🌹',
+                'crown': '👑',
+                'diamond': '💎',
+                'rocket': '🚀'
+            };
+            
+            const nameMap = {
+                'rose': 'Rose',
+                'crown': 'Couronne',
+                'diamond': 'Diamant',
+                'rocket': 'Fusée'
+            };
+            
+            document.getElementById('selectedGiftIcon').textContent = iconMap[type] || '🎁';
+            document.getElementById('selectedGiftName').textContent = nameMap[type] || 'Cadeau';
             document.getElementById('selectedGiftPrice').textContent = price;
             document.getElementById('selectedGift').style.display = 'block';
             
-            // Stocker dans l'état global si disponible
+            // Stocker dans l'état global
             if (window.appState) {
                 window.appState.selectedGift = { type, price };
             }
@@ -556,60 +543,35 @@
             alert('Commentaires - Fonctionnalité à venir');
         }
         
-        function simulateViewers() {
-            // Fonction à implémenter
-        }
-        
-        function joinLiveChat(streamId) {
-            // Fonction à implémenter
-        }
-        
-        function showGiftAnimation(giftType) {
-            // Fonction à implémenter
-        }
-        
-        function handleSearch() {
-            // Fonction à implémenter
-        }
-        
-        function sendChatMessage() {
-            // Fonction à implémenter
-        }
-        
         function switchAuthTab(tab) {
-            document.querySelectorAll('.auth-form').forEach(form => {
-                form.style.display = 'none';
-            });
+            // Désactiver tous les onglets
             document.querySelectorAll('.auth-tab').forEach(tabElement => {
                 tabElement.classList.remove('active');
             });
             
-            document.getElementById(`${tab}Form`).style.display = 'block';
+            // Masquer tous les formulaires
+            document.querySelectorAll('.auth-form').forEach(form => {
+                form.style.display = 'none';
+            });
+            
+            // Activer l'onglet cliqué
             event.currentTarget.classList.add('active');
+            
+            // Afficher le formulaire correspondant
+            document.getElementById(`${tab}Form`).style.display = 'block';
         }
         
-        // Fermer les dropdowns en cliquant à l'extérieur
-        document.addEventListener('click', function(event) {
-            const userMenu = document.getElementById('userMenu');
-            const dropdown = document.getElementById('userDropdown');
-            
-            if (userMenu && dropdown && !userMenu.contains(event.target) && !dropdown.contains(event.target)) {
-                dropdown.style.display = 'none';
-            }
-            
-            // Fermer les modals en cliquant à l'extérieur
-            const modals = document.querySelectorAll('.modal-overlay');
-            modals.forEach(modal => {
-                if (modal.style.display === 'flex' && event.target === modal) {
-                    modal.style.display = 'none';
-                }
-            });
-        });
-        
-        // Gérer la sélection de fichier vidéo
+        // Gestionnaire de fichier vidéo
         document.getElementById('videoInput')?.addEventListener('change', function(event) {
             const file = event.target.files[0];
             if (!file) return;
+            
+            // Vérifier la taille (max 100MB)
+            const maxSize = 100 * 1024 * 1024; // 100MB
+            if (file.size > maxSize) {
+                alert('Le fichier est trop volumineux (max 100MB)');
+                return;
+            }
             
             // Mettre à jour l'affichage du fichier
             const fileInfo = document.getElementById('videoFileInfo');
@@ -633,8 +595,8 @@
             // Générer et afficher la miniature
             previewVideo.addEventListener('loadeddata', function() {
                 const canvas = document.createElement('canvas');
-                canvas.width = previewVideo.videoWidth;
-                canvas.height = previewVideo.videoHeight;
+                canvas.width = previewVideo.videoWidth || 400;
+                canvas.height = previewVideo.videoHeight || 600;
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(previewVideo, 0, 0, canvas.width, canvas.height);
                 
@@ -643,12 +605,38 @@
                     thumbnailPreview.style.display = 'block';
                     thumbnailPreview.src = URL.createObjectURL(blob);
                     
-                    // Stocker dans l'état global si disponible
+                    // Stocker dans l'état global
                     if (window.appState) {
                         window.appState.currentVideoFile = file;
                         window.appState.currentThumbnailBlob = blob;
                     }
                 }, 'image/jpeg', 0.8);
+            });
+        });
+        
+        // Fermer les modales en cliquant à l'extérieur
+        document.addEventListener('click', function(event) {
+            // Fermer le menu utilisateur
+            const userMenu = document.getElementById('userMenu');
+            const dropdown = document.getElementById('userDropdown');
+            
+            if (userMenu && dropdown && !userMenu.contains(event.target) && !dropdown.contains(event.target)) {
+                dropdown.style.display = 'none';
+            }
+            
+            // Fermer les modales
+            const modals = document.querySelectorAll('.modal-overlay');
+            modals.forEach(modal => {
+                if (modal.style.display === 'flex' && event.target === modal) {
+                    modal.style.display = 'none';
+                }
+            });
+        });
+        
+        // Empêcher la fermeture des modales en cliquant à l'intérieur
+        document.querySelectorAll('.modal-content').forEach(modalContent => {
+            modalContent.addEventListener('click', function(event) {
+                event.stopPropagation();
             });
         });
     </script>
