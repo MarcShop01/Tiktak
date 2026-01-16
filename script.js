@@ -106,6 +106,46 @@ const demoVideos = [
     }
 ];
 
+// ==================== GESTION DES COMMENTAIRES ====================
+function openComments(videoId) {
+    const commentsSection = document.getElementById(`comments-${videoId}`);
+    if (commentsSection) {
+        commentsSection.style.display = 'block';
+        commentsSection.classList.add('active');
+        
+        // Focus sur le champ de commentaire si disponible
+        const commentInput = commentsSection.querySelector('textarea');
+        if (commentInput) {
+            setTimeout(() => commentInput.focus(), 100);
+        }
+    } else {
+        console.error(`Section de commentaires introuvable pour la vidéo ${videoId}`);
+        showNotification('Fonctionnalité commentaires en développement', 'info');
+    }
+}
+
+function closeComments(videoId) {
+    const commentsSection = document.getElementById(`comments-${videoId}`);
+    if (commentsSection) {
+        commentsSection.style.display = 'none';
+        commentsSection.classList.remove('active');
+    }
+}
+
+function toggleComments(videoId) {
+    const commentsSection = document.getElementById(`comments-${videoId}`);
+    if (!commentsSection) {
+        console.error(`Section de commentaires introuvable pour la vidéo ${videoId}`);
+        return;
+    }
+    
+    if (commentsSection.style.display === 'none' || !commentsSection.classList.contains('active')) {
+        openComments(videoId);
+    } else {
+        closeComments(videoId);
+    }
+}
+
 // ==================== FONCTIONS UI ====================
 
 function hideLoginModal() {
@@ -488,9 +528,51 @@ function createVideoElement(video) {
             </div>
             ` : ''}
         </div>
+        
+        <!-- Section des commentaires -->
+        <div id="comments-${video.id}" class="comments-section" style="display: none;">
+            <div class="comments-header">
+                <h4>Commentaires (${formatNumber(video.commentsCount || video.comments || 0)})</h4>
+                <button onclick="closeComments('${video.id}')" class="close-comments-btn">×</button>
+            </div>
+            <div class="comments-list">
+                <div class="comment">
+                    <strong>@fan123</strong>
+                    <p>Super vidéo ! J'adore 😍</p>
+                </div>
+                <div class="comment">
+                    <strong>@creative_user</strong>
+                    <p>Trop stylé ! Continue comme ça 👍</p>
+                </div>
+                <div class="comment">
+                    <strong>@tiktok_fan</strong>
+                    <p>#tiktokclone #awesome</p>
+                </div>
+            </div>
+            <div class="comment-form">
+                <textarea placeholder="Ajouter un commentaire..." rows="2"></textarea>
+                <button onclick="postComment('${video.id}')">Publier</button>
+            </div>
+        </div>
     `;
     
     return div;
+}
+
+function postComment(videoId) {
+    if (!appState.user) {
+        showLoginModal();
+        return;
+    }
+    
+    const commentInput = document.querySelector(`#comments-${videoId} textarea`);
+    if (!commentInput || !commentInput.value.trim()) {
+        showNotification('Veuillez écrire un commentaire', 'error');
+        return;
+    }
+    
+    showNotification('Commentaire publié! (Mode démo)', 'success');
+    commentInput.value = '';
 }
 
 // ==================== PUBLICATION DE VIDÉO (SANS STORAGE) ====================
@@ -1042,6 +1124,9 @@ window.publishVideo = publishVideo;
 window.handleLike = handleLike;
 window.handleShare = handleShare;
 window.openComments = openComments;
+window.closeComments = closeComments;
+window.toggleComments = toggleComments;
+window.postComment = postComment;
 window.openGiftShopForVideo = openGiftShopForVideo;
 window.sendGift = sendGift;
 window.selectGift = selectGift;
@@ -1058,27 +1143,3 @@ if (document.readyState === 'loading') {
 } else {
     setTimeout(initApp, 100);
 }
-// Fonction pour ouvrir la fenêtre de création
-function openCreateModal() {
-  const modal = document.getElementById("createModal");
-  if (modal) {
-    modal.style.display = "block"; // Affiche la modale
-  } else {
-    console.error("Élément #createModal introuvable");
-  }
-}
-
-// Fonction pour fermer la fenêtre de création
-function closeCreateModal() {
-  const modal = document.getElementById("createModal");
-  if (modal) {
-    modal.style.display = "none"; // Cache la modale
-  } else {
-    console.error("Élément #createModal introuvable");
-  }
-}
-
-// Attacher les fonctions à l'objet global window
-window.openCreateModal = openCreateModal;
-window.closeCreateModal = closeCreateModal;
-
