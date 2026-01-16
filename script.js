@@ -1,15 +1,15 @@
-// Configuration Firebase avec VOS clés
+// ==================== CONFIGURATION FIREBASE V8 ====================
 const firebaseConfig = {
     apiKey: "AIzaSyD6UBg16fK3WP6ttzzmGMLglruXO4-KEzA",
     authDomain: "tiktak-97036.firebaseapp.com",
     projectId: "tiktak-97036",
-    storageBucket: "tiktak-97036.firebasestorage.app",
+    storageBucket: "tiktak-97036.appspot.com", // Changé pour le bucket correct
     messagingSenderId: "329130229096",
     appId: "1:329130229096:web:2dabf7f2a39de191b62add",
     measurementId: "G-8HN67F2F2R"
 };
 
-// Initialiser Firebase avec vos informations
+// Initialiser Firebase (syntaxe v8)
 firebase.initializeApp(firebaseConfig);
 
 // Services Firebase
@@ -40,7 +40,7 @@ const appState = {
     currentThumbnailBlob: null
 };
 
-// Données de démo (à utiliser si Firebase n'est pas encore configuré)
+// Données de démo
 const mockVideos = [
     {
         id: "1",
@@ -118,12 +118,12 @@ async function testFirebaseConnection() {
         const testDoc = await db.collection('test').doc('connection').get();
         console.log('✅ Connexion Firestore OK');
         
-        // Test Storage (si activé)
+        // Test Storage
         try {
             const storageRef = storage.ref();
             console.log('✅ Connexion Storage OK');
         } catch (storageError) {
-            console.log('⚠️ Storage non configuré - veuillez activer le forfait Blaze');
+            console.log('⚠️ Storage non configuré:', storageError.message);
             showNotification('Storage non configuré. Activez le forfait Blaze dans la console Firebase.', 'warning');
         }
     } catch (error) {
@@ -295,6 +295,10 @@ async function uploadVideoToStorage(file, userId) {
     try {
         console.log('📤 Upload de la vidéo vers Firebase Storage...');
         
+        // Afficher la barre de progression
+        document.getElementById('uploadProgressContainer').style.display = 'block';
+        document.getElementById('uploadStatus').textContent = 'Upload de la vidéo...';
+        
         // Créer une référence pour le fichier
         const storageRef = storage.ref();
         const videoRef = storageRef.child(`videos/${userId}/${Date.now()}_${file.name}`);
@@ -310,12 +314,10 @@ async function uploadVideoToStorage(file, userId) {
                     const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
                     console.log(`📊 Progression: ${progress.toFixed(2)}%`);
                     
-                    // Mettre à jour la barre de progression si elle existe
-                    const progressBar = document.getElementById('uploadProgress');
-                    if (progressBar) {
-                        progressBar.style.width = `${progress}%`;
-                        progressBar.textContent = `${Math.round(progress)}%`;
-                    }
+                    // Mettre à jour la barre de progression
+                    document.getElementById('uploadProgressFill').style.width = `${progress}%`;
+                    document.getElementById('uploadProgressText').textContent = `${Math.round(progress)}%`;
+                    document.getElementById('uploadPercentage').textContent = `${Math.round(progress)}%`;
                 },
                 (error) => {
                     console.error('❌ Erreur upload:', error);
@@ -345,6 +347,8 @@ async function uploadImageToStorage(file, userId) {
     try {
         console.log('📤 Upload de l\'image vers Firebase Storage...');
         
+        document.getElementById('uploadStatus').textContent = 'Upload de la miniature...';
+        
         // Créer une référence pour le fichier
         const storageRef = storage.ref();
         const imageRef = storageRef.child(`thumbnails/${userId}/${Date.now()}_${file.name}`);
@@ -356,16 +360,16 @@ async function uploadImageToStorage(file, userId) {
         return new Promise((resolve, reject) => {
             uploadTask.on('state_changed',
                 (snapshot) => {
-                    // Progression de l'upload
                     const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                    console.log(`📊 Progression: ${progress.toFixed(2)}%`);
+                    document.getElementById('uploadProgressFill').style.width = `${progress}%`;
+                    document.getElementById('uploadProgressText').textContent = `${Math.round(progress)}%`;
+                    document.getElementById('uploadPercentage').textContent = `${Math.round(progress)}%`;
                 },
                 (error) => {
                     console.error('❌ Erreur upload:', error);
                     reject(error);
                 },
                 async () => {
-                    // Upload terminé avec succès
                     const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
                     console.log('✅ Image uploadée avec succès:', downloadURL);
                     
@@ -380,37 +384,6 @@ async function uploadImageToStorage(file, userId) {
         
     } catch (error) {
         console.error('❌ Erreur upload image:', error);
-        throw error;
-    }
-}
-
-async function uploadAvatarToStorage(file, userId) {
-    try {
-        console.log('📤 Upload de l\'avatar vers Firebase Storage...');
-        
-        // Créer une référence pour le fichier
-        const storageRef = storage.ref();
-        const avatarRef = storageRef.child(`avatars/${userId}/${Date.now()}_${file.name}`);
-        
-        // Upload le fichier
-        const uploadTask = avatarRef.put(file);
-        
-        // Retourner une promesse
-        return new Promise((resolve, reject) => {
-            uploadTask.on('state_changed',
-                null,
-                (error) => {
-                    reject(error);
-                },
-                async () => {
-                    const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
-                    resolve(downloadURL);
-                }
-            );
-        });
-        
-    } catch (error) {
-        console.error('❌ Erreur upload avatar:', error);
         throw error;
     }
 }
@@ -550,7 +523,6 @@ async function publishVideo() {
     }
     
     const caption = document.getElementById('videoCaption').value.trim();
-    const videoPreview = document.getElementById('previewVideo');
     const isMonetized = document.getElementById('monetizeVideo').checked;
     const privacy = document.getElementById('videoPrivacy').value;
     
@@ -567,8 +539,9 @@ async function publishVideo() {
     try {
         showNotification('Publication en cours...', 'info');
         
-        // Afficher la barre de progression
-        showUploadProgress();
+        // Désactiver le bouton pendant l'upload
+        document.getElementById('publishBtn').disabled = true;
+        document.getElementById('publishBtn').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Publication...';
         
         let videoUrl, thumbnailUrl;
         
@@ -616,7 +589,7 @@ async function publishVideo() {
             commentsCount: 0,
             sharesCount: 0,
             viewsCount: 0,
-            duration: videoPreview.duration || 30,
+            duration: 30, // Valeur par défaut
             isPublic: privacy === 'public',
             isMonetized: isMonetized,
             tags: tags,
@@ -647,7 +620,7 @@ async function publishVideo() {
         renderVideos();
         
         // 9. Cacher la barre de progression
-        hideUploadProgress();
+        document.getElementById('uploadProgressContainer').style.display = 'none';
         
         // 10. Fermer le modal et montrer la notification
         closeCreateModal();
@@ -662,96 +635,12 @@ async function publishVideo() {
         
     } catch (error) {
         console.error('❌ Erreur publication:', error);
-        hideUploadProgress();
+        document.getElementById('uploadProgressContainer').style.display = 'none';
         showNotification('Erreur lors de la publication: ' + error.message, 'error');
-    }
-}
-
-// ==================== GESTION DU TÉLÉVERSEMENT ====================
-function handleVideoUpload(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    // Vérifier la taille du fichier (max 50MB)
-    const maxSize = 50 * 1024 * 1024; // 50MB
-    if (file.size > maxSize) {
-        showNotification('La vidéo est trop grande (max 50MB)', 'error');
-        return;
-    }
-
-    // Vérifier le type de fichier
-    if (!file.type.includes('video/')) {
-        showNotification('Veuillez sélectionner un fichier vidéo', 'error');
-        return;
-    }
-
-    // Sauvegarder le fichier
-    appState.currentVideoFile = file;
-
-    // Afficher la prévisualisation
-    const videoPreview = document.getElementById('previewVideo');
-    if (videoPreview) {
-        videoPreview.src = URL.createObjectURL(file);
-        videoPreview.load();
         
-        // Générer une miniature automatiquement
-        videoPreview.addEventListener('loadeddata', function() {
-            generateThumbnail(videoPreview).then(thumbnailBlob => {
-                // Afficher la miniature
-                const thumbnailPreview = document.getElementById('thumbnailPreview');
-                if (thumbnailPreview) {
-                    thumbnailPreview.src = URL.createObjectURL(thumbnailBlob);
-                }
-                // Stocker le blob de la miniature
-                appState.currentThumbnailBlob = thumbnailBlob;
-            });
-        });
-    }
-
-    // Activer le bouton de publication
-    const publishBtn = document.getElementById('publishBtn');
-    if (publishBtn) {
-        publishBtn.disabled = false;
-    }
-
-    console.log('✅ Vidéo sélectionnée:', file.name, file.size);
-}
-
-async function generateThumbnail(videoElement) {
-    return new Promise((resolve) => {
-        const canvas = document.createElement('canvas');
-        canvas.width = videoElement.videoWidth;
-        canvas.height = videoElement.videoHeight;
-        
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-        
-        canvas.toBlob((blob) => {
-            resolve(blob);
-        }, 'image/jpeg', 0.8);
-    });
-}
-
-function showUploadProgress() {
-    const progressContainer = document.getElementById('uploadProgressContainer');
-    const progressBar = document.getElementById('uploadProgress');
-    
-    if (progressContainer) {
-        progressContainer.style.display = 'block';
-    }
-    
-    if (progressBar) {
-        progressBar.style.width = '0%';
-        progressBar.textContent = '0%';
-    }
-}
-
-function hideUploadProgress() {
-    const progressContainer = document.getElementById('uploadProgressContainer');
-    if (progressContainer) {
-        setTimeout(() => {
-            progressContainer.style.display = 'none';
-        }, 1000);
+        // Réactiver le bouton
+        document.getElementById('publishBtn').disabled = false;
+        document.getElementById('publishBtn').innerHTML = '<i class="fas fa-paper-plane"></i> Publier';
     }
 }
 
@@ -890,84 +779,26 @@ async function startLiveStream() {
     }
     
     try {
-        // Demander l'accès à la caméra
-        const stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-                width: { ideal: 1280 },
-                height: { ideal: 720 },
-                facingMode: 'user'
-            },
-            audio: true
-        });
+        // Démarrer le live (simulation pour l'instant)
+        showNotification('Live démarré! Les spectateurs peuvent maintenant vous rejoindre.', 'success');
+        closeLiveSetup();
         
-        // Créer le document live dans Firestore
-        const liveData = {
-            userId: appState.user.uid,
-            username: appState.userProfile.username,
-            userAvatar: appState.userProfile.avatar,
-            title: title,
-            description: description,
-            category: category,
-            isActive: true,
-            viewersCount: 0,
-            likesCount: 0,
-            giftsCount: 0,
-            giftsValue: 0,
-            startedAt: firebase.firestore.FieldValue.serverTimestamp(),
-            endedAt: null
-        };
-        
-        const streamRef = await db.collection('liveStreams').add(liveData);
-        appState.currentStreamId = streamRef.id;
-        appState.isLive = true;
-        appState.liveStream = stream;
-        
-        // Mettre à jour l'interface
+        // Simuler un live
         document.getElementById('appContainer').style.display = 'none';
         document.getElementById('liveInterface').style.display = 'block';
         document.getElementById('streamerName').textContent = appState.userProfile.username;
         document.getElementById('streamerAvatar').src = appState.userProfile.avatar;
         
-        // Démarrer la vidéo
-        const liveVideo = document.getElementById('liveVideo');
-        liveVideo.srcObject = stream;
-        
-        closeLiveSetup();
-        showNotification('Live démarré! Les spectateurs peuvent maintenant vous rejoindre.', 'success');
-        
-        // Simuler des spectateurs
-        simulateViewers();
-        
-        // Rejoindre le chat
-        await joinLiveChat(appState.currentStreamId);
+        appState.isLive = true;
         
     } catch (error) {
         console.error('Erreur démarrage live:', error);
-        
-        if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
-            showNotification('Permission de la caméra refusée', 'error');
-        } else if (error.name === 'NotFoundError') {
-            showNotification('Aucune caméra trouvée', 'error');
-        } else {
-            showNotification('Erreur lors du démarrage du live: ' + error.message, 'error');
-        }
+        showNotification('Erreur lors du démarrage du live: ' + error.message, 'error');
     }
 }
 
 async function endLiveStream() {
     try {
-        if (appState.liveStream) {
-            appState.liveStream.getTracks().forEach(track => track.stop());
-            appState.liveStream = null;
-        }
-        
-        if (appState.currentStreamId) {
-            await db.collection('liveStreams').doc(appState.currentStreamId).update({
-                isActive: false,
-                endedAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-        }
-        
         appState.isLive = false;
         
         document.getElementById('liveInterface').style.display = 'none';
@@ -1053,9 +884,6 @@ async function sendGift() {
         appState.userProfile.coins -= appState.selectedGift.price;
         updateCoinDisplay(appState.userProfile.coins);
         
-        // Animation
-        showGiftAnimation(appState.selectedGift.type);
-        
         closeGiftShop();
         showNotification('Cadeau envoyé avec succès!', 'success');
         
@@ -1105,16 +933,6 @@ function setupRealtimeListeners() {
                     showNotificationInUI(notification);
                 }
             });
-        });
-    
-    // Écouter les nouveaux lives
-    db.collection('liveStreams')
-        .where('isActive', '==', true)
-        .orderBy('viewersCount', 'desc')
-        .limit(10)
-        .onSnapshot((snapshot) => {
-            // Mettre à jour la liste des lives actifs
-            console.log('Lives actifs mis à jour');
         });
 }
 
@@ -1233,32 +1051,38 @@ function initVideoPlayback() {
     videos.forEach(video => observer.observe(video));
 }
 
+function hideLoginModal() {
+    document.getElementById('loginModal').style.display = 'none';
+}
+
+function showLoginModal() {
+    document.getElementById('loginModal').style.display = 'flex';
+}
+
+function showApp() {
+    document.getElementById('appContainer').style.display = 'block';
+}
+
+function hideApp() {
+    document.getElementById('appContainer').style.display = 'none';
+}
+
+function switchAuthTab(tab) {
+    // Implémenté dans le HTML
+}
+
 // ==================== ÉVÉNEMENTS ====================
 function setupEventListeners() {
-    // Bouton de création
-    document.getElementById('createBtn')?.addEventListener('click', openCreateModal);
-    
-    // Upload de vidéo
-    document.getElementById('videoInput')?.addEventListener('change', handleVideoUpload);
-    
-    // Chat en direct
-    document.getElementById('sendChatBtn')?.addEventListener('click', sendChatMessage);
-    document.getElementById('chatInput')?.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') sendChatMessage();
-    });
-    
     // Recherche
     const searchInput = document.getElementById('searchInput');
     if (searchInput) {
         searchInput.addEventListener('input', debounce(handleSearch, 300));
     }
     
-    // Clic extérieur pour fermer les dropdowns
-    document.addEventListener('click', (e) => {
-        if (!e.target.closest('.user-menu') && !e.target.closest('.dropdown-menu')) {
-            const dropdown = document.getElementById('userDropdown');
-            if (dropdown) dropdown.style.display = 'none';
-        }
+    // Chat en direct
+    document.getElementById('sendChatBtn')?.addEventListener('click', sendChatMessage);
+    document.getElementById('chatInput')?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') sendChatMessage();
     });
 }
 
@@ -1272,48 +1096,6 @@ function debounce(func, wait) {
         clearTimeout(timeout);
         timeout = setTimeout(later, wait);
     };
-}
-
-// ==================== FONCTIONS UI (À AJOUTER DANS VOTRE HTML SI ABSENTES) ====================
-function openCreateModal() {
-    if (!appState.user) {
-        showLoginModal();
-        return;
-    }
-    document.getElementById('createModal').style.display = 'block';
-}
-
-function closeCreateModal() {
-    document.getElementById('createModal').style.display = 'none';
-    // Réinitialiser le formulaire
-    document.getElementById('videoCaption').value = '';
-    document.getElementById('previewVideo').src = '';
-    document.getElementById('thumbnailPreview').src = '';
-    appState.currentVideoFile = null;
-    appState.currentThumbnailBlob = null;
-}
-
-function showLoginModal() {
-    document.getElementById('loginModal').style.display = 'block';
-}
-
-function hideLoginModal() {
-    document.getElementById('loginModal').style.display = 'none';
-}
-
-function showApp() {
-    document.getElementById('appContainer').style.display = 'block';
-}
-
-function hideApp() {
-    document.getElementById('appContainer').style.display = 'none';
-}
-
-function switchAuthTab(tab) {
-    document.querySelectorAll('.auth-form').forEach(form => {
-        form.style.display = 'none';
-    });
-    document.getElementById(`${tab}Form`).style.display = 'block';
 }
 
 // ==================== INITIALISATION ====================
