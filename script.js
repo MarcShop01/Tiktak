@@ -479,7 +479,7 @@ function createVideoElement(video) {
     );
     
     div.innerHTML = `
-        <video loop muted playsinline poster="${video.thumbnailUrl}">
+        <video loop muted playsinline poster="${video.thumbnailUrl}" preload="metadata">
             <source src="${video.videoUrl}" type="video/mp4">
             Votre navigateur ne supporte pas la vidéo.
         </video>
@@ -540,15 +540,156 @@ function initVideoPlayback() {
     const observer = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
             const video = entry.target;
-            if (entry.isIntersecting) {
-                video.play().catch(e => console.log('Lecture bloquée:', e));
+            
+            // Ne jouer que si la vidéo est visible à plus de 50%
+            if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+                // Vérifier si la vidéo n'est pas déjà en train de jouer
+                if (video.paused) {
+                    const playPromise = video.play();
+                    
+                    // Gérer la promesse de lecture
+                    if (playPromise !== undefined) {
+                        playPromise
+                            .then(() => {
+                                // Lecture réussie
+                                console.log('🎬 Vidéo en lecture:', video.src);
+                            })
+                            .catch(error => {
+                                // Gérer les erreurs spécifiques
+                                if (error.name === 'AbortError') {
+                                    console.log('⏸️ Lecture interrompue volontairement');
+                                } else if (error.name === 'NotAllowedError') {
+                                    console.log('🔒 Lecture non autorisée (autoplay policy)');
+                                    // Ajouter un bouton de lecture manuelle
+                                    addManualPlayButton(video.parentElement);
+                                } else {
+                                    console.error('❌ Erreur lecture:', error);
+                                }
+                            });
+                    }
+                }
+            } else {
+                // Mettre en pause seulement si la vidéo est en train de jouer
+                if (!video.paused) {
+                    video.pause();
+                }
+            }
+        });
+    }, { 
+        threshold: [0.1, 0.5, 0.9], // Plusieurs seuils pour plus de précision
+        rootMargin: '0px'
+    });
+    
+    videos.forEach(video => {
+        // Précharger les métadonnées
+        video.load();
+        observer.observe(video);
+        
+        // Gérer les erreurs de chargement
+        video.addEventListener('error', (e) => {
+            console.error('❌ Erreur chargement vidéo:', e);
+            replaceWithFallback(video.parentElement);
+        });
+        
+        // Ajouter un événement de clic pour lecture manuelle
+        video.addEventListener('click', () => {
+            if (video.paused) {
+                video.play().catch(e => {
+                    console.log('❌ Lecture manuelle échouée:', e);
+                });
             } else {
                 video.pause();
             }
         });
-    }, { threshold: 0.5 });
+    });
+}
+
+// Fonction pour ajouter un bouton de lecture manuelle
+function addManualPlayButton(videoContainer) {
+    const existingButton = videoContainer.querySelector('.manual-play-btn');
+    if (existingButton) return;
     
-    videos.forEach(video => observer.observe(video));
+    const button = document.createElement('button');
+    button.className = 'manual-play-btn';
+    button.innerHTML = '<i class="fas fa-play"></i>';
+    button.style.cssText = `
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0, 242, 254, 0.8);
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 60px;
+        height: 60px;
+        font-size: 24px;
+        cursor: pointer;
+        z-index: 10;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    `;
+    
+    button.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const video = videoContainer.querySelector('video');
+        video.play().then(() => {
+            button.style.display = 'none';
+        }).catch(error => {
+            console.log('❌ Lecture échouée:', error);
+        });
+    });
+    
+    videoContainer.style.position = 'relative';
+    videoContainer.appendChild(button);
+}
+
+// Fonction de remplacement en cas d'erreur
+function replaceWithFallback(videoContainer) {
+    const video = videoContainer.querySelector('video');
+    const thumbnail = video.getAttribute('poster');
+    
+    videoContainer.innerHTML = `
+        <div class="video-fallback" style="
+            width: 100%;
+            height: 600px;
+            background: #111;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+        ">
+            <img src="${thumbnail}" alt="Miniature" style="
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+                opacity: 0.5;
+            ">
+            <div style="
+                position: absolute;
+                text-align: center;
+                background: rgba(0,0,0,0.7);
+                padding: 20px;
+                border-radius: 10px;
+            ">
+                <i class="fas fa-exclamation-triangle" style="font-size: 40px; margin-bottom: 10px;"></i>
+                <p>Vidéo non disponible</p>
+                <button class="btn btn-primary" onclick="retryVideoLoad('${videoContainer.getAttribute('data-video-id')}')">
+                    <i class="fas fa-redo"></i> Réessayer
+                </button>
+            </div>
+        </div>
+        ${videoContainer.querySelector('.video-overlay').outerHTML}
+    `;
+}
+
+function retryVideoLoad(videoId) {
+    const videoContainer = document.querySelector(`[data-video-id="${videoId}"]`);
+    if (videoContainer) {
+        renderVideos();
+    }
 }
 
 function publishVideo() {
@@ -648,12 +789,26 @@ function openCreateModal() {
 }
 
 function closeCreateModal() {
-    document.getElementById('createModal').style.display = 'none';
+    const modal = document.getElementById('createModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
     document.getElementById('videoCaption').value = '';
     document.getElementById('videoFileInfo').innerHTML = 
         '<i class="fas fa-file-video"></i><span>Aucun fichier sélectionné</span>';
     document.getElementById('monetizeVideo').checked = false;
     document.getElementById('videoPrivacy').value = 'public';
+    
+    // Réinitialiser la prévisualisation
+    const previewVideo = document.getElementById('previewVideo');
+    if (previewVideo) {
+        previewVideo.style.display = 'none';
+        previewVideo.src = '';
+    }
+    const placeholder = document.querySelector('.preview-placeholder');
+    if (placeholder) {
+        placeholder.style.display = 'flex';
+    }
 }
 
 function openProfile() {
@@ -720,11 +875,19 @@ function openFilePicker() {
         if (file.type.startsWith('video/')) {
             const videoUrl = URL.createObjectURL(file);
             const previewVideo = document.getElementById('previewVideo');
-            if (previewVideo) {
+            const placeholder = document.querySelector('.preview-placeholder');
+            if (previewVideo && placeholder) {
                 previewVideo.style.display = 'block';
                 previewVideo.src = videoUrl;
-                document.querySelector('.preview-placeholder').style.display = 'none';
+                placeholder.style.display = 'none';
+                
+                // Libérer l'URL quand la vidéo est chargée
+                previewVideo.onloadeddata = () => {
+                    URL.revokeObjectURL(videoUrl);
+                };
             }
+        } else if (file.type.startsWith('image/')) {
+            UI.showNotification('Image sélectionnée (vidéo simulée)', 'info');
         }
     };
 }
@@ -779,6 +942,7 @@ function saveSettings() {
         StorageManager.saveUser(AppState.currentUser);
         UI.updateUserUI();
         UI.showNotification('Paramètres sauvegardés', 'success');
+        closeSettings();
     }
 }
 
@@ -815,6 +979,8 @@ function loadUserVideos() {
     const userVideos = AppState.getUserVideos(AppState.currentUser.id);
     const container = document.getElementById('profileVideos');
     
+    if (!container) return;
+    
     if (userVideos.length === 0) {
         container.innerHTML = `
             <div class="empty-state">
@@ -847,6 +1013,8 @@ function loadLikedVideos() {
     const likedVideos = AppState.getLikedVideos();
     const container = document.getElementById('profileLikes');
     
+    if (!container) return;
+    
     if (likedVideos.length === 0) {
         container.innerHTML = `
             <div class="empty-state">
@@ -875,6 +1043,8 @@ function loadLikedVideos() {
 function loadDrafts() {
     const drafts = StorageManager.loadDrafts();
     const container = document.getElementById('profileDrafts');
+    
+    if (!container) return;
     
     if (drafts.length === 0) {
         container.innerHTML = `
@@ -1006,11 +1176,17 @@ function shareVideo(videoId) {
         }).then(() => {
             UI.showNotification('Vidéo partagée!', 'success');
             renderVideos();
+        }).catch(err => {
+            console.log('Partage annulé:', err);
         });
     } else {
-        navigator.clipboard.writeText(window.location.href);
-        UI.showNotification('Lien copié dans le presse-papier!', 'success');
-        renderVideos();
+        navigator.clipboard.writeText(window.location.href).then(() => {
+            UI.showNotification('Lien copié dans le presse-papier!', 'success');
+            renderVideos();
+        }).catch(err => {
+            console.error('Erreur copie presse-papier:', err);
+            UI.showNotification('Erreur lors du partage', 'error');
+        });
     }
 }
 
@@ -1025,9 +1201,22 @@ function playVideo(videoId) {
         const videoElement = document.querySelector(`[data-video-id="${videoId}"] video`);
         if (videoElement) {
             videoElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            videoElement.play();
+            
+            // Attendre un peu avant de jouer pour éviter l'AbortError
+            setTimeout(() => {
+                videoElement.play().then(() => {
+                    console.log('🎬 Lecture manuelle démarrée');
+                }).catch(error => {
+                    console.log('❌ Lecture manuelle échouée:', error);
+                    addManualPlayButton(videoElement.parentElement);
+                });
+            }, 300);
         }
     }
+}
+
+function openWallet() {
+    UI.showNotification('Portefeuille - Fonctionnalité à venir', 'info');
 }
 
 // ==================== DÉMARRAGE DE L'APPLICATION ====================
@@ -1064,6 +1253,8 @@ window.openComments = openComments;
 window.shareVideo = shareVideo;
 window.openGiftShop = openGiftShop;
 window.playVideo = playVideo;
+window.openWallet = openWallet;
+window.retryVideoLoad = retryVideoLoad;
 
 // Démarrer l'application
 document.addEventListener('DOMContentLoaded', initApp);
