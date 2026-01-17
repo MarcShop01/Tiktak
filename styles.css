@@ -1037,3 +1037,164 @@ function openWallet() {
         opacity: 1;
     }
 }
+/* ==================== BOUTON DE LECTURE MANUELLE ==================== */
+.manual-play-btn {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 242, 254, 0.9);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 70px;
+    height: 70px;
+    font-size: 28px;
+    cursor: pointer;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+.manual-play-btn:hover {
+    background: rgba(0, 242, 254, 1);
+    transform: translate(-50%, -50%) scale(1.1);
+}
+
+.manual-play-btn:active {
+    transform: translate(-50%, -50%) scale(0.95);
+}
+
+/* ==================== FALLBACK VIDEO ==================== */
+.video-fallback {
+    position: relative;
+    width: 100%;
+    height: 600px;
+    background: #111;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+    border-radius: 15px;
+    overflow: hidden;
+}
+
+.video-fallback img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.3;
+}
+
+.video-fallback-content {
+    position: absolute;
+    text-align: center;
+    background: rgba(0, 0, 0, 0.8);
+    padding: 30px;
+    border-radius: 15px;
+    max-width: 80%;
+    border: 2px solid #00f2fe;
+}
+
+/* ==================== AMÉLIORATIONS VIDÉO ==================== */
+.video-container {
+    cursor: pointer;
+}
+
+.video-container video {
+    cursor: pointer;
+    transition: opacity 0.3s;
+}
+
+.video-container:hover video {
+    opacity: 0.95;
+}
+
+/* ==================== PRÉVENTION DES DOUBLES CLICS ==================== */
+.btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+/* ==================== ANIMATION DE CHARGEMENT VIDÉO ==================== */
+.video-loading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 5;
+}
+
+.video-loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #00f2fe;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+/* ==================== TOOLTIPS ==================== */
+[title] {
+    position: relative;
+}
+
+[title]:hover::after {
+    content: attr(title);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #222;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-size: 12px;
+    white-space: nowrap;
+    z-index: 100;
+    margin-bottom: 5px;
+    border: 1px solid #333;
+}
+
+/* ==================== SCROLL SMOOTH ==================== */
+html {
+    scroll-behavior: smooth;
+}
+
+/* ==================== RESPONSIVE VIDÉO ==================== */
+@media (max-width: 768px) {
+    .video-container video {
+        height: 500px;
+    }
+    
+    .manual-play-btn {
+        width: 60px;
+        height: 60px;
+        font-size: 24px;
+    }
+}
+
+@media (max-width: 480px) {
+    .video-container video {
+        height: 450px;
+    }
+    
+    .manual-play-btn {
+        width: 50px;
+        height: 50px;
+        font-size: 20px;
+    }
+}
+
+/* ==================== CORRECTION DES Z-INDEX ==================== */
+.video-overlay {
+    z-index: 2;
+}
+
+.video-container video {
+    z-index: 1;
+}
