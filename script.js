@@ -176,7 +176,7 @@ const AppState = {
     videos: [],
     filteredVideos: [],
     currentVideo: null,
-    viewMode: 'home', // 'home', 'trending', 'following', 'favorites', 'myvideos'
+    viewMode: 'home',
     
     init() {
         // Charger l'utilisateur
@@ -308,7 +308,7 @@ const AppState = {
             video.description?.toLowerCase().includes(tag.toLowerCase())
         );
         this.viewMode = 'search';
-        this.renderVideos();
+        renderVideos();
     },
     
     setViewMode(mode) {
@@ -327,7 +327,7 @@ const AppState = {
                 this.filteredVideos = [...this.videos].sort((a, b) => b.likes - a.likes);
                 break;
         }
-        this.renderVideos();
+        renderVideos();
     }
 };
 
@@ -342,13 +342,16 @@ const UI = {
     
     bindEvents() {
         // Recherche
-        document.getElementById('searchInput')?.addEventListener('input', (e) => {
-            if (e.target.value.length > 2) {
-                AppState.filterByTag(e.target.value);
-            } else {
-                AppState.setViewMode('home');
-            }
-        });
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                if (e.target.value.length > 2) {
+                    AppState.filterByTag(e.target.value);
+                } else {
+                    AppState.setViewMode('home');
+                }
+            });
+        }
         
         // Gestion des modales
         document.addEventListener('click', (e) => {
@@ -436,160 +439,181 @@ const UI = {
 
 // ==================== GESTION DES VIDÉOS ====================
 
-const VideoManager = {
-    renderVideos() {
-        const videoFeed = document.getElementById('videoFeed');
-        if (!videoFeed) return;
-        
-        videoFeed.innerHTML = '';
-        
-        if (AppState.filteredVideos.length === 0) {
-            videoFeed.innerHTML = `
-                <div class="empty-state">
-                    <i class="fas fa-video-slash"></i>
-                    <h3>Aucune vidéo trouvée</h3>
-                    <p>Soyez le premier à publier une vidéo !</p>
-                    <button class="btn btn-primary" onclick="openCreateModal()">
-                        <i class="fas fa-plus"></i> Créer une vidéo
-                    </button>
-                </div>
-            `;
-            return;
-        }
-        
-        AppState.filteredVideos.forEach(video => {
-            const videoElement = this.createVideoElement(video);
-            videoFeed.appendChild(videoElement);
-        });
-        
-        this.initVideoPlayback();
-    },
+function renderVideos() {
+    const videoFeed = document.getElementById('videoFeed');
+    if (!videoFeed) return;
     
-    createVideoElement(video) {
-        const div = document.createElement('div');
-        div.className = 'video-container';
-        div.setAttribute('data-video-id', video.id);
+    videoFeed.innerHTML = '';
+    
+    if (AppState.filteredVideos.length === 0) {
+        videoFeed.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-video-slash"></i>
+                <h3>Aucune vidéo trouvée</h3>
+                <p>Soyez le premier à publier une vidéo !</p>
+                <button class="btn btn-primary" onclick="openCreateModal()">
+                    <i class="fas fa-plus"></i> Créer une vidéo
+                </button>
+            </div>
+        `;
+        return;
+    }
+    
+    AppState.filteredVideos.forEach(video => {
+        const videoElement = createVideoElement(video);
+        videoFeed.appendChild(videoElement);
+    });
+    
+    initVideoPlayback();
+}
+
+function createVideoElement(video) {
+    const div = document.createElement('div');
+    div.className = 'video-container';
+    div.setAttribute('data-video-id', video.id);
+    
+    const timeAgo = UI.formatTimeAgo(video.createdAt);
+    const likes = StorageManager.loadLikes();
+    const isLiked = likes.some(like => 
+        like.videoId === video.id && like.userId === AppState.currentUser.id
+    );
+    
+    div.innerHTML = `
+        <video loop muted playsinline poster="${video.thumbnailUrl}">
+            <source src="${video.videoUrl}" type="video/mp4">
+            Votre navigateur ne supporte pas la vidéo.
+        </video>
         
-        const timeAgo = UI.formatTimeAgo(video.createdAt);
-        const likes = StorageManager.loadLikes();
-        const isLiked = likes.some(like => 
-            like.videoId === video.id && like.userId === AppState.currentUser.id
-        );
-        
-        div.innerHTML = `
-            <video loop muted playsinline poster="${video.thumbnailUrl}">
-                <source src="${video.videoUrl}" type="video/mp4">
-                Votre navigateur ne supporte pas la vidéo.
-            </video>
+        <div class="video-overlay">
+            <div class="creator-info">
+                <img src="${video.userAvatar}" alt="${video.username}" onclick="showUserProfile('${video.userId}')">
+                <div>
+                    <h4>@${video.username}</h4>
+                    <p>${video.description || video.title}</p>
+                    <small class="time-ago">${timeAgo}</small>
+                </div>
+            </div>
             
-            <div class="video-overlay">
-                <div class="creator-info">
-                    <img src="${video.userAvatar}" alt="${video.username}" onclick="showUserProfile('${video.userId}')">
-                    <div>
-                        <h4>@${video.username}</h4>
-                        <p>${video.description || video.title}</p>
-                        <small class="time-ago">${timeAago}</small>
-                    </div>
+            <div class="video-actions">
+                <div class="action ${isLiked ? 'liked' : ''}" onclick="toggleLike('${video.id}')">
+                    <i class="fas fa-heart"></i>
+                    <span>${UI.formatNumber(video.likes)}</span>
                 </div>
                 
-                <div class="video-actions">
-                    <div class="action ${isLiked ? 'liked' : ''}" onclick="toggleLike('${video.id}')">
-                        <i class="fas fa-heart"></i>
-                        <span>${UI.formatNumber(video.likes)}</span>
-                    </div>
-                    
-                    <div class="action" onclick="openComments('${video.id}')">
-                        <i class="fas fa-comment"></i>
-                        <span>${UI.formatNumber(video.comments)}</span>
-                    </div>
-                    
-                    <div class="action" onclick="shareVideo('${video.id}')">
-                        <i class="fas fa-share"></i>
-                        <span>${UI.formatNumber(video.shares)}</span>
-                    </div>
-                    
-                    ${video.isMonetized ? `
-                    <div class="action" onclick="openGiftShop('${video.id}')">
-                        <i class="fas fa-gift"></i>
-                        <span>Donner</span>
-                    </div>
-                    ` : ''}
+                <div class="action" onclick="openComments('${video.id}')">
+                    <i class="fas fa-comment"></i>
+                    <span>${UI.formatNumber(video.comments)}</span>
                 </div>
                 
-                <div class="video-stats">
-                    <span class="view-count"><i class="fas fa-eye"></i> ${UI.formatNumber(video.views)}</span>
-                    <span class="duration">${Math.floor(video.duration / 60)}:${(video.duration % 60).toString().padStart(2, '0')}</span>
+                <div class="action" onclick="shareVideo('${video.id}')">
+                    <i class="fas fa-share"></i>
+                    <span>${UI.formatNumber(video.shares)}</span>
                 </div>
                 
                 ${video.isMonetized ? `
-                <div class="monetization-badge">
-                    <i class="fas fa-coins"></i> Monétisé
+                <div class="action" onclick="openGiftShop('${video.id}')">
+                    <i class="fas fa-gift"></i>
+                    <span>Donner</span>
                 </div>
                 ` : ''}
             </div>
-        `;
-        
-        return div;
-    },
+            
+            <div class="video-stats">
+                <span class="view-count"><i class="fas fa-eye"></i> ${UI.formatNumber(video.views)}</span>
+                <span class="duration">${Math.floor(video.duration / 60)}:${(video.duration % 60).toString().padStart(2, '0')}</span>
+            </div>
+            
+            ${video.isMonetized ? `
+            <div class="monetization-badge">
+                <i class="fas fa-coins"></i> Monétisé
+            </div>
+            ` : ''}
+        </div>
+    `;
     
-    initVideoPlayback() {
-        const videos = document.querySelectorAll('.video-container video');
-        
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                const video = entry.target;
-                if (entry.isIntersecting) {
-                    video.play().catch(e => console.log('Lecture bloquée:', e));
-                } else {
-                    video.pause();
-                }
-            });
-        }, { threshold: 0.5 });
-        
-        videos.forEach(video => observer.observe(video));
-    },
+    return div;
+}
+
+function initVideoPlayback() {
+    const videos = document.querySelectorAll('.video-container video');
     
-    publishVideo(videoData) {
-        try {
-            const newVideo = AppState.addVideo(videoData);
-            UI.showNotification('Vidéo publiée avec succès!', 'success');
-            this.renderVideos();
-            return newVideo;
-        } catch (error) {
-            console.error('Erreur publication:', error);
-            UI.showNotification('Erreur lors de la publication', 'error');
-            return null;
-        }
-    },
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            const video = entry.target;
+            if (entry.isIntersecting) {
+                video.play().catch(e => console.log('Lecture bloquée:', e));
+            } else {
+                video.pause();
+            }
+        });
+    }, { threshold: 0.5 });
     
-    toggleLike(videoId) {
-        const video = AppState.getVideoById(videoId);
-        if (!video) return;
-        
-        const likes = StorageManager.loadLikes();
-        const isLiked = likes.some(like => 
-            like.videoId === videoId && like.userId === AppState.currentUser.id
-        );
-        
-        if (isLiked) {
-            // Retirer le like
-            video.likes = Math.max(0, video.likes - 1);
-            StorageManager.removeLike(videoId, AppState.currentUser.id);
-            UI.showNotification('Like retiré', 'info');
-        } else {
-            // Ajouter le like
-            video.likes++;
-            StorageManager.saveLike(videoId, AppState.currentUser.id);
-            UI.showNotification('Vidéo aimée!', 'success');
-        }
-        
-        // Sauvegarder les modifications
-        StorageManager.saveVideos(AppState.videos);
-        
-        // Re-rendre les vidéos
-        this.renderVideos();
+    videos.forEach(video => observer.observe(video));
+}
+
+function publishVideo() {
+    const caption = document.getElementById('videoCaption').value.trim();
+    const isMonetized = document.getElementById('monetizeVideo').checked;
+    const privacy = document.getElementById('videoPrivacy').value;
+    
+    if (!caption) {
+        UI.showNotification('Veuillez ajouter une légende', 'warning');
+        return;
     }
-};
+    
+    // Données de la vidéo (simulation avec URL de démo)
+    const videoData = {
+        title: caption.substring(0, 50),
+        description: caption,
+        videoUrl: "https://assets.mixkit.co/videos/preview/mixkit-woman-dancing-under-neon-lights-1230-large.mp4",
+        thumbnailUrl: "https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=400&h=600&fit=crop",
+        isMonetized: isMonetized,
+        privacy: privacy,
+        duration: 30,
+        tags: caption.match(/#[a-zA-Z0-9_]+/g) || []
+    };
+    
+    // Publier la vidéo
+    const newVideo = AppState.addVideo(videoData);
+    
+    if (newVideo) {
+        UI.showNotification('Vidéo publiée avec succès!', 'success');
+        renderVideos();
+    } else {
+        UI.showNotification('Erreur lors de la publication', 'error');
+    }
+    
+    // Fermer la modale
+    closeCreateModal();
+}
+
+function toggleLike(videoId) {
+    const video = AppState.getVideoById(videoId);
+    if (!video) return;
+    
+    const likes = StorageManager.loadLikes();
+    const isLiked = likes.some(like => 
+        like.videoId === videoId && like.userId === AppState.currentUser.id
+    );
+    
+    if (isLiked) {
+        // Retirer le like
+        video.likes = Math.max(0, video.likes - 1);
+        StorageManager.removeLike(videoId, AppState.currentUser.id);
+        UI.showNotification('Like retiré', 'info');
+    } else {
+        // Ajouter le like
+        video.likes++;
+        StorageManager.saveLike(videoId, AppState.currentUser.id);
+        UI.showNotification('Vidéo aimée!', 'success');
+    }
+    
+    // Sauvegarder les modifications
+    StorageManager.saveVideos(AppState.videos);
+    
+    // Re-rendre les vidéos
+    renderVideos();
+}
 
 // ==================== FONCTIONS GLOBALES ====================
 
@@ -613,7 +637,7 @@ function initApp() {
     UI.init();
     
     // Rendre les vidéos
-    VideoManager.renderVideos();
+    renderVideos();
     
     console.log('✅ TIKTAK initialisé avec succès!');
 }
@@ -628,6 +652,8 @@ function closeCreateModal() {
     document.getElementById('videoCaption').value = '';
     document.getElementById('videoFileInfo').innerHTML = 
         '<i class="fas fa-file-video"></i><span>Aucun fichier sélectionné</span>';
+    document.getElementById('monetizeVideo').checked = false;
+    document.getElementById('videoPrivacy').value = 'public';
 }
 
 function openProfile() {
@@ -651,6 +677,9 @@ function closeProfile() {
 }
 
 function openSettings() {
+    const user = AppState.currentUser;
+    document.getElementById('settingsUsername').value = user.username;
+    document.getElementById('settingsEmail').value = user.email;
     document.getElementById('settingsModal').style.display = 'flex';
 }
 
@@ -700,35 +729,6 @@ function openFilePicker() {
     };
 }
 
-function publishVideo() {
-    const caption = document.getElementById('videoCaption').value.trim();
-    const isMonetized = document.getElementById('monetizeVideo').checked;
-    const privacy = document.getElementById('videoPrivacy').value;
-    
-    if (!caption) {
-        UI.showNotification('Veuillez ajouter une légende', 'warning');
-        return;
-    }
-    
-    // Données de la vidéo (simulation avec URL de démo)
-    const videoData = {
-        title: caption.substring(0, 50),
-        description: caption,
-        videoUrl: "https://assets.mixkit.co/videos/preview/mixkit-woman-dancing-under-neon-lights-1230-large.mp4",
-        thumbnailUrl: "https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=400&h=600&fit=crop",
-        isMonetized: isMonetized,
-        privacy: privacy,
-        duration: 30,
-        tags: caption.match(/#[a-zA-Z0-9_]+/g) || []
-    };
-    
-    // Publier la vidéo
-    VideoManager.publishVideo(videoData);
-    
-    // Fermer la modale
-    closeCreateModal();
-}
-
 function saveAsDraft() {
     const caption = document.getElementById('videoCaption').value.trim();
     
@@ -775,6 +775,7 @@ function saveSettings() {
     
     if (username) {
         AppState.currentUser.username = username;
+        AppState.currentUser.email = email;
         StorageManager.saveUser(AppState.currentUser);
         UI.updateUserUI();
         UI.showNotification('Paramètres sauvegardés', 'success');
@@ -907,6 +908,27 @@ function loadDrafts() {
     `;
 }
 
+function editDraft(draftId) {
+    const drafts = StorageManager.loadDrafts();
+    const draft = drafts.find(d => d.id === draftId);
+    
+    if (draft) {
+        openCreateModal();
+        document.getElementById('videoCaption').value = draft.caption;
+        document.getElementById('monetizeVideo').checked = draft.isMonetized;
+        document.getElementById('videoPrivacy').value = draft.privacy;
+        UI.showNotification('Brouillon chargé', 'info');
+    }
+}
+
+function deleteDraft(draftId) {
+    if (confirm('Supprimer ce brouillon ?')) {
+        StorageManager.deleteDraft(draftId);
+        UI.showNotification('Brouillon supprimé', 'success');
+        loadDrafts();
+    }
+}
+
 // Fonctions de navigation
 function showHome() {
     AppState.setViewMode('home');
@@ -949,7 +971,66 @@ function updateNavActive(activeItem) {
     }
 }
 
-// ==================== EXPORT GLOBAL ====================
+function openSearch() {
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.focus();
+        searchInput.select();
+    }
+}
+
+function openNotifications() {
+    UI.showNotification('Aucune nouvelle notification', 'info');
+}
+
+function showUserProfile(userId) {
+    UI.showNotification('Profil utilisateur - Fonctionnalité à venir', 'info');
+}
+
+function openComments(videoId) {
+    UI.showNotification('Commentaires - Fonctionnalité à venir', 'info');
+}
+
+function shareVideo(videoId) {
+    const video = AppState.getVideoById(videoId);
+    if (!video) return;
+    
+    video.shares++;
+    StorageManager.saveVideos(AppState.videos);
+    
+    if (navigator.share) {
+        navigator.share({
+            title: video.title,
+            text: video.description,
+            url: window.location.href
+        }).then(() => {
+            UI.showNotification('Vidéo partagée!', 'success');
+            renderVideos();
+        });
+    } else {
+        navigator.clipboard.writeText(window.location.href);
+        UI.showNotification('Lien copié dans le presse-papier!', 'success');
+        renderVideos();
+    }
+}
+
+function openGiftShop(videoId) {
+    UI.showNotification('Boutique de cadeaux - Fonctionnalité à venir', 'info');
+}
+
+function playVideo(videoId) {
+    const video = AppState.getVideoById(videoId);
+    if (video) {
+        // Trouver l'élément vidéo et le faire jouer
+        const videoElement = document.querySelector(`[data-video-id="${videoId}"] video`);
+        if (videoElement) {
+            videoElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            videoElement.play();
+        }
+    }
+}
+
+// ==================== DÉMARRAGE DE L'APPLICATION ====================
 
 // Exposer les fonctions globales
 window.initApp = initApp;
@@ -973,7 +1054,16 @@ window.openFilePicker = openFilePicker;
 window.simulateRecording = simulateRecording;
 window.publishVideo = publishVideo;
 window.saveAsDraft = saveAsDraft;
-window.toggleLike = VideoManager.toggleLike.bind(VideoManager);
+window.toggleLike = toggleLike;
+window.editDraft = editDraft;
+window.deleteDraft = deleteDraft;
+window.openSearch = openSearch;
+window.openNotifications = openNotifications;
+window.showUserProfile = showUserProfile;
+window.openComments = openComments;
+window.shareVideo = shareVideo;
+window.openGiftShop = openGiftShop;
+window.playVideo = playVideo;
 
 // Démarrer l'application
 document.addEventListener('DOMContentLoaded', initApp);
