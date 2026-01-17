@@ -55,6 +55,8 @@ let liveChat = [];
 let liveInterval = null;
 let isLive = false;
 let isUsingCamera = false;
+let liveMessages = [];
+let liveStreamActive = false;
 
 // ==================== INITIALISATION ====================
 document.addEventListener('DOMContentLoaded', function() {
@@ -72,6 +74,7 @@ function initializeApp() {
     renderVideoFeed();
     updateUI();
     initializeNewFeatures();
+    initializeLiveFeatures();
     showNotification('Bienvenue sur TIKTAK ! 🎬', 'success');
 }
 
@@ -2638,202 +2641,229 @@ function processProfilePictureFile(file) {
     reader.readAsDataURL(file);
 }
 
-// ==================== FONCTIONS LIVE STREAMING ====================
-function openLiveStream() {
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.id = 'liveModal';
-    modal.innerHTML = `
-        <div class="modal-content live-modal">
-            <span class="close-btn" onclick="closeModal('liveModal')">&times;</span>
-            <h2><i class="fas fa-broadcast-tower"></i> Diffusion en direct</h2>
-            
-            <div class="live-configuration">
-                <div class="form-group">
-                    <label for="liveTitle">Titre du live</label>
-                    <input type="text" id="liveTitle" placeholder="Donnez un titre à votre diffusion" value="Ma diffusion en direct">
-                </div>
-                
-                <div class="form-group">
-                    <label for="liveCategory">Catégorie</label>
-                    <select id="liveCategory">
-                        <option value="gaming">Jeux vidéo</option>
-                        <option value="music">Musique</option>
-                        <option value="talk">Discussion</option>
-                        <option value="education">Éducation</option>
-                        <option value="entertainment">Divertissement</option>
-                    </select>
-                </div>
-                
-                <div class="form-group">
-                    <label>Sources</label>
-                    <div class="checkbox-group">
-                        <label>
-                            <input type="checkbox" id="liveCamera" checked>
-                            <i class="fas fa-camera"></i> Caméra
-                        </label>
-                        <label>
-                            <input type="checkbox" id="liveMicrophone" checked>
-                            <i class="fas fa-microphone"></i> Microphone
-                        </label>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="live-preview-container">
-                <video id="livePreview" autoplay muted></video>
-                <div class="live-info">
-                    <div class="live-stats">
-                        <span class="viewers-count">
-                            <i class="fas fa-eye"></i> <span id="liveViewers">0</span> spectateurs
-                        </span>
-                        <span class="recording-indicator" style="display: none;">
-                            <i class="fas fa-circle"></i> En direct
-                        </span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="live-chat">
-                <h4><i class="fas fa-comments"></i> Chat en direct</h4>
-                <div class="chat-container">
-                    <div class="chat-messages" id="liveChat">
-                        <div class="system-message">
-                            <i class="fas fa-info-circle"></i>
-                            <span>Le chat s'affichera ici quand vous serez en direct</span>
-                        </div>
-                    </div>
-                    <div class="chat-input">
-                        <input type="text" id="chatMessage" placeholder="Envoyer un message..." disabled>
-                        <button onclick="sendChatMessage()" disabled>
-                            <i class="fas fa-paper-plane"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('liveModal')">
-                    Annuler
-                </button>
-                <button class="btn btn-danger" id="stopLiveBtn" style="display: none;" onclick="stopLiveStream()">
-                    <i class="fas fa-stop"></i> Arrêter le live
-                </button>
-                <button class="btn btn-primary" id="startLiveBtn" onclick="startLiveStream()">
-                    <i class="fas fa-broadcast-tower"></i> Démarrer le live
-                </button>
-            </div>
-        </div>
-    `;
+// ==================== FONCTIONS LIVE STREAMING COMPLÈTES ====================
+
+// Initialiser les fonctionnalités live
+function initializeLiveFeatures() {
+    // Initialiser les valeurs par défaut
+    const liveTitleInput = document.getElementById('liveTitle');
+    if (liveTitleInput) {
+        liveTitleInput.value = `${currentUser.username} - Live`;
+    }
     
-    document.body.appendChild(modal);
+    // Ajouter des écouteurs d'événements
+    const chatMessageInput = document.getElementById('chatMessage');
+    if (chatMessageInput) {
+        chatMessageInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && isLive) {
+                sendChatMessage();
+            }
+        });
+    }
+}
+
+// Ouvrir la modale de live
+function openLiveStream() {
+    document.getElementById('liveModal').style.display = 'flex';
     document.body.style.overflow = 'hidden';
     dispatchEvent(new CustomEvent('modalOpen'));
+    
+    // Réinitialiser l'état du live
+    resetLiveState();
+    
+    // Afficher les boutons appropriés
+    document.getElementById('startLiveBtn').style.display = 'inline-block';
+    document.getElementById('stopLiveBtn').style.display = 'none';
+    document.getElementById('setupLiveBtn').style.display = 'inline-block';
+    document.getElementById('liveSettings').style.display = 'none';
+    
+    // Désactiver le chat
+    document.getElementById('chatMessage').disabled = true;
+    document.querySelector('.chat-input button').disabled = true;
+    
+    // Mettre à jour le statut
+    updateLiveStatus('ready');
+    
+    // Démarrer la prévisualisation de la caméra
+    startLivePreview();
 }
 
-function startLiveStream() {
-    const liveCamera = document.getElementById('liveCamera').checked;
-    const liveMicrophone = document.getElementById('liveMicrophone').checked;
-    const liveTitle = document.getElementById('liveTitle').value.trim();
-    const liveCategory = document.getElementById('liveCategory').value;
-    
-    if (!liveCamera && !liveMicrophone) {
-        showNotification('Veuillez sélectionner au moins une source (caméra ou micro)', 'error');
-        return;
+// Fermer la modale de live
+function closeLiveModal() {
+    // Arrêter le live si actif
+    if (isLive) {
+        stopLiveStream();
     }
     
-    if (!liveTitle) {
-        showNotification('Veuillez ajouter un titre pour votre live', 'error');
-        return;
+    // Arrêter la prévisualisation
+    stopLivePreview();
+    
+    // Cacher la modale
+    document.getElementById('liveModal').style.display = 'none';
+    document.body.style.overflow = 'auto';
+    
+    // Mettre à jour le bouton live dans la navbar
+    const liveBtn = document.querySelector('.btn-live');
+    if (liveBtn) {
+        liveBtn.classList.remove('live-active');
+        liveBtn.innerHTML = '<i class="fas fa-broadcast-tower"></i> <span class="live-text">Live</span>';
     }
-    
-    const constraints = {
-        video: liveCamera ? {
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: 'user'
-        } : false,
-        audio: liveMicrophone
-    };
-    
-    // Démarrer la diffusion
-    navigator.mediaDevices.getUserMedia(constraints)
-        .then(stream => {
-            liveStream = stream;
-            isLive = true;
-            
-            // Afficher l'aperçu
-            const livePreview = document.getElementById('livePreview');
-            livePreview.srcObject = stream;
-            
-            // Activer le chat
-            document.getElementById('chatMessage').disabled = false;
-            document.querySelector('.chat-input button').disabled = false;
-            
-            // Mettre à jour l'interface
-            document.getElementById('startLiveBtn').style.display = 'none';
-            document.getElementById('stopLiveBtn').style.display = 'inline-block';
-            document.querySelector('.recording-indicator').style.display = 'inline-block';
-            
-            // Simuler des spectateurs
-            liveViewers = 1;
-            updateLiveViewers();
-            
-            // Simuler l'arrivée de spectateurs
-            liveInterval = setInterval(() => {
-                if (isLive && Math.random() > 0.7) {
-                    liveViewers += Math.floor(Math.random() * 3) + 1;
-                    updateLiveViewers();
-                    
-                    // Simuler des messages de chat
-                    if (Math.random() > 0.8) {
-                        simulateChatMessage();
-                    }
-                }
-            }, 3000);
-            
-            // Afficher une notification sur l'application
-            showLiveNotification(liveTitle);
-            
-            showNotification('Live démarré avec succès ! 🎥', 'success');
-        })
-        .catch(error => {
-            console.error('Erreur live:', error);
-            showNotification('Erreur lors du démarrage du live', 'error');
-        });
 }
 
-function stopLiveStream() {
-    // Arrêter le flux
+// Configurer le live
+function setupLiveStream() {
+    const settings = document.getElementById('liveSettings');
+    const setupBtn = document.getElementById('setupLiveBtn');
+    
+    if (!settings || !setupBtn) return;
+    
+    if (settings.style.display === 'none') {
+        settings.style.display = 'block';
+        setupBtn.innerHTML = '<i class="fas fa-check"></i> Terminer la configuration';
+    } else {
+        settings.style.display = 'none';
+        setupBtn.innerHTML = '<i class="fas fa-cog"></i> Configurer le Live';
+        
+        // Vérifier les paramètres
+        const title = document.getElementById('liveTitle').value;
+        if (!title.trim()) {
+            showNotification('Veuillez ajouter un titre pour votre live', 'warning');
+            return;
+        }
+        
+        showNotification('Configuration du live terminée', 'success');
+    }
+}
+
+// Démarrer la prévisualisation
+async function startLivePreview() {
+    try {
+        const constraints = {
+            video: {
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+                facingMode: 'user'
+            },
+            audio: true
+        };
+        
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        liveStream = stream;
+        
+        const preview = document.getElementById('livePreview');
+        preview.srcObject = stream;
+        
+        showNotification('Caméra et microphone activés pour la prévisualisation', 'success');
+    } catch (error) {
+        console.error('Erreur d\'accès à la caméra/microphone:', error);
+        showNotification('Impossible d\'accéder à la caméra ou au microphone', 'error');
+        
+        // Afficher un message d'erreur dans la prévisualisation
+        const preview = document.getElementById('livePreview');
+        preview.style.background = '#333';
+        preview.innerHTML = '<div style="color: white; text-align: center; padding-top: 100px;">Caméra non disponible</div>';
+    }
+}
+
+// Arrêter la prévisualisation
+function stopLivePreview() {
     if (liveStream) {
         liveStream.getTracks().forEach(track => track.stop());
         liveStream = null;
     }
     
-    // Réinitialiser l'interface
-    isLive = false;
-    liveViewers = 0;
-    liveChat = [];
+    const preview = document.getElementById('livePreview');
+    if (preview) {
+        preview.srcObject = null;
+    }
+}
+
+// Démarrer le live
+async function startLiveStream() {
+    const title = document.getElementById('liveTitle').value.trim();
+    const category = document.getElementById('liveCategory').value;
+    const useCamera = document.getElementById('liveCamera').checked;
+    const useMicrophone = document.getElementById('liveMicrophone').checked;
     
-    // Effacer l'aperçu
-    const livePreview = document.getElementById('livePreview');
-    livePreview.srcObject = null;
+    // Validation
+    if (!title) {
+        showNotification('Veuillez ajouter un titre pour votre live', 'error');
+        return;
+    }
     
-    // Mettre à jour l'interface
-    document.getElementById('startLiveBtn').style.display = 'inline-block';
-    document.getElementById('stopLiveBtn').style.display = 'none';
-    document.getElementById('liveViewers').textContent = '0';
-    document.getElementById('liveChat').innerHTML = `
-        <div class="system-message">
-            <i class="fas fa-info-circle"></i>
-            <span>Le chat s'affichera ici quand vous serez en direct</span>
-        </div>
-    `;
-    document.querySelector('.recording-indicator').style.display = 'none';
+    if (!useCamera && !useMicrophone) {
+        showNotification('Veuillez activer au moins la caméra ou le microphone', 'error');
+        return;
+    }
     
-    // Désactiver le chat
-    document.getElementById('chatMessage').disabled = true;
-    document.querySelector('.chat-input button').disabled = true;
+    try {
+        showNotification('Démarrage du live en cours...', 'info');
+        
+        // Si le stream n'est pas déjà actif, le démarrer
+        if (!liveStream) {
+            const constraints = {
+                video: useCamera ? {
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    facingMode: 'user'
+                } : false,
+                audio: useMicrophone
+            };
+            
+            liveStream = await navigator.mediaDevices.getUserMedia(constraints);
+        }
+        
+        // Mettre à jour l'interface
+        document.getElementById('startLiveBtn').style.display = 'none';
+        document.getElementById('stopLiveBtn').style.display = 'inline-block';
+        document.getElementById('setupLiveBtn').style.display = 'none';
+        document.getElementById('liveSettings').style.display = 'none';
+        
+        // Activer le chat
+        document.getElementById('chatMessage').disabled = false;
+        document.querySelector('.chat-input button').disabled = false;
+        
+        // Mettre à jour le statut
+        updateLiveStatus('live');
+        isLive = true;
+        liveStreamActive = true;
+        
+        // Initialiser les viewers
+        liveViewers = 1;
+        updateLiveViewers();
+        
+        // Initialiser le chat
+        initializeLiveChat();
+        
+        // Simuler l'augmentation des viewers
+        liveInterval = setInterval(simulateViewerActivity, 3000);
+        
+        // Mettre à jour le bouton live dans la navbar
+        const liveBtn = document.querySelector('.btn-live');
+        liveBtn.classList.add('live-active');
+        liveBtn.innerHTML = '<i class="fas fa-broadcast-tower"></i> <span class="live-text">EN DIRECT</span>';
+        
+        // Afficher une notification
+        showLiveNotification(title);
+        
+        showNotification('Live démarré avec succès ! 🎥', 'success');
+        
+        // Ajouter un message système dans le chat
+        addSystemMessage('Le live a commencé !');
+        
+    } catch (error) {
+        console.error('Erreur lors du démarrage du live:', error);
+        showNotification('Erreur lors du démarrage du live', 'error');
+    }
+}
+
+// Arrêter le live
+function stopLiveStream() {
+    // Arrêter le stream
+    if (liveStream) {
+        liveStream.getTracks().forEach(track => track.stop());
+        liveStream = null;
+    }
     
     // Arrêter l'intervalle
     if (liveInterval) {
@@ -2841,18 +2871,74 @@ function stopLiveStream() {
         liveInterval = null;
     }
     
-    // Fermer la modale
-    closeModal('liveModal');
+    // Réinitialiser l'interface
+    const startLiveBtn = document.getElementById('startLiveBtn');
+    const stopLiveBtn = document.getElementById('stopLiveBtn');
+    const setupLiveBtn = document.getElementById('setupLiveBtn');
     
-    // Cacher la notification
-    const liveNotification = document.getElementById('liveNotification');
-    if (liveNotification) {
-        liveNotification.style.display = 'none';
+    if (startLiveBtn) startLiveBtn.style.display = 'inline-block';
+    if (stopLiveBtn) stopLiveBtn.style.display = 'none';
+    if (setupLiveBtn) setupLiveBtn.style.display = 'inline-block';
+    
+    // Désactiver le chat
+    const chatMessage = document.getElementById('chatMessage');
+    const chatButton = document.querySelector('.chat-input button');
+    if (chatMessage) chatMessage.disabled = true;
+    if (chatButton) chatButton.disabled = true;
+    
+    // Réinitialiser les viewers
+    liveViewers = 0;
+    updateLiveViewers();
+    
+    // Mettre à jour le statut
+    updateLiveStatus('ready');
+    isLive = false;
+    liveStreamActive = false;
+    
+    // Mettre à jour le bouton live dans la navbar
+    const liveBtn = document.querySelector('.btn-live');
+    if (liveBtn) {
+        liveBtn.classList.remove('live-active');
+        liveBtn.innerHTML = '<i class="fas fa-broadcast-tower"></i> <span class="live-text">Live</span>';
     }
     
-    showNotification('Live terminé', 'info');
+    // Ajouter un message système dans le chat
+    addSystemMessage('Le live est terminé.');
+    
+    // Cacher la notification live
+    hideLiveNotification();
+    
+    showNotification('Live arrêté', 'info');
+    
+    // Redémarrer la prévisualisation
+    setTimeout(startLivePreview, 1000);
 }
 
+// Mettre à jour le statut du live
+function updateLiveStatus(status) {
+    const statusElement = document.querySelector('.live-status span');
+    const indicator = document.querySelector('.live-indicator');
+    
+    if (!statusElement || !indicator) return;
+    
+    switch(status) {
+        case 'ready':
+            statusElement.textContent = 'Prêt à diffuser';
+            indicator.style.display = 'none';
+            break;
+        case 'live':
+            statusElement.textContent = 'EN DIRECT';
+            indicator.style.display = 'inline-block';
+            break;
+        case 'error':
+            statusElement.textContent = 'Erreur';
+            indicator.style.backgroundColor = '#ffaa00';
+            indicator.style.display = 'inline-block';
+            break;
+    }
+}
+
+// Mettre à jour le compteur de viewers
 function updateLiveViewers() {
     const viewersElement = document.getElementById('liveViewers');
     if (viewersElement) {
@@ -2860,146 +2946,222 @@ function updateLiveViewers() {
     }
 }
 
-function sendChatMessage() {
-    const chatInput = document.getElementById('chatMessage');
-    const message = chatInput.value.trim();
+// Simuler l'activité des viewers
+function simulateViewerActivity() {
+    if (!isLive) return;
     
-    if (!message) return;
+    // Ajouter ou retirer des viewers aléatoirement
+    const change = Math.floor(Math.random() * 5) - 1; // -1 à +3
+    liveViewers = Math.max(1, liveViewers + change);
+    updateLiveViewers();
     
-    // Ajouter le message au chat
-    const chatMessage = {
-        id: 'chat_' + Date.now(),
-        userId: currentUser.id,
-        username: currentUser.username,
-        message: message,
-        timestamp: Date.now()
-    };
-    
-    liveChat.push(chatMessage);
-    renderChatMessage(chatMessage);
-    
-    // Effacer le champ
-    chatInput.value = '';
-    
-    // Simuler des réponses
-    setTimeout(() => {
-        if (isLive && Math.random() > 0.5) {
-            simulateChatResponse();
-        }
-    }, 1000);
+    // Simuler des messages de chat occasionnels
+    if (Math.random() > 0.7) {
+        simulateChatMessage();
+    }
 }
 
-function renderChatMessage(chatMessage) {
+// Initialiser le chat live
+function initializeLiveChat() {
     const chatContainer = document.getElementById('liveChat');
     if (!chatContainer) return;
     
-    // Supprimer le message système s'il existe
-    const systemMessage = chatContainer.querySelector('.system-message');
-    if (systemMessage) {
-        systemMessage.remove();
-    }
+    chatContainer.innerHTML = '';
     
-    const messageElement = document.createElement('div');
-    messageElement.className = 'chat-message';
-    messageElement.innerHTML = `
-        <span class="user">${chatMessage.username}:</span>
-        <span class="text">${chatMessage.message}</span>
-        <span class="time">${new Date(chatMessage.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
-    `;
+    // Ajouter un message de bienvenue
+    addSystemMessage('Bienvenue dans le chat en direct !');
+}
+
+// Ajouter un message système
+function addSystemMessage(text) {
+    const chatContainer = document.getElementById('liveChat');
+    if (!chatContainer) return;
     
-    chatContainer.appendChild(messageElement);
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'system-message';
+    messageDiv.innerHTML = `<i class="fas fa-info-circle"></i> <span>${text}</span>`;
+    chatContainer.appendChild(messageDiv);
     chatContainer.scrollTop = chatContainer.scrollHeight;
 }
 
-function simulateChatMessage() {
-    const viewers = ['@GameurPro', '@MusicLover', '@FanDeSport', '@Curieux', '@TikTokFan'];
-    const messages = [
-        'Super live !',
-        '👍👍👍',
-        'Quel gameplay !',
-        'Belle musique',
-        'GG !',
-        '😍😍😍',
-        'Continue comme ça !',
-        'Première fois ici, c\'est cool !',
-        'Tu streames à quelle fréquence ?',
-        'Des cadeaux pour le streamer !'
-    ];
+// Envoyer un message dans le chat
+function sendChatMessage() {
+    const input = document.getElementById('chatMessage');
+    const message = input.value.trim();
     
-    const randomUser = viewers[Math.floor(Math.random() * viewers.length)];
-    const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+    if (!message || !isLive) return;
     
-    const chatMessage = {
-        id: 'chat_' + Date.now(),
-        userId: 'viewer_' + Math.random(),
-        username: randomUser,
-        message: randomMessage,
-        timestamp: Date.now()
-    };
+    // Ajouter le message au chat
+    const chatContainer = document.getElementById('liveChat');
+    if (!chatContainer) return;
     
-    liveChat.push(chatMessage);
-    renderChatMessage(chatMessage);
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'chat-message';
+    
+    const time = new Date().toLocaleTimeString('fr-FR', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+    });
+    
+    messageDiv.innerHTML = `
+        <span class="user">${currentUser.username}:</span>
+        <span class="text">${message}</span>
+        <span class="time">${time}</span>
+    `;
+    
+    chatContainer.appendChild(messageDiv);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+    
+    // Sauvegarder le message
+    liveMessages.push({
+        user: currentUser.username,
+        message: message,
+        time: time
+    });
+    
+    // Effacer l'input
+    input.value = '';
+    
+    // Simuler des réponses occasionnelles
+    if (Math.random() > 0.6) {
+        setTimeout(simulateChatResponse, 1000 + Math.random() * 2000);
+    }
 }
 
+// Simuler un message de chat
+function simulateChatMessage() {
+    if (!isLive) return;
+    
+    const viewers = [
+        { name: 'Fan123', messages: ['Super live !', '👍', 'Continue !'] },
+        { name: 'GamerPro', messages: ['GG !', 'Bien joué', 'Top qualité'] },
+        { name: 'MusicLover', messages: ['🎵', 'Génial', 'Love it'] },
+        { name: 'Anonymous', messages: ['Première fois ici', 'Intéressant', 'Je follow'] }
+    ];
+    
+    const randomViewer = viewers[Math.floor(Math.random() * viewers.length)];
+    const randomMessage = randomViewer.messages[Math.floor(Math.random() * randomViewer.messages.length)];
+    
+    const chatContainer = document.getElementById('liveChat');
+    if (!chatContainer) return;
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'chat-message';
+    
+    const time = new Date().toLocaleTimeString('fr-FR', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+    });
+    
+    messageDiv.innerHTML = `
+        <span class="user">${randomViewer.name}:</span>
+        <span class="text">${randomMessage}</span>
+        <span class="time">${time}</span>
+    `;
+    
+    chatContainer.appendChild(messageDiv);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+}
+
+// Simuler une réponse dans le chat
 function simulateChatResponse() {
+    if (!isLive) return;
+    
     const responses = [
         'Merci !',
         'Content que ça te plaise !',
-        'N\'oublie pas de suivre la chaîne',
-        'Des questions ?',
-        'Je fais des lives tous les soirs',
-        'Abonne-toi pour ne rien manquer !'
+        'N\'hésite pas à partager le live !',
+        'Des questions ? Posez-les dans le chat !'
     ];
     
-    const response = responses[Math.floor(Math.random() * responses.length)];
+    const randomResponse = responses[Math.floor(Math.random() * responses.length)];
     
-    const chatMessage = {
-        id: 'chat_' + Date.now(),
-        userId: currentUser.id,
-        username: currentUser.username,
-        message: response,
-        timestamp: Date.now()
-    };
+    const chatContainer = document.getElementById('liveChat');
+    if (!chatContainer) return;
     
-    liveChat.push(chatMessage);
-    renderChatMessage(chatMessage);
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'chat-message';
+    
+    const time = new Date().toLocaleTimeString('fr-FR', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+    });
+    
+    messageDiv.innerHTML = `
+        <span class="user">${currentUser.username}:</span>
+        <span class="text">${randomResponse}</span>
+        <span class="time">${time}</span>
+    `;
+    
+    chatContainer.appendChild(messageDiv);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
 }
 
+// Afficher une notification de live
 function showLiveNotification(title) {
-    // Créer la notification si elle n'existe pas
-    let notification = document.getElementById('liveNotification');
-    if (!notification) {
-        notification = document.createElement('div');
-        notification.id = 'liveNotification';
-        notification.className = 'live-notification';
-        notification.innerHTML = `
-            <div class="live-notification-content">
-                <i class="fas fa-broadcast-tower"></i>
-                <span id="liveNotificationText"></span>
-                <button class="btn btn-small" onclick="closeLiveNotification()">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-        `;
-        document.body.appendChild(notification);
+    // Supprimer l'ancienne notification si elle existe
+    const oldNotification = document.getElementById('liveNotification');
+    if (oldNotification) {
+        oldNotification.remove();
     }
     
-    const notificationText = document.getElementById('liveNotificationText');
-    notificationText.textContent = `${currentUser.username} est en direct: "${title}"`;
-    notification.style.display = 'block';
+    // Créer une nouvelle notification
+    const notification = document.createElement('div');
+    notification.id = 'liveNotification';
+    notification.className = 'live-notification';
+    notification.innerHTML = `
+        <div class="notification-header">
+            <i class="fas fa-broadcast-tower"></i>
+            <h4>En direct maintenant</h4>
+        </div>
+        <p>${currentUser.username}: ${title}</p>
+        <button class="btn btn-small" onclick="openLiveStream()" style="margin-top: 10px;">
+            <i class="fas fa-play"></i> Rejoindre
+        </button>
+    `;
     
-    // Masquer automatiquement après 10 secondes
+    document.body.appendChild(notification);
+    
+    // Masquer automatiquement après 30 secondes
     setTimeout(() => {
-        if (notification.style.display === 'block') {
-            notification.style.display = 'none';
-        }
-    }, 10000);
+        hideLiveNotification();
+    }, 30000);
 }
 
-function closeLiveNotification() {
+// Cacher la notification de live
+function hideLiveNotification() {
     const notification = document.getElementById('liveNotification');
     if (notification) {
-        notification.style.display = 'none';
+        notification.remove();
+    }
+}
+
+// Réinitialiser l'état du live
+function resetLiveState() {
+    liveViewers = 0;
+    liveMessages = [];
+    updateLiveViewers();
+    
+    // Réinitialiser le chat
+    const chatContainer = document.getElementById('liveChat');
+    if (chatContainer) {
+        chatContainer.innerHTML = `
+            <div class="system-message">
+                <i class="fas fa-info-circle"></i>
+                <span>Le chat s'affichera ici quand vous serez en direct</span>
+            </div>
+        `;
+    }
+    
+    // Réinitialiser les champs
+    const liveTitle = document.getElementById('liveTitle');
+    if (liveTitle) {
+        liveTitle.value = `${currentUser.username} - Live`;
+    }
+    
+    const chatMessage = document.getElementById('chatMessage');
+    if (chatMessage) {
+        chatMessage.value = '';
     }
 }
 
@@ -3007,13 +3169,6 @@ function closeLiveNotification() {
 function initializeNewFeatures() {
     setupCameraFeatures();
     setupProfilePictureUpload();
-    
-    // Ajouter un écouteur pour la touche Entrée dans le chat
-    document.addEventListener('keypress', function(e) {
-        if (e.target && e.target.id === 'chatMessage' && e.key === 'Enter') {
-            sendChatMessage();
-        }
-    });
 }
 
 // ==================== NETTOYAGE DES RESSOURCES ====================
@@ -3091,13 +3246,15 @@ window.openLiveStream = openLiveStream;
 window.startLiveStream = startLiveStream;
 window.stopLiveStream = stopLiveStream;
 window.sendChatMessage = sendChatMessage;
-window.closeLiveNotification = closeLiveNotification;
+window.closeLiveNotification = hideLiveNotification;
 window.startCameraRecording = startCameraRecording;
 window.stopCameraRecording = stopCameraRecording;
 window.openCameraForRecording = openCameraForRecording;
 window.openFileUpload = openFileUpload;
 window.startCameraForRecording = startCameraForRecording;
 window.stopCameraForRecording = stopCameraForRecording;
+window.closeLiveModal = closeLiveModal;
+window.setupLiveStream = setupLiveStream;
 
 // Ajout pour éviter l'erreur de fonction non définie
 function showMyVideos() {
