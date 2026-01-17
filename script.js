@@ -45,6 +45,16 @@ let isRecording = false;
 let mediaRecorder = null;
 let recordedChunks = [];
 
+// ==================== VARIABLES POUR LES NOUVELLES FONCTIONNALITÉS ====================
+let cameraStream = null;
+let recordingTimer = null;
+let recordingSeconds = 0;
+let liveStream = null;
+let liveViewers = 0;
+let liveChat = [];
+let liveInterval = null;
+let isLive = false;
+
 // ==================== INITIALISATION ====================
 document.addEventListener('DOMContentLoaded', function() {
     // Simuler le chargement
@@ -60,6 +70,7 @@ function initializeApp() {
     setupEventListeners();
     renderVideoFeed();
     updateUI();
+    initializeNewFeatures();
     showNotification('Bienvenue sur TIKTAK ! 🎬', 'success');
 }
 
@@ -736,6 +747,9 @@ function resetCreateModal() {
     if (isRecording) {
         stopRecording();
     }
+    
+    // Arrêter la caméra si elle est active
+    stopCamera();
 }
 
 // ==================== BOUTIQUE DE CADEAUX ====================
@@ -2169,75 +2183,6 @@ window.addEventListener('modalOpen', function() {
     }
 });
 
-// ==================== EXPORT DES FONCTIONS GLOBALES ====================
-window.openCreateModal = openCreateModal;
-window.closeCreateModal = closeCreateModal;
-window.openProfile = openProfile;
-window.closeProfile = closeProfile;
-window.openSettings = openSettings;
-window.closeSettings = closeSettings;
-window.toggleUserMenu = toggleUserMenu;
-window.openFilePicker = openFilePicker;
-window.simulateRecording = simulateRecording;
-window.publishVideo = publishVideo;
-window.saveAsDraft = saveAsDraft;
-window.startRecording = startRecording;
-window.stopRecording = stopRecording;
-window.toggleVideoPlay = toggleVideoPlay;
-window.toggleLike = toggleLike;
-window.openCommentsModal = openCommentsModal;
-window.shareVideo = shareVideo;
-window.openGiftShop = openGiftShop;
-window.openNotifications = openNotifications;
-window.openWallet = openWallet;
-window.logout = logout;
-window.showHome = showHome;
-window.showTrending = showTrending;
-window.showFollowing = showFollowing;
-window.showFavorites = showFavorites;
-window.showMyVideos = showMyVideos;
-window.openSearch = openSearch;
-window.saveSettings = saveSettings;
-window.clearLocalStorage = function() {
-    if (confirm('Voulez-vous vraiment réinitialiser toutes les données ? Cette action est irréversible.')) {
-        localStorage.clear();
-        location.reload();
-    }
-};
-window.openCreatorProfile = openCreatorProfile;
-window.openTransactions = openTransactions;
-window.buyCoins = buyCoins;
-window.sendGift = sendGift;
-window.toggleFollow = toggleFollow;
-window.saveVideo = saveVideo;
-window.openCoinShop = openCoinShop;
-window.closeModal = closeModal;
-window.filterGifts = filterGifts;
-window.previewGift = previewGift;
-window.postComment = postComment;
-window.likeComment = likeComment;
-window.deleteComment = deleteComment;
-window.showProfileTab = showProfileTab;
-window.editDraft = editDraft;
-window.deleteDraft = deleteDraft;
-window.openVideoDetail = openVideoDetail;
-window.handleNotificationClick = handleNotificationClick;
-window.markAllAsRead = markAllAsRead;
-window.clearAllNotifications = clearAllNotifications;
-
-// ==================== VARIABLES POUR LES NOUVELLES FONCTIONNALITÉS ====================
-let cameraStream = null;
-let mediaRecorder = null;
-let recordedChunks = [];
-let isRecording = false;
-let recordingTimer = null;
-let recordingSeconds = 0;
-let liveStream = null;
-let liveViewers = 0;
-let liveChat = [];
-let liveInterval = null;
-let isLive = false;
-
 // ==================== FONCTIONS CAMÉRA ET ENREGISTREMENT ====================
 function setupCameraFeatures() {
     const startCameraBtn = document.getElementById('startCameraBtn');
@@ -2284,15 +2229,15 @@ function setupCameraFeatures() {
     }
 
     if (recordBtn) {
-        recordBtn.addEventListener('click', startRecording);
+        recordBtn.addEventListener('click', startCameraRecording);
     }
 
     if (stopRecordBtn) {
-        stopRecordBtn.addEventListener('click', stopRecording);
+        stopRecordBtn.addEventListener('click', stopCameraRecording);
     }
 }
 
-function startRecording() {
+function startCameraRecording() {
     if (!cameraStream) {
         showNotification('Veuillez d\'abord activer la caméra', 'error');
         return;
@@ -2329,7 +2274,8 @@ function startRecording() {
         
         // Arrêter le minuteur
         clearInterval(recordingTimer);
-        document.querySelector('.recording-timer').remove();
+        const timerElement = document.querySelector('.recording-timer');
+        if (timerElement) timerElement.remove();
         
         showNotification('Enregistrement terminé ✅', 'success');
     };
@@ -2365,7 +2311,7 @@ function startRecording() {
     showNotification('Enregistrement démarré... ⏺️', 'info');
 }
 
-function stopRecording() {
+function stopCameraRecording() {
     if (mediaRecorder && isRecording) {
         mediaRecorder.stop();
         isRecording = false;
@@ -2446,16 +2392,95 @@ function setupProfilePictureUpload() {
 
 // ==================== FONCTIONS LIVE STREAMING ====================
 function openLiveStream() {
-    document.getElementById('liveModal').style.display = 'flex';
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.id = 'liveModal';
+    modal.innerHTML = `
+        <div class="modal-content live-modal">
+            <span class="close-btn" onclick="closeModal('liveModal')">&times;</span>
+            <h2><i class="fas fa-broadcast-tower"></i> Diffusion en direct</h2>
+            
+            <div class="live-configuration">
+                <div class="form-group">
+                    <label for="liveTitle">Titre du live</label>
+                    <input type="text" id="liveTitle" placeholder="Donnez un titre à votre diffusion" value="Ma diffusion en direct">
+                </div>
+                
+                <div class="form-group">
+                    <label for="liveCategory">Catégorie</label>
+                    <select id="liveCategory">
+                        <option value="gaming">Jeux vidéo</option>
+                        <option value="music">Musique</option>
+                        <option value="talk">Discussion</option>
+                        <option value="education">Éducation</option>
+                        <option value="entertainment">Divertissement</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Sources</label>
+                    <div class="checkbox-group">
+                        <label>
+                            <input type="checkbox" id="liveCamera" checked>
+                            <i class="fas fa-camera"></i> Caméra
+                        </label>
+                        <label>
+                            <input type="checkbox" id="liveMicrophone" checked>
+                            <i class="fas fa-microphone"></i> Microphone
+                        </label>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="live-preview-container">
+                <video id="livePreview" autoplay muted></video>
+                <div class="live-info">
+                    <div class="live-stats">
+                        <span class="viewers-count">
+                            <i class="fas fa-eye"></i> <span id="liveViewers">0</span> spectateurs
+                        </span>
+                        <span class="recording-indicator" style="display: none;">
+                            <i class="fas fa-circle"></i> En direct
+                        </span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="live-chat">
+                <h4><i class="fas fa-comments"></i> Chat en direct</h4>
+                <div class="chat-container">
+                    <div class="chat-messages" id="liveChat">
+                        <div class="system-message">
+                            <i class="fas fa-info-circle"></i>
+                            <span>Le chat s'affichera ici quand vous serez en direct</span>
+                        </div>
+                    </div>
+                    <div class="chat-input">
+                        <input type="text" id="chatMessage" placeholder="Envoyer un message..." disabled>
+                        <button onclick="sendChatMessage()" disabled>
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('liveModal')">
+                    Annuler
+                </button>
+                <button class="btn btn-danger" id="stopLiveBtn" style="display: none;" onclick="stopLiveStream()">
+                    <i class="fas fa-stop"></i> Arrêter le live
+                </button>
+                <button class="btn btn-primary" id="startLiveBtn" onclick="startLiveStream()">
+                    <i class="fas fa-broadcast-tower"></i> Démarrer le live
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
     document.body.style.overflow = 'hidden';
     dispatchEvent(new CustomEvent('modalOpen'));
-    
-    // Arrêter la vidéo en cours de lecture
-    if (currentPlayingVideo) {
-        currentPlayingVideo.pause();
-        const playBtn = currentPlayingVideo.closest('.video-container').querySelector('.manual-play-btn');
-        if (playBtn) playBtn.innerHTML = '<i class="fas fa-play"></i>';
-    }
 }
 
 function startLiveStream() {
@@ -2500,6 +2525,7 @@ function startLiveStream() {
             // Mettre à jour l'interface
             document.getElementById('startLiveBtn').style.display = 'none';
             document.getElementById('stopLiveBtn').style.display = 'inline-block';
+            document.querySelector('.recording-indicator').style.display = 'inline-block';
             
             // Simuler des spectateurs
             liveViewers = 1;
@@ -2555,6 +2581,7 @@ function stopLiveStream() {
             <span>Le chat s'affichera ici quand vous serez en direct</span>
         </div>
     `;
+    document.querySelector('.recording-indicator').style.display = 'none';
     
     // Désactiver le chat
     document.getElementById('chatMessage').disabled = true;
@@ -2567,17 +2594,22 @@ function stopLiveStream() {
     }
     
     // Fermer la modale
-    document.getElementById('liveModal').style.display = 'none';
-    document.body.style.overflow = 'auto';
+    closeModal('liveModal');
     
     // Cacher la notification
-    document.getElementById('liveNotification').style.display = 'none';
+    const liveNotification = document.getElementById('liveNotification');
+    if (liveNotification) {
+        liveNotification.style.display = 'none';
+    }
     
     showNotification('Live terminé', 'info');
 }
 
 function updateLiveViewers() {
-    document.getElementById('liveViewers').textContent = formatNumber(liveViewers);
+    const viewersElement = document.getElementById('liveViewers');
+    if (viewersElement) {
+        viewersElement.textContent = formatNumber(liveViewers);
+    }
 }
 
 function sendChatMessage() {
@@ -2611,6 +2643,7 @@ function sendChatMessage() {
 
 function renderChatMessage(chatMessage) {
     const chatContainer = document.getElementById('liveChat');
+    if (!chatContainer) return;
     
     // Supprimer le message système s'il existe
     const systemMessage = chatContainer.querySelector('.system-message');
@@ -2685,16 +2718,41 @@ function simulateChatResponse() {
 }
 
 function showLiveNotification(title) {
-    const notification = document.getElementById('liveNotification');
-    const notificationText = document.getElementById('liveNotificationText');
+    // Créer la notification si elle n'existe pas
+    let notification = document.getElementById('liveNotification');
+    if (!notification) {
+        notification = document.createElement('div');
+        notification.id = 'liveNotification';
+        notification.className = 'live-notification';
+        notification.innerHTML = `
+            <div class="live-notification-content">
+                <i class="fas fa-broadcast-tower"></i>
+                <span id="liveNotificationText"></span>
+                <button class="btn btn-small" onclick="closeLiveNotification()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+        document.body.appendChild(notification);
+    }
     
+    const notificationText = document.getElementById('liveNotificationText');
     notificationText.textContent = `${currentUser.username} est en direct: "${title}"`;
     notification.style.display = 'block';
     
     // Masquer automatiquement après 10 secondes
     setTimeout(() => {
-        notification.style.display = 'none';
+        if (notification.style.display === 'block') {
+            notification.style.display = 'none';
+        }
     }, 10000);
+}
+
+function closeLiveNotification() {
+    const notification = document.getElementById('liveNotification');
+    if (notification) {
+        notification.style.display = 'none';
+    }
 }
 
 // ==================== INITIALISATION DES NOUVELLES FONCTIONNALITÉS ====================
@@ -2709,35 +2767,14 @@ function initializeNewFeatures() {
     }
     
     // Ajouter un écouteur pour la touche Entrée dans le chat
-    document.getElementById('chatMessage')?.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
+    document.addEventListener('keypress', function(e) {
+        if (e.target && e.target.id === 'chatMessage' && e.key === 'Enter') {
             sendChatMessage();
         }
     });
 }
 
-// ==================== MODIFICATION DE L'INITIALISATION PRINCIPALE ====================
-// Modifiez la fonction initializeApp pour inclure les nouvelles fonctionnalités :
-function initializeApp() {
-    loadDataFromStorage();
-    setupEventListeners();
-    renderVideoFeed();
-    updateUI();
-    initializeNewFeatures(); // ← AJOUTEZ CETTE LIGNE
-    showNotification('Bienvenue sur TIKTAK ! 🎬', 'success');
-}
-
 // ==================== NETTOYAGE DES RESSOURCES ====================
-// Modifiez la fonction resetCreateModal pour arrêter la caméra :
-function resetCreateModal() {
-    // ... code existant ...
-    
-    // Arrêter la caméra si elle est active
-    stopCamera();
-    
-    // ... reste du code existant ...
-}
-
 // Ajoutez un écouteur pour nettoyer les ressources à la fermeture de la page
 window.addEventListener('beforeunload', function() {
     if (cameraStream) {
@@ -2752,3 +2789,73 @@ window.addEventListener('beforeunload', function() {
         mediaRecorder.stop();
     }
 });
+
+// ==================== EXPORT DES FONCTIONS GLOBALES ====================
+window.openCreateModal = openCreateModal;
+window.closeCreateModal = closeCreateModal;
+window.openProfile = openProfile;
+window.closeProfile = closeProfile;
+window.openSettings = openSettings;
+window.closeSettings = closeSettings;
+window.toggleUserMenu = toggleUserMenu;
+window.openFilePicker = openFilePicker;
+window.simulateRecording = simulateRecording;
+window.publishVideo = publishVideo;
+window.saveAsDraft = saveAsDraft;
+window.startRecording = startRecording;
+window.stopRecording = stopRecording;
+window.toggleVideoPlay = toggleVideoPlay;
+window.toggleLike = toggleLike;
+window.openCommentsModal = openCommentsModal;
+window.shareVideo = shareVideo;
+window.openGiftShop = openGiftShop;
+window.openNotifications = openNotifications;
+window.openWallet = openWallet;
+window.logout = logout;
+window.showHome = showHome;
+window.showTrending = showTrending;
+window.showFollowing = showFollowing;
+window.showFavorites = showFavorites;
+window.openSearch = openSearch;
+window.saveSettings = saveSettings;
+window.clearLocalStorage = function() {
+    if (confirm('Voulez-vous vraiment réinitialiser toutes les données ? Cette action est irréversible.')) {
+        localStorage.clear();
+        location.reload();
+    }
+};
+window.openCreatorProfile = openCreatorProfile;
+window.openTransactions = openTransactions;
+window.buyCoins = buyCoins;
+window.sendGift = sendGift;
+window.toggleFollow = toggleFollow;
+window.saveVideo = saveVideo;
+window.openCoinShop = openCoinShop;
+window.closeModal = closeModal;
+window.filterGifts = filterGifts;
+window.previewGift = previewGift;
+window.postComment = postComment;
+window.likeComment = likeComment;
+window.deleteComment = deleteComment;
+window.showProfileTab = showProfileTab;
+window.editDraft = editDraft;
+window.deleteDraft = deleteDraft;
+window.openVideoDetail = openVideoDetail;
+window.handleNotificationClick = handleNotificationClick;
+window.markAllAsRead = markAllAsRead;
+window.clearAllNotifications = clearAllNotifications;
+window.changeProfilePicture = changeProfilePicture;
+window.openLiveStream = openLiveStream;
+window.startLiveStream = startLiveStream;
+window.stopLiveStream = stopLiveStream;
+window.sendChatMessage = sendChatMessage;
+window.closeLiveNotification = closeLiveNotification;
+window.startCameraRecording = startCameraRecording;
+window.stopCameraRecording = stopCameraRecording;
+
+// Ajout pour éviter l'erreur de fonction non définie
+function showMyVideos() {
+    // Cette fonction n'est pas implémentée dans le code original
+    // On la définit pour éviter les erreurs
+    showNotification('Fonctionnalité "Mes vidéos" à venir', 'info');
+}
