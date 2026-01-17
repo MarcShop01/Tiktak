@@ -8,7 +8,8 @@ const StorageManager = {
         LIKES: 'tiktak_likes',
         DRAFTS: 'tiktak_drafts',
         COMMENTS: 'tiktak_comments',
-        SETTINGS: 'tiktak_settings'
+        SETTINGS: 'tiktak_settings',
+        UPLOADED_VIDEOS: 'tiktak_uploaded_videos'
     },
 
     // Sauvegarder les vidéos
@@ -150,6 +151,41 @@ const StorageManager = {
         }
     },
 
+    // Sauvegarder une vidéo uploadée
+    saveUploadedVideo(videoId, videoData) {
+        try {
+            const videos = this.loadUploadedVideos();
+            videos[videoId] = videoData;
+            localStorage.setItem(this.KEYS.UPLOADED_VIDEOS, JSON.stringify(videos));
+            return true;
+        } catch (error) {
+            console.error('Erreur sauvegarde vidéo uploadée:', error);
+            return false;
+        }
+    },
+
+    // Charger une vidéo uploadée
+    loadUploadedVideo(videoId) {
+        try {
+            const videos = this.loadUploadedVideos();
+            return videos[videoId] || null;
+        } catch (error) {
+            console.error('Erreur chargement vidéo uploadée:', error);
+            return null;
+        }
+    },
+
+    // Charger toutes les vidéos uploadées
+    loadUploadedVideos() {
+        try {
+            const videos = localStorage.getItem(this.KEYS.UPLOADED_VIDEOS);
+            return videos ? JSON.parse(videos) : {};
+        } catch (error) {
+            console.error('Erreur chargement vidéos uploadées:', error);
+            return {};
+        }
+    },
+
     // Effacer toutes les données
     clearAll() {
         try {
@@ -177,6 +213,7 @@ const AppState = {
     filteredVideos: [],
     currentVideo: null,
     viewMode: 'home',
+    uploadedFiles: {},
     
     init() {
         // Charger l'utilisateur
@@ -190,11 +227,15 @@ const AppState = {
             this.createDemoVideos();
         }
         
+        // Charger les vidéos uploadées
+        this.loadUploadedVideos();
+        
         this.filteredVideos = [...this.videos];
         
         console.log('✅ AppState initialisé:', {
             user: this.currentUser,
             videos: this.videos.length,
+            uploaded: Object.keys(this.uploadedFiles).length,
             likes: StorageManager.loadLikes().length
         });
     },
@@ -261,6 +302,11 @@ const AppState = {
         StorageManager.saveVideos(this.videos);
     },
     
+    loadUploadedVideos() {
+        const uploadedVideos = StorageManager.loadUploadedVideos();
+        this.uploadedFiles = uploadedVideos;
+    },
+    
     addVideo(videoData) {
         const newVideo = {
             id: StorageManager.generateId('video'),
@@ -275,6 +321,25 @@ const AppState = {
             createdAt: new Date().toISOString()
         };
         
+        // Si c'est une vidéo uploadée (avec blob), sauvegarder les données
+        if (videoData.isUploaded && videoData.videoBlob) {
+            // Stocker la vidéo dans le stockage local
+            StorageManager.saveUploadedVideo(newVideo.id, {
+                videoBlob: videoData.videoBlob,
+                thumbnailBlob: videoData.thumbnailBlob,
+                filename: videoData.filename
+            });
+            
+            // Créer une URL blob pour l'affichage
+            const videoBlob = this.base64ToBlob(videoData.videoBlob, 'video/mp4');
+            newVideo.videoUrl = URL.createObjectURL(videoBlob);
+            
+            if (videoData.thumbnailBlob) {
+                const thumbnailBlob = this.base64ToBlob(videoData.thumbnailBlob, 'image/jpeg');
+                newVideo.thumbnailUrl = URL.createObjectURL(thumbnailBlob);
+            }
+        }
+        
         this.videos.unshift(newVideo);
         this.filteredVideos = [...this.videos];
         StorageManager.saveVideos(this.videos);
@@ -284,6 +349,44 @@ const AppState = {
         StorageManager.saveUser(this.currentUser);
         
         return newVideo;
+    },
+    
+    // Convertir base64 en blob
+    base64ToBlob(base64, contentType) {
+        try {
+            const byteCharacters = atob(base64.split(',')[1]);
+            const byteNumbers = new Array(byteCharacters.length);
+            
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            
+            const byteArray = new Uint8Array(byteNumbers);
+            return new Blob([byteArray], { type: contentType });
+        } catch (error) {
+            console.error('Erreur conversion base64 vers blob:', error);
+            return null;
+        }
+    },
+    
+    // Charger une vidéo uploadée depuis le stockage
+    loadVideoBlob(videoId) {
+        const videoData = StorageManager.loadUploadedVideo(videoId);
+        if (videoData && videoData.videoBlob) {
+            const blob = this.base64ToBlob(videoData.videoBlob, 'video/mp4');
+            return blob ? URL.createObjectURL(blob) : null;
+        }
+        return null;
+    },
+    
+    // Charger une miniature uploadée depuis le stockage
+    loadThumbnailBlob(videoId) {
+        const videoData = StorageManager.loadUploadedVideo(videoId);
+        if (videoData && videoData.thumbnailBlob) {
+            const blob = this.base64ToBlob(videoData.thumbnailBlob, 'image/jpeg');
+            return blob ? URL.createObjectURL(blob) : null;
+        }
+        return null;
     },
     
     getVideoById(id) {
@@ -434,13 +537,51 @@ const UI = {
         if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} h`;
         if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} j`;
         return date.toLocaleDateString('fr-FR');
+    },
+    
+    // Convertir blob en base64
+    blobToBase64(blob) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    },
+    
+    // Générer une miniature depuis une vidéo
+    generateThumbnail(videoFile) {
+        return new Promise((resolve, reject) => {
+            const video = document.createElement('video');
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            video.src = URL.createObjectURL(videoFile);
+            video.addEventListener('loadeddata', () => {
+                // Prendre une frame au milieu de la vidéo
+                video.currentTime = Math.min(video.duration / 2, 3);
+            });
+            
+            video.addEventListener('seeked', () => {
+                canvas.width = video.videoWidth || 400;
+                canvas.height = video.videoHeight || 600;
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                canvas.toBlob(blob => {
+                    URL.revokeObjectURL(video.src);
+                    resolve(blob);
+                }, 'image/jpeg', 0.8);
+            });
+            
+            video.addEventListener('error', reject);
+        });
     }
 };
 
 // ==================== GESTION DES VIDÉOS ====================
 
-// Variable pour stocker les URLs blob créées
-const createdBlobUrls = new Set();
+let currentVideoFile = null;
+let currentThumbnailBlob = null;
 
 function renderVideos() {
     const videoFeed = document.getElementById('videoFeed');
@@ -481,9 +622,26 @@ function createVideoElement(video) {
         like.videoId === video.id && like.userId === AppState.currentUser.id
     );
     
+    // Utiliser l'URL de la vidéo (soit URL externe, soit blob local)
+    let videoUrl = video.videoUrl;
+    let thumbnailUrl = video.thumbnailUrl;
+    
+    // Si c'est une vidéo uploadée, charger depuis le stockage
+    if (video.isUploaded) {
+        const loadedVideoUrl = AppState.loadVideoBlob(video.id);
+        if (loadedVideoUrl) {
+            videoUrl = loadedVideoUrl;
+        }
+        
+        const loadedThumbnailUrl = AppState.loadThumbnailBlob(video.id);
+        if (loadedThumbnailUrl) {
+            thumbnailUrl = loadedThumbnailUrl;
+        }
+    }
+    
     div.innerHTML = `
-        <video loop muted playsinline poster="${video.thumbnailUrl}" preload="metadata">
-            <source src="${video.videoUrl}" type="video/mp4">
+        <video loop muted playsinline poster="${thumbnailUrl}" preload="metadata">
+            <source src="${videoUrl}" type="video/mp4">
             Votre navigateur ne supporte pas la vidéo.
         </video>
         
@@ -591,7 +749,7 @@ function initVideoPlayback() {
         // Gérer les erreurs de chargement
         video.addEventListener('error', (e) => {
             console.error('❌ Erreur chargement vidéo:', e);
-            replaceWithFallback(video.parentElement);
+            replaceWithFallback(video.parentElement, video.id);
         });
         
         // Ajouter un événement de clic pour lecture manuelle
@@ -649,7 +807,7 @@ function addManualPlayButton(videoContainer) {
 }
 
 // Fonction de remplacement en cas d'erreur
-function replaceWithFallback(videoContainer) {
+function replaceWithFallback(videoContainer, videoId) {
     const video = videoContainer.querySelector('video');
     const thumbnail = video.getAttribute('poster');
     
@@ -679,7 +837,7 @@ function replaceWithFallback(videoContainer) {
             ">
                 <i class="fas fa-exclamation-triangle" style="font-size: 40px; margin-bottom: 10px;"></i>
                 <p>Vidéo non disponible</p>
-                <button class="btn btn-primary" onclick="retryVideoLoad('${videoContainer.getAttribute('data-video-id')}')">
+                <button class="btn btn-primary" onclick="retryVideoLoad('${videoId}')">
                     <i class="fas fa-redo"></i> Réessayer
                 </button>
             </div>
@@ -695,7 +853,7 @@ function retryVideoLoad(videoId) {
     }
 }
 
-function publishVideo() {
+async function publishVideo() {
     const caption = document.getElementById('videoCaption').value.trim();
     const isMonetized = document.getElementById('monetizeVideo').checked;
     const privacy = document.getElementById('videoPrivacy').value;
@@ -705,33 +863,89 @@ function publishVideo() {
         return;
     }
     
-    // Nettoyer les URLs blob créées
-    cleanUpBlobUrls();
-    
-    // Données de la vidéo (simulation avec URL de démo)
-    const videoData = {
-        title: caption.substring(0, 50),
-        description: caption,
-        videoUrl: "https://assets.mixkit.co/videos/preview/mixkit-woman-dancing-under-neon-lights-1230-large.mp4",
-        thumbnailUrl: "https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=400&h=600&fit=crop",
-        isMonetized: isMonetized,
-        privacy: privacy,
-        duration: 30,
-        tags: caption.match(/#[a-zA-Z0-9_]+/g) || []
-    };
-    
-    // Publier la vidéo
-    const newVideo = AppState.addVideo(videoData);
-    
-    if (newVideo) {
-        UI.showNotification('Vidéo publiée avec succès!', 'success');
-        renderVideos();
-    } else {
-        UI.showNotification('Erreur lors de la publication', 'error');
+    // Désactiver le bouton pendant la publication
+    const publishBtn = document.getElementById('publishBtn');
+    if (publishBtn) {
+        publishBtn.disabled = true;
+        publishBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Publication...';
     }
     
-    // Fermer la modale
-    closeCreateModal();
+    try {
+        let videoData = {
+            title: caption.substring(0, 50),
+            description: caption,
+            isMonetized: isMonetized,
+            privacy: privacy,
+            duration: 30,
+            tags: caption.match(/#[a-zA-Z0-9_]+/g) || []
+        };
+        
+        // Si un fichier vidéo a été sélectionné
+        if (currentVideoFile) {
+            UI.showNotification('Conversion de la vidéo en cours...', 'info');
+            
+            // Convertir la vidéo en base64
+            const videoBase64 = await UI.blobToBase64(currentVideoFile);
+            
+            // Générer une miniature
+            let thumbnailBase64 = null;
+            try {
+                const thumbnailBlob = await UI.generateThumbnail(currentVideoFile);
+                thumbnailBase64 = await UI.blobToBase64(thumbnailBlob);
+            } catch (error) {
+                console.log('Erreur génération miniature:', error);
+                // Utiliser une image par défaut
+                thumbnailBase64 = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAQABADASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=';
+            }
+            
+            // Ajouter les données de la vidéo uploadée
+            videoData = {
+                ...videoData,
+                videoBlob: videoBase64,
+                thumbnailBlob: thumbnailBase64,
+                filename: currentVideoFile.name,
+                isUploaded: true,
+                videoUrl: '', // Rempli automatiquement par addVideo
+                thumbnailUrl: '' // Rempli automatiquement par addVideo
+            };
+            
+            UI.showNotification('Vidéo convertie avec succès!', 'success');
+        } else {
+            // Utiliser une vidéo de démo
+            videoData = {
+                ...videoData,
+                videoUrl: "https://assets.mixkit.co/videos/preview/mixkit-woman-dancing-under-neon-lights-1230-large.mp4",
+                thumbnailUrl: "https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=400&h=600&fit=crop"
+            };
+        }
+        
+        // Publier la vidéo
+        const newVideo = AppState.addVideo(videoData);
+        
+        if (newVideo) {
+            UI.showNotification('Vidéo publiée avec succès!', 'success');
+            renderVideos();
+            
+            // Réinitialiser les variables de fichier
+            currentVideoFile = null;
+            currentThumbnailBlob = null;
+        } else {
+            UI.showNotification('Erreur lors de la publication', 'error');
+        }
+        
+    } catch (error) {
+        console.error('❌ Erreur publication:', error);
+        UI.showNotification('Erreur lors de la publication: ' + error.message, 'error');
+    } finally {
+        // Réactiver le bouton
+        if (publishBtn) {
+            publishBtn.disabled = false;
+            publishBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Publier';
+        }
+        
+        // Fermer la modale
+        closeCreateModal();
+    }
 }
 
 function toggleLike(videoId) {
@@ -762,41 +976,11 @@ function toggleLike(videoId) {
     renderVideos();
 }
 
-// ==================== GESTION DES BLOB URLS ====================
-
-// Variable pour stocker l'URL blob actuelle
-let currentPreviewBlobUrl = null;
-
-// Nettoyer les URLs blob
-function cleanUpBlobUrls() {
-    if (currentPreviewBlobUrl) {
-        try {
-            URL.revokeObjectURL(currentPreviewBlobUrl);
-            currentPreviewBlobUrl = null;
-        } catch (error) {
-            console.log('⚠️ Erreur lors de la révocation du blob:', error);
-        }
-    }
-    
-    // Nettoyer toutes les URLs blob créées
-    createdBlobUrls.forEach(url => {
-        try {
-            URL.revokeObjectURL(url);
-        } catch (error) {
-            console.log('⚠️ Erreur lors de la révocation d\'un blob:', error);
-        }
-    });
-    createdBlobUrls.clear();
-}
-
 // ==================== FONCTIONS GLOBALES ====================
 
 // Initialisation
 function initApp() {
     console.log('🚀 Initialisation de TIKTAK...');
-    
-    // Nettoyer les blobs au démarrage
-    cleanUpBlobUrls();
     
     // Cacher l'écran de chargement
     const loadingScreen = document.getElementById('loadingScreen');
@@ -830,9 +1014,6 @@ function closeCreateModal() {
         modal.style.display = 'none';
     }
     
-    // Nettoyer l'URL blob de prévisualisation
-    cleanUpBlobUrls();
-    
     // Réinitialiser le formulaire
     document.getElementById('videoCaption').value = '';
     document.getElementById('videoFileInfo').innerHTML = 
@@ -858,6 +1039,10 @@ function closeCreateModal() {
     if (fileInput) {
         fileInput.value = '';
     }
+    
+    // Réinitialiser les variables de fichier
+    currentVideoFile = null;
+    currentThumbnailBlob = null;
 }
 
 function openProfile() {
@@ -921,7 +1106,7 @@ function openFilePicker() {
     document.getElementById('videoInput').click();
     
     // Gérer la sélection de fichier
-    document.getElementById('videoInput').onchange = function(e) {
+    document.getElementById('videoInput').onchange = async function(e) {
         const file = e.target.files[0];
         if (!file) return;
         
@@ -932,6 +1117,9 @@ function openFilePicker() {
             return;
         }
         
+        // Stocker le fichier
+        currentVideoFile = file;
+        
         // Mettre à jour l'affichage
         const fileInfo = document.getElementById('videoFileInfo');
         if (fileInfo) {
@@ -941,14 +1129,9 @@ function openFilePicker() {
             `;
         }
         
-        // Nettoyer l'ancienne URL blob
-        cleanUpBlobUrls();
-        
         // Générer une URL pour prévisualisation
         if (file.type.startsWith('video/')) {
             const videoUrl = URL.createObjectURL(file);
-            currentPreviewBlobUrl = videoUrl;
-            createdBlobUrls.add(videoUrl);
             
             const previewVideo = document.getElementById('previewVideo');
             const placeholder = document.querySelector('.preview-placeholder');
@@ -957,43 +1140,60 @@ function openFilePicker() {
                 previewVideo.src = videoUrl;
                 placeholder.style.display = 'none';
                 
-                // Libérer l'URL seulement quand la vidéo n'est plus utilisée
+                // Générer une miniature
+                try {
+                    const thumbnailBlob = await UI.generateThumbnail(file);
+                    if (thumbnailBlob) {
+                        const thumbnailUrl = URL.createObjectURL(thumbnailBlob);
+                        currentThumbnailBlob = thumbnailBlob;
+                        
+                        // Afficher la miniature
+                        const img = document.createElement('img');
+                        img.src = thumbnailUrl;
+                        img.style.cssText = `
+                            position: absolute;
+                            top: 10px;
+                            right: 10px;
+                            width: 80px;
+                            height: 80px;
+                            object-fit: cover;
+                            border-radius: 5px;
+                            border: 2px solid #00f2fe;
+                        `;
+                        
+                        // Ajouter la miniature à la prévisualisation
+                        const previewContainer = document.getElementById('videoPreview');
+                        if (previewContainer) {
+                            // Supprimer l'ancienne miniature si elle existe
+                            const oldThumbnail = previewContainer.querySelector('.thumbnail-preview');
+                            if (oldThumbnail) oldThumbnail.remove();
+                            
+                            img.className = 'thumbnail-preview';
+                            previewContainer.appendChild(img);
+                        }
+                    }
+                } catch (error) {
+                    console.log('Erreur génération miniature:', error);
+                }
+                
+                // Libérer l'URL quand la vidéo est chargée
                 previewVideo.onloadeddata = () => {
                     console.log('📹 Vidéo chargée pour prévisualisation');
                 };
             }
+            
+            UI.showNotification('Vidéo chargée avec succès!', 'success');
         } else if (file.type.startsWith('image/')) {
             // Pour les images, simuler une vidéo
             const imageUrl = URL.createObjectURL(file);
-            currentPreviewBlobUrl = imageUrl;
-            createdBlobUrls.add(imageUrl);
             
             // Afficher l'image
             const previewVideo = document.getElementById('previewVideo');
             const placeholder = document.querySelector('.preview-placeholder');
             if (previewVideo && placeholder) {
-                // Créer un canvas pour afficher l'image
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                const img = new Image();
-                
-                img.onload = function() {
-                    canvas.width = img.width;
-                    canvas.height = img.height;
-                    ctx.drawImage(img, 0, 0);
-                    
-                    // Convertir canvas en blob URL
-                    canvas.toBlob(function(blob) {
-                        const blobUrl = URL.createObjectURL(blob);
-                        previewVideo.style.display = 'block';
-                        previewVideo.src = blobUrl;
-                        placeholder.style.display = 'none';
-                        currentPreviewBlobUrl = blobUrl;
-                        createdBlobUrls.add(blobUrl);
-                    }, 'image/png');
-                };
-                
-                img.src = imageUrl;
+                previewVideo.style.display = 'block';
+                previewVideo.src = imageUrl;
+                placeholder.style.display = 'none';
             }
             UI.showNotification('Image sélectionnée (vidéo simulée)', 'info');
         } else {
@@ -1020,9 +1220,6 @@ function saveAsDraft() {
     StorageManager.saveDraft(draft);
     UI.showNotification('Brouillon sauvegardé', 'success');
     
-    // Nettoyer les blobs
-    cleanUpBlobUrls();
-    
     closeCreateModal();
 }
 
@@ -1041,8 +1238,6 @@ function logout() {
 
 function clearLocalStorage() {
     if (confirm('ATTENTION: Cela effacera toutes vos données locales. Continuer ?')) {
-        // Nettoyer les blobs d'abord
-        cleanUpBlobUrls();
         StorageManager.clearAll();
         location.reload();
     }
@@ -1114,7 +1309,7 @@ function loadUserVideos() {
         <div class="videos-grid">
             ${userVideos.map(video => `
                 <div class="video-thumbnail" onclick="playVideo('${video.id}')">
-                    <img src="${video.thumbnailUrl}" alt="${video.title}">
+                    <img src="${video.thumbnailUrl || 'https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=400&h=600&fit=crop'}" alt="${video.title}">
                     <div class="thumbnail-overlay">
                         <span><i class="fas fa-play"></i> ${UI.formatNumber(video.views)}</span>
                         <span><i class="fas fa-heart"></i> ${UI.formatNumber(video.likes)}</span>
@@ -1145,7 +1340,7 @@ function loadLikedVideos() {
         <div class="videos-grid">
             ${likedVideos.map(video => `
                 <div class="video-thumbnail" onclick="playVideo('${video.id}')">
-                    <img src="${video.thumbnailUrl}" alt="${video.title}">
+                    <img src="${video.thumbnailUrl || 'https://images.unsplash.com/photo-1516280440614-37939bbacd81?w=400&h=600&fit=crop'}" alt="${video.title}">
                     <div class="thumbnail-overlay">
                         <span><i class="fas fa-play"></i> ${UI.formatNumber(video.views)}</span>
                         <span><i class="fas fa-heart"></i> ${UI.formatNumber(video.likes)}</span>
