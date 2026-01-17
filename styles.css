@@ -2131,6 +2131,7 @@ html {
     font-size: 10px;
     font-weight: bold;
 }
+
 /* ==================== STYLES CAMÉRA ET ENREGISTREMENT ==================== */
 #cameraPreview {
     background: #000;
@@ -2425,5 +2426,153 @@ html {
         flex-direction: column;
         gap: 10px;
         text-align: center;
+    }
+}
+
+/* ==================== NOUVEAUX STYLES POUR LES OPTIONS DE CRÉATION ==================== */
+.create-options {
+    padding: 20px 0;
+}
+
+.option {
+    display: flex;
+    align-items: center;
+    padding: 15px;
+    background: var(--card-bg);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: transform 0.2s, background 0.2s;
+    border: 1px solid var(--border-color);
+    margin-bottom: 10px;
+}
+
+.option:hover {
+    transform: translateY(-2px);
+    background: var(--hover-color);
+}
+
+.option-icon {
+    font-size: 24px;
+    margin-right: 15px;
+    color: var(--primary-color);
+}
+
+.option-content h4 {
+    margin: 0 0 5px 0;
+    color: var(--text-color);
+}
+
+.option-content p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.camera-buttons, .upload-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+    justify-content: center;
+}
+
+/* ==================== STYLES POUR LA MODALE PHOTO PROFIL ==================== */
+.profile-picture-options {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin: 20px 0;
+}
+
+.camera-profile-modal .camera-preview {
+    position: relative;
+    width: 300px;
+    height: 300px;
+    margin: 20px auto;
+    border-radius: 50%;
+    overflow: hidden;
+    background: #000;
+}
+
+.camera-profile-modal video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.camera-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.circle-frame {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    border: 3px solid white;
+    border-radius: 50%;
+}
+
+.camera-controls {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+/* ==================== AJOUT DE VARIABLES CSS ==================== */
+:root {
+    --primary-color: #00f2fe;
+    --secondary-color: #4facfe;
+    --danger-color: #ff4757;
+    --success-color: #00ff88;
+    --warning-color: #ffd700;
+    --text-color: #fff;
+    --text-secondary: #aaa;
+    --bg-color: #000;
+    --card-bg: #111;
+    --border-color: #222;
+    --hover-color: #222;
+}
+
+/* ==================== RESPONSIVE FIX ==================== */
+@media (max-width: 768px) {
+    .option {
+        padding: 12px;
+    }
+    
+    .option-icon {
+        font-size: 20px;
+        margin-right: 12px;
+    }
+    
+    .option-content h4 {
+        font-size: 16px;
+    }
+    
+    .option-content p {
+        font-size: 12px;
+    }
+    
+    .camera-profile-modal .camera-preview {
+        width: 250px;
+        height: 250px;
+    }
+}
+
+@media (max-width: 480px) {
+    .camera-profile-modal .camera-preview {
+        width: 200px;
+        height: 200px;
+    }
+    
+    .camera-controls {
+        flex-direction: column;
+        align-items: center;
     }
 }
