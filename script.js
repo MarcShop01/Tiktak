@@ -439,6 +439,9 @@ const UI = {
 
 // ==================== GESTION DES VIDÉOS ====================
 
+// Variable pour stocker les URLs blob créées
+const createdBlobUrls = new Set();
+
 function renderVideos() {
     const videoFeed = document.getElementById('videoFeed');
     if (!videoFeed) return;
@@ -702,6 +705,9 @@ function publishVideo() {
         return;
     }
     
+    // Nettoyer les URLs blob créées
+    cleanUpBlobUrls();
+    
     // Données de la vidéo (simulation avec URL de démo)
     const videoData = {
         title: caption.substring(0, 50),
@@ -756,11 +762,41 @@ function toggleLike(videoId) {
     renderVideos();
 }
 
+// ==================== GESTION DES BLOB URLS ====================
+
+// Variable pour stocker l'URL blob actuelle
+let currentPreviewBlobUrl = null;
+
+// Nettoyer les URLs blob
+function cleanUpBlobUrls() {
+    if (currentPreviewBlobUrl) {
+        try {
+            URL.revokeObjectURL(currentPreviewBlobUrl);
+            currentPreviewBlobUrl = null;
+        } catch (error) {
+            console.log('⚠️ Erreur lors de la révocation du blob:', error);
+        }
+    }
+    
+    // Nettoyer toutes les URLs blob créées
+    createdBlobUrls.forEach(url => {
+        try {
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            console.log('⚠️ Erreur lors de la révocation d\'un blob:', error);
+        }
+    });
+    createdBlobUrls.clear();
+}
+
 // ==================== FONCTIONS GLOBALES ====================
 
 // Initialisation
 function initApp() {
     console.log('🚀 Initialisation de TIKTAK...');
+    
+    // Nettoyer les blobs au démarrage
+    cleanUpBlobUrls();
     
     // Cacher l'écran de chargement
     const loadingScreen = document.getElementById('loadingScreen');
@@ -793,6 +829,11 @@ function closeCreateModal() {
     if (modal) {
         modal.style.display = 'none';
     }
+    
+    // Nettoyer l'URL blob de prévisualisation
+    cleanUpBlobUrls();
+    
+    // Réinitialiser le formulaire
     document.getElementById('videoCaption').value = '';
     document.getElementById('videoFileInfo').innerHTML = 
         '<i class="fas fa-file-video"></i><span>Aucun fichier sélectionné</span>';
@@ -804,10 +845,18 @@ function closeCreateModal() {
     if (previewVideo) {
         previewVideo.style.display = 'none';
         previewVideo.src = '';
+        previewVideo.load();
     }
+    
     const placeholder = document.querySelector('.preview-placeholder');
     if (placeholder) {
         placeholder.style.display = 'flex';
+    }
+    
+    // Réinitialiser l'input file
+    const fileInput = document.getElementById('videoInput');
+    if (fileInput) {
+        fileInput.value = '';
     }
 }
 
@@ -844,7 +893,28 @@ function closeSettings() {
 
 // Fonctions de publication
 function simulateRecording() {
-    UI.showNotification('Fonction d\'enregistrement simulée (mode démo)', 'info');
+    // Utiliser une URL fixe au lieu d'un blob
+    const videoUrl = "https://assets.mixkit.co/videos/preview/mixkit-woman-dancing-under-neon-lights-1230-large.mp4";
+    
+    // Mettre à jour l'affichage
+    const fileInfo = document.getElementById('videoFileInfo');
+    if (fileInfo) {
+        fileInfo.innerHTML = `
+            <i class="fas fa-file-video"></i>
+            <span>Vidéo de démo (simulation)</span>
+        `;
+    }
+    
+    // Afficher la prévisualisation avec l'URL fixe
+    const previewVideo = document.getElementById('previewVideo');
+    const placeholder = document.querySelector('.preview-placeholder');
+    if (previewVideo && placeholder) {
+        previewVideo.style.display = 'block';
+        previewVideo.src = videoUrl;
+        placeholder.style.display = 'none';
+    }
+    
+    UI.showNotification('Vidéo de démo chargée (simulation)', 'info');
 }
 
 function openFilePicker() {
@@ -871,9 +941,15 @@ function openFilePicker() {
             `;
         }
         
+        // Nettoyer l'ancienne URL blob
+        cleanUpBlobUrls();
+        
         // Générer une URL pour prévisualisation
         if (file.type.startsWith('video/')) {
             const videoUrl = URL.createObjectURL(file);
+            currentPreviewBlobUrl = videoUrl;
+            createdBlobUrls.add(videoUrl);
+            
             const previewVideo = document.getElementById('previewVideo');
             const placeholder = document.querySelector('.preview-placeholder');
             if (previewVideo && placeholder) {
@@ -881,13 +957,47 @@ function openFilePicker() {
                 previewVideo.src = videoUrl;
                 placeholder.style.display = 'none';
                 
-                // Libérer l'URL quand la vidéo est chargée
+                // Libérer l'URL seulement quand la vidéo n'est plus utilisée
                 previewVideo.onloadeddata = () => {
-                    URL.revokeObjectURL(videoUrl);
+                    console.log('📹 Vidéo chargée pour prévisualisation');
                 };
             }
         } else if (file.type.startsWith('image/')) {
+            // Pour les images, simuler une vidéo
+            const imageUrl = URL.createObjectURL(file);
+            currentPreviewBlobUrl = imageUrl;
+            createdBlobUrls.add(imageUrl);
+            
+            // Afficher l'image
+            const previewVideo = document.getElementById('previewVideo');
+            const placeholder = document.querySelector('.preview-placeholder');
+            if (previewVideo && placeholder) {
+                // Créer un canvas pour afficher l'image
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const img = new Image();
+                
+                img.onload = function() {
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    ctx.drawImage(img, 0, 0);
+                    
+                    // Convertir canvas en blob URL
+                    canvas.toBlob(function(blob) {
+                        const blobUrl = URL.createObjectURL(blob);
+                        previewVideo.style.display = 'block';
+                        previewVideo.src = blobUrl;
+                        placeholder.style.display = 'none';
+                        currentPreviewBlobUrl = blobUrl;
+                        createdBlobUrls.add(blobUrl);
+                    }, 'image/png');
+                };
+                
+                img.src = imageUrl;
+            }
             UI.showNotification('Image sélectionnée (vidéo simulée)', 'info');
+        } else {
+            UI.showNotification('Format de fichier non supporté', 'error');
         }
     };
 }
@@ -909,6 +1019,10 @@ function saveAsDraft() {
     
     StorageManager.saveDraft(draft);
     UI.showNotification('Brouillon sauvegardé', 'success');
+    
+    // Nettoyer les blobs
+    cleanUpBlobUrls();
+    
     closeCreateModal();
 }
 
@@ -927,6 +1041,8 @@ function logout() {
 
 function clearLocalStorage() {
     if (confirm('ATTENTION: Cela effacera toutes vos données locales. Continuer ?')) {
+        // Nettoyer les blobs d'abord
+        cleanUpBlobUrls();
         StorageManager.clearAll();
         location.reload();
     }
