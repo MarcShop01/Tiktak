@@ -1,7 +1,4 @@
 
-## 5. `package.json` - Simplifié pour GitHub Pages
-
-```json
 {
   "name": "tiktak",
   "version": "1.0.0",
@@ -22,3 +19,4 @@
   "author": "emmanuelmarc130493@gmail.com",
   "license": "MIT"
 }
+
