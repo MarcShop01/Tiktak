@@ -1,25 +1,23 @@
-# TikTok Clone - tiktak-97036
+# TIKTAK - Application de Vidéos
 
-Application de partage de vidéos courtes avec Firebase.
+Une application de partage de vidéos similaire à TikTok, utilisant le stockage local (localStorage) pour le développement et les tests.
 
-## 📊 Informations du Projet
-- **Nom du projet**: tiktak
-- **ID du projet**: tiktak-97036
-- **Numéro du projet**: 329130229096
-- **Email admin**: emmanuelmarc130493@gmail.com
-- **URL Firebase**: https://tiktak-97036.firebaseapp.com
+## 🌟 Fonctionnalités
 
-## 🚀 Installation Rapide
+- 📹 **Publication de vidéos** (mode démo avec URLs externes)
+- ❤️ **Système de likes** avec persistance locale
+- 💬 **Commentaires** (à venir)
+- 👤 **Gestion de profil** utilisateur
+- 💰 **Système de coins** (monétisation simulée)
+- 📱 **Design responsive** (mobile & desktop)
+- 💾 **Stockage local** complet (pas besoin de backend)
+- 🔍 **Recherche** dans les vidéos
+- 📋 **Brouillons** sauvegardés localement
+- ⚙️ **Paramètres** personnalisables
 
-### 1. Prérequis
-- Node.js 14+
-- Compte Firebase avec projet configuré
+## 🚀 Installation
 
-### 2. Installation
-```bash
-# Cloner ou télécharger les fichiers
-# Installer les dépendances
-npm install
-
-# Démarrer le serveur local
-npm run dev
+1. **Cloner le projet** :
+   ```bash
+   git clone https://github.com/votre-utilisateur/tiktak.git
+   cd tiktak
