@@ -28,7 +28,7 @@
             </div>
             
             <div class="nav-right">
-                <div class="coin-balance" id="coinBalance">
+                <div class="coin-balance" id="coinBalance" onclick="openWallet()">
                     <i class="fas fa-coins"></i>
                     <span id="coinCount">100</span>
                 </div>
@@ -90,7 +90,7 @@
                 <h2>Créer une vidéo</h2>
                 
                 <div class="video-preview" id="videoPreview">
-                    <video id="previewVideo" style="display: none;"></video>
+                    <video id="previewVideo" style="display: none;" controls></video>
                     <div class="preview-placeholder">
                         <i class="fas fa-video"></i>
                         <p>Aucune vidéo sélectionnée</p>
@@ -170,14 +170,32 @@
                 
                 <div id="profileVideos" class="profile-content">
                     <!-- Vidéos de l'utilisateur -->
+                    <div class="empty-state">
+                        <i class="fas fa-video-slash"></i>
+                        <h3>Aucune vidéo</h3>
+                        <p>Commencez à créer du contenu !</p>
+                        <button class="btn btn-primary" onclick="openCreateModal(); closeProfile();">
+                            Créer une vidéo
+                        </button>
+                    </div>
                 </div>
                 
                 <div id="profileLikes" class="profile-content" style="display: none;">
                     <!-- Vidéos aimées -->
+                    <div class="empty-state">
+                        <i class="fas fa-heart"></i>
+                        <h3>Aucun like</h3>
+                        <p>Les vidéos que vous aimez apparaîtront ici</p>
+                    </div>
                 </div>
                 
                 <div id="profileDrafts" class="profile-content" style="display: none;">
                     <!-- Brouillons -->
+                    <div class="empty-state">
+                        <i class="fas fa-file-alt"></i>
+                        <h3>Aucun brouillon</h3>
+                        <p>Vos vidéos non publiées apparaîtront ici</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -229,25 +247,3 @@
     <script src="script.js"></script>
 </body>
 </html>
-<!-- Dans chaque vidéo, mettez à jour la section des actions : -->
-<div class="video-actions">
-    <div class="action ${isLiked ? 'liked' : ''}" onclick="toggleLike('${video.id}')">
-        <i class="fas fa-heart"></i>
-        <span>${UI.formatNumber(video.likes)}</span>
-    </div>
-    
-    <div class="action" onclick="openComments('${video.id}')">
-        <i class="fas fa-comment"></i>
-        <span>${UI.formatNumber(video.comments)}</span>
-    </div>
-    
-    <div class="action" onclick="shareVideo('${video.id}')">
-        <i class="fas fa-share"></i>
-        <span>${UI.formatNumber(video.shares)}</span>
-    </div>
-    
-    <div class="action" onclick="openGiftShopForVideo('${video.id}', '${video.userId}')">
-        <i class="fas fa-gift"></i>
-        <span>${UI.formatNumber(video.gifts || 0)}</span>
-    </div>
-</div>
