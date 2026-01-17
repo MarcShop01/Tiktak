@@ -2224,3 +2224,531 @@ window.openVideoDetail = openVideoDetail;
 window.handleNotificationClick = handleNotificationClick;
 window.markAllAsRead = markAllAsRead;
 window.clearAllNotifications = clearAllNotifications;
+
+// ==================== VARIABLES POUR LES NOUVELLES FONCTIONNALITÉS ====================
+let cameraStream = null;
+let mediaRecorder = null;
+let recordedChunks = [];
+let isRecording = false;
+let recordingTimer = null;
+let recordingSeconds = 0;
+let liveStream = null;
+let liveViewers = 0;
+let liveChat = [];
+let liveInterval = null;
+let isLive = false;
+
+// ==================== FONCTIONS CAMÉRA ET ENREGISTREMENT ====================
+function setupCameraFeatures() {
+    const startCameraBtn = document.getElementById('startCameraBtn');
+    const recordBtn = document.getElementById('recordBtn');
+    const stopRecordBtn = document.getElementById('stopRecordBtn');
+    const cameraPreview = document.getElementById('cameraPreview');
+    const videoPreview = document.getElementById('videoPreview');
+    const previewPlaceholder = document.querySelector('.preview-placeholder');
+
+    if (startCameraBtn) {
+        startCameraBtn.addEventListener('click', async function() {
+            try {
+                // Demander l'accès à la caméra et au micro
+                cameraStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
+                        facingMode: 'user'
+                    },
+                    audio: true
+                });
+
+                // Afficher l'aperçu de la caméra
+                cameraPreview.srcObject = cameraStream;
+                cameraPreview.style.display = 'block';
+                videoPreview.style.display = 'none';
+                previewPlaceholder.style.display = 'none';
+
+                // Afficher les boutons d'enregistrement
+                startCameraBtn.style.display = 'none';
+                recordBtn.style.display = 'inline-block';
+
+                showNotification('Caméra et microphone activés 🎥', 'success');
+            } catch (error) {
+                console.error('Erreur caméra:', error);
+                showNotification('Erreur d\'accès à la caméra/microphone', 'error');
+                
+                // Proposer une alternative
+                if (confirm('Voulez-vous utiliser une vidéo de démo à la place ?')) {
+                    simulateRecording();
+                }
+            }
+        });
+    }
+
+    if (recordBtn) {
+        recordBtn.addEventListener('click', startRecording);
+    }
+
+    if (stopRecordBtn) {
+        stopRecordBtn.addEventListener('click', stopRecording);
+    }
+}
+
+function startRecording() {
+    if (!cameraStream) {
+        showNotification('Veuillez d\'abord activer la caméra', 'error');
+        return;
+    }
+
+    recordedChunks = [];
+    isRecording = true;
+    recordingSeconds = 0;
+
+    // Configurer le MediaRecorder
+    mediaRecorder = new MediaRecorder(cameraStream, {
+        mimeType: 'video/webm;codecs=vp9,opus'
+    });
+
+    mediaRecorder.ondataavailable = function(event) {
+        if (event.data.size > 0) {
+            recordedChunks.push(event.data);
+        }
+    };
+
+    mediaRecorder.onstop = function() {
+        // Créer la vidéo à partir des chunks enregistrés
+        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        const file = new File([blob], 'enregistrement_camera.webm', { type: 'video/webm' });
+        
+        // Traiter le fichier vidéo
+        processVideoFile(file);
+        
+        // Réinitialiser l'interface
+        document.getElementById('recordBtn').style.display = 'inline-block';
+        document.getElementById('stopRecordBtn').style.display = 'none';
+        document.getElementById('cameraPreview').style.display = 'none';
+        document.getElementById('previewVideo').style.display = 'block';
+        
+        // Arrêter le minuteur
+        clearInterval(recordingTimer);
+        document.querySelector('.recording-timer').remove();
+        
+        showNotification('Enregistrement terminé ✅', 'success');
+    };
+
+    // Démarrer l'enregistrement
+    mediaRecorder.start();
+
+    // Afficher les indicateurs
+    document.getElementById('recordBtn').style.display = 'none';
+    document.getElementById('stopRecordBtn').style.display = 'inline-block';
+
+    // Ajouter l'indicateur d'enregistrement
+    const cameraPreview = document.getElementById('cameraPreview');
+    const recordingIndicator = document.createElement('div');
+    recordingIndicator.className = 'recording-indicator';
+    recordingIndicator.innerHTML = '<i class="fas fa-circle"></i> Enregistrement';
+    cameraPreview.parentNode.appendChild(recordingIndicator);
+
+    // Ajouter le minuteur
+    const recordingTimerDiv = document.createElement('div');
+    recordingTimerDiv.className = 'recording-timer';
+    recordingTimerDiv.textContent = '00:00';
+    cameraPreview.parentNode.appendChild(recordingTimerDiv);
+
+    // Démarrer le minuteur
+    recordingTimer = setInterval(() => {
+        recordingSeconds++;
+        const minutes = Math.floor(recordingSeconds / 60).toString().padStart(2, '0');
+        const seconds = (recordingSeconds % 60).toString().padStart(2, '0');
+        recordingTimerDiv.textContent = `${minutes}:${seconds}`;
+    }, 1000);
+
+    showNotification('Enregistrement démarré... ⏺️', 'info');
+}
+
+function stopRecording() {
+    if (mediaRecorder && isRecording) {
+        mediaRecorder.stop();
+        isRecording = false;
+        
+        // Arrêter la caméra
+        if (cameraStream) {
+            cameraStream.getTracks().forEach(track => track.stop());
+            cameraStream = null;
+        }
+    }
+}
+
+function stopCamera() {
+    if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraStream = null;
+    }
+    
+    // Réinitialiser l'interface
+    document.getElementById('cameraPreview').style.display = 'none';
+    document.getElementById('startCameraBtn').style.display = 'inline-block';
+    document.getElementById('recordBtn').style.display = 'none';
+    document.getElementById('stopRecordBtn').style.display = 'none';
+    document.getElementById('previewVideo').style.display = 'block';
+}
+
+// ==================== FONCTIONS PHOTO DE PROFIL ====================
+function changeProfilePicture() {
+    document.getElementById('profilePictureInput').click();
+}
+
+function setupProfilePictureUpload() {
+    const profilePictureInput = document.getElementById('profilePictureInput');
+    
+    if (profilePictureInput) {
+        profilePictureInput.addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                if (!file.type.startsWith('image/')) {
+                    showNotification('Veuillez sélectionner une image valide', 'error');
+                    return;
+                }
+                
+                if (file.size > 5 * 1024 * 1024) { // 5MB limit
+                    showNotification('L\'image est trop volumineuse (max 5MB)', 'error');
+                    return;
+                }
+                
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    // Mettre à jour l'avatar de l'utilisateur
+                    currentUser.avatar = e.target.result;
+                    
+                    // Mettre à jour toutes les images de profil dans l'interface
+                    document.querySelectorAll('#userAvatar, #profileAvatar').forEach(img => {
+                        img.src = e.target.result;
+                    });
+                    
+                    // Mettre à jour l'avatar dans les vidéos existantes
+                    videos.forEach(video => {
+                        if (video.userId === currentUser.id) {
+                            video.avatar = e.target.result;
+                        }
+                    });
+                    
+                    // Sauvegarder
+                    saveUserData();
+                    saveVideos();
+                    
+                    showNotification('Photo de profil mise à jour 📸', 'success');
+                };
+                
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+}
+
+// ==================== FONCTIONS LIVE STREAMING ====================
+function openLiveStream() {
+    document.getElementById('liveModal').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    dispatchEvent(new CustomEvent('modalOpen'));
+    
+    // Arrêter la vidéo en cours de lecture
+    if (currentPlayingVideo) {
+        currentPlayingVideo.pause();
+        const playBtn = currentPlayingVideo.closest('.video-container').querySelector('.manual-play-btn');
+        if (playBtn) playBtn.innerHTML = '<i class="fas fa-play"></i>';
+    }
+}
+
+function startLiveStream() {
+    const liveCamera = document.getElementById('liveCamera').checked;
+    const liveMicrophone = document.getElementById('liveMicrophone').checked;
+    const liveTitle = document.getElementById('liveTitle').value.trim();
+    const liveCategory = document.getElementById('liveCategory').value;
+    
+    if (!liveCamera && !liveMicrophone) {
+        showNotification('Veuillez sélectionner au moins une source (caméra ou micro)', 'error');
+        return;
+    }
+    
+    if (!liveTitle) {
+        showNotification('Veuillez ajouter un titre pour votre live', 'error');
+        return;
+    }
+    
+    const constraints = {
+        video: liveCamera ? {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: 'user'
+        } : false,
+        audio: liveMicrophone
+    };
+    
+    // Démarrer la diffusion
+    navigator.mediaDevices.getUserMedia(constraints)
+        .then(stream => {
+            liveStream = stream;
+            isLive = true;
+            
+            // Afficher l'aperçu
+            const livePreview = document.getElementById('livePreview');
+            livePreview.srcObject = stream;
+            
+            // Activer le chat
+            document.getElementById('chatMessage').disabled = false;
+            document.querySelector('.chat-input button').disabled = false;
+            
+            // Mettre à jour l'interface
+            document.getElementById('startLiveBtn').style.display = 'none';
+            document.getElementById('stopLiveBtn').style.display = 'inline-block';
+            
+            // Simuler des spectateurs
+            liveViewers = 1;
+            updateLiveViewers();
+            
+            // Simuler l'arrivée de spectateurs
+            liveInterval = setInterval(() => {
+                if (isLive && Math.random() > 0.7) {
+                    liveViewers += Math.floor(Math.random() * 3) + 1;
+                    updateLiveViewers();
+                    
+                    // Simuler des messages de chat
+                    if (Math.random() > 0.8) {
+                        simulateChatMessage();
+                    }
+                }
+            }, 3000);
+            
+            // Afficher une notification sur l'application
+            showLiveNotification(liveTitle);
+            
+            showNotification('Live démarré avec succès ! 🎥', 'success');
+        })
+        .catch(error => {
+            console.error('Erreur live:', error);
+            showNotification('Erreur lors du démarrage du live', 'error');
+        });
+}
+
+function stopLiveStream() {
+    // Arrêter le flux
+    if (liveStream) {
+        liveStream.getTracks().forEach(track => track.stop());
+        liveStream = null;
+    }
+    
+    // Réinitialiser l'interface
+    isLive = false;
+    liveViewers = 0;
+    liveChat = [];
+    
+    // Effacer l'aperçu
+    const livePreview = document.getElementById('livePreview');
+    livePreview.srcObject = null;
+    
+    // Mettre à jour l'interface
+    document.getElementById('startLiveBtn').style.display = 'inline-block';
+    document.getElementById('stopLiveBtn').style.display = 'none';
+    document.getElementById('liveViewers').textContent = '0';
+    document.getElementById('liveChat').innerHTML = `
+        <div class="system-message">
+            <i class="fas fa-info-circle"></i>
+            <span>Le chat s'affichera ici quand vous serez en direct</span>
+        </div>
+    `;
+    
+    // Désactiver le chat
+    document.getElementById('chatMessage').disabled = true;
+    document.querySelector('.chat-input button').disabled = true;
+    
+    // Arrêter l'intervalle
+    if (liveInterval) {
+        clearInterval(liveInterval);
+        liveInterval = null;
+    }
+    
+    // Fermer la modale
+    document.getElementById('liveModal').style.display = 'none';
+    document.body.style.overflow = 'auto';
+    
+    // Cacher la notification
+    document.getElementById('liveNotification').style.display = 'none';
+    
+    showNotification('Live terminé', 'info');
+}
+
+function updateLiveViewers() {
+    document.getElementById('liveViewers').textContent = formatNumber(liveViewers);
+}
+
+function sendChatMessage() {
+    const chatInput = document.getElementById('chatMessage');
+    const message = chatInput.value.trim();
+    
+    if (!message) return;
+    
+    // Ajouter le message au chat
+    const chatMessage = {
+        id: 'chat_' + Date.now(),
+        userId: currentUser.id,
+        username: currentUser.username,
+        message: message,
+        timestamp: Date.now()
+    };
+    
+    liveChat.push(chatMessage);
+    renderChatMessage(chatMessage);
+    
+    // Effacer le champ
+    chatInput.value = '';
+    
+    // Simuler des réponses
+    setTimeout(() => {
+        if (isLive && Math.random() > 0.5) {
+            simulateChatResponse();
+        }
+    }, 1000);
+}
+
+function renderChatMessage(chatMessage) {
+    const chatContainer = document.getElementById('liveChat');
+    
+    // Supprimer le message système s'il existe
+    const systemMessage = chatContainer.querySelector('.system-message');
+    if (systemMessage) {
+        systemMessage.remove();
+    }
+    
+    const messageElement = document.createElement('div');
+    messageElement.className = 'chat-message';
+    messageElement.innerHTML = `
+        <span class="user">${chatMessage.username}:</span>
+        <span class="text">${chatMessage.message}</span>
+        <span class="time">${new Date(chatMessage.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
+    `;
+    
+    chatContainer.appendChild(messageElement);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+}
+
+function simulateChatMessage() {
+    const viewers = ['@GameurPro', '@MusicLover', '@FanDeSport', '@Curieux', '@TikTokFan'];
+    const messages = [
+        'Super live !',
+        '👍👍👍',
+        'Quel gameplay !',
+        'Belle musique',
+        'GG !',
+        '😍😍😍',
+        'Continue comme ça !',
+        'Première fois ici, c\'est cool !',
+        'Tu streames à quelle fréquence ?',
+        'Des cadeaux pour le streamer !'
+    ];
+    
+    const randomUser = viewers[Math.floor(Math.random() * viewers.length)];
+    const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+    
+    const chatMessage = {
+        id: 'chat_' + Date.now(),
+        userId: 'viewer_' + Math.random(),
+        username: randomUser,
+        message: randomMessage,
+        timestamp: Date.now()
+    };
+    
+    liveChat.push(chatMessage);
+    renderChatMessage(chatMessage);
+}
+
+function simulateChatResponse() {
+    const responses = [
+        'Merci !',
+        'Content que ça te plaise !',
+        'N\'oublie pas de suivre la chaîne',
+        'Des questions ?',
+        'Je fais des lives tous les soirs',
+        'Abonne-toi pour ne rien manquer !'
+    ];
+    
+    const response = responses[Math.floor(Math.random() * responses.length)];
+    
+    const chatMessage = {
+        id: 'chat_' + Date.now(),
+        userId: currentUser.id,
+        username: currentUser.username,
+        message: response,
+        timestamp: Date.now()
+    };
+    
+    liveChat.push(chatMessage);
+    renderChatMessage(chatMessage);
+}
+
+function showLiveNotification(title) {
+    const notification = document.getElementById('liveNotification');
+    const notificationText = document.getElementById('liveNotificationText');
+    
+    notificationText.textContent = `${currentUser.username} est en direct: "${title}"`;
+    notification.style.display = 'block';
+    
+    // Masquer automatiquement après 10 secondes
+    setTimeout(() => {
+        notification.style.display = 'none';
+    }, 10000);
+}
+
+// ==================== INITIALISATION DES NOUVELLES FONCTIONNALITÉS ====================
+function initializeNewFeatures() {
+    setupCameraFeatures();
+    setupProfilePictureUpload();
+    
+    // Mettre à jour le bouton Live dans la navbar
+    const liveBtn = document.querySelector('.btn-live');
+    if (liveBtn) {
+        liveBtn.addEventListener('click', openLiveStream);
+    }
+    
+    // Ajouter un écouteur pour la touche Entrée dans le chat
+    document.getElementById('chatMessage')?.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            sendChatMessage();
+        }
+    });
+}
+
+// ==================== MODIFICATION DE L'INITIALISATION PRINCIPALE ====================
+// Modifiez la fonction initializeApp pour inclure les nouvelles fonctionnalités :
+function initializeApp() {
+    loadDataFromStorage();
+    setupEventListeners();
+    renderVideoFeed();
+    updateUI();
+    initializeNewFeatures(); // ← AJOUTEZ CETTE LIGNE
+    showNotification('Bienvenue sur TIKTAK ! 🎬', 'success');
+}
+
+// ==================== NETTOYAGE DES RESSOURCES ====================
+// Modifiez la fonction resetCreateModal pour arrêter la caméra :
+function resetCreateModal() {
+    // ... code existant ...
+    
+    // Arrêter la caméra si elle est active
+    stopCamera();
+    
+    // ... reste du code existant ...
+}
+
+// Ajoutez un écouteur pour nettoyer les ressources à la fermeture de la page
+window.addEventListener('beforeunload', function() {
+    if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+    }
+    
+    if (liveStream) {
+        liveStream.getTracks().forEach(track => track.stop());
+    }
+    
+    if (mediaRecorder && isRecording) {
+        mediaRecorder.stop();
+    }
+});
