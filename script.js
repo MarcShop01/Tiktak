@@ -54,6 +54,7 @@ let liveViewers = 0;
 let liveChat = [];
 let liveInterval = null;
 let isLive = false;
+let isUsingCamera = false;
 
 // ==================== INITIALISATION ====================
 document.addEventListener('DOMContentLoaded', function() {
@@ -181,6 +182,9 @@ function openCreateModal() {
     document.getElementById('createModal').style.display = 'flex';
     document.body.style.overflow = 'hidden';
     dispatchEvent(new CustomEvent('modalOpen'));
+    
+    // Afficher les options de création
+    showCreateOptions();
 }
 
 function closeCreateModal() {
@@ -750,6 +754,101 @@ function resetCreateModal() {
     
     // Arrêter la caméra si elle est active
     stopCamera();
+    
+    // Masquer les options de création
+    document.getElementById('createOptions').style.display = 'flex';
+    document.getElementById('videoUploadSection').style.display = 'none';
+}
+
+// ==================== NOUVELLES FONCTIONS DE CRÉATION ====================
+function showCreateOptions() {
+    // Afficher les options de création
+    document.getElementById('createOptions').style.display = 'flex';
+    document.getElementById('videoUploadSection').style.display = 'none';
+}
+
+function openUploadSection() {
+    document.getElementById('createOptions').style.display = 'none';
+    document.getElementById('videoUploadSection').style.display = 'block';
+}
+
+function openCameraForRecording() {
+    openUploadSection();
+    isUsingCamera = true;
+    
+    // Afficher les contrôles de caméra
+    document.getElementById('cameraControls').style.display = 'flex';
+    document.getElementById('fileUploadControls').style.display = 'none';
+    
+    // Démarrer la caméra automatiquement
+    setTimeout(() => {
+        startCameraForRecording();
+    }, 500);
+}
+
+function openFileUpload() {
+    openUploadSection();
+    isUsingCamera = false;
+    
+    // Afficher les contrôles de fichier
+    document.getElementById('cameraControls').style.display = 'none';
+    document.getElementById('fileUploadControls').style.display = 'flex';
+}
+
+function startCameraForRecording() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showNotification('La caméra n\'est pas disponible sur votre appareil', 'error');
+        return;
+    }
+    
+    navigator.mediaDevices.getUserMedia({ 
+        video: { 
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: 'user'
+        }, 
+        audio: true 
+    })
+    .then(function(stream) {
+        cameraStream = stream;
+        const videoElement = document.getElementById('cameraPreview');
+        videoElement.srcObject = stream;
+        videoElement.style.display = 'block';
+        
+        // Masquer le placeholder
+        document.querySelector('.preview-placeholder').style.display = 'none';
+        
+        // Afficher le bouton d'enregistrement
+        document.getElementById('startCameraBtn').style.display = 'inline-block';
+        document.getElementById('recordBtn').style.display = 'inline-block';
+        document.getElementById('stopRecordBtn').style.display = 'none';
+        
+        showNotification('Caméra activée 📸', 'success');
+    })
+    .catch(function(error) {
+        console.error('Erreur caméra:', error);
+        showNotification('Impossible d\'accéder à la caméra', 'error');
+        openFileUpload(); // Revenir à l'upload de fichier
+    });
+}
+
+function stopCameraForRecording() {
+    if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraStream = null;
+    }
+    
+    const videoElement = document.getElementById('cameraPreview');
+    videoElement.srcObject = null;
+    videoElement.style.display = 'none';
+    
+    // Réafficher le placeholder
+    document.querySelector('.preview-placeholder').style.display = 'flex';
+    
+    // Cacher les boutons d'enregistrement
+    document.getElementById('startCameraBtn').style.display = 'none';
+    document.getElementById('recordBtn').style.display = 'none';
+    document.getElementById('stopRecordBtn').style.display = 'none';
 }
 
 // ==================== BOUTIQUE DE CADEAUX ====================
@@ -2048,11 +2147,6 @@ function setupEventListeners() {
         searchInput.value = '';
     });
     
-    // Bouton Live
-    document.querySelector('.btn-live').addEventListener('click', function() {
-        showNotification('Fonctionnalité Live à venir prochainement 🎥', 'info');
-    });
-    
     // Input vidéo
     setupVideoInput();
     
@@ -2189,7 +2283,7 @@ function setupCameraFeatures() {
     const recordBtn = document.getElementById('recordBtn');
     const stopRecordBtn = document.getElementById('stopRecordBtn');
     const cameraPreview = document.getElementById('cameraPreview');
-    const videoPreview = document.getElementById('videoPreview');
+    const videoPreview = document.getElementById('previewVideo');
     const previewPlaceholder = document.querySelector('.preview-placeholder');
 
     if (startCameraBtn) {
@@ -2340,7 +2434,157 @@ function stopCamera() {
 
 // ==================== FONCTIONS PHOTO DE PROFIL ====================
 function changeProfilePicture() {
+    // Créer une modal pour choisir la méthode
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.id = 'profilePictureModal';
+    modal.innerHTML = `
+        <div class="modal-content profile-picture-modal">
+            <span class="close-btn" onclick="closeModal('profilePictureModal')">&times;</span>
+            <h2><i class="fas fa-camera"></i> Changer la photo de profil</h2>
+            
+            <div class="profile-picture-options">
+                <div class="option" onclick="chooseProfilePictureFile()">
+                    <div class="option-icon">
+                        <i class="fas fa-folder-open"></i>
+                    </div>
+                    <div class="option-content">
+                        <h3>Choisir un fichier</h3>
+                        <p>Sélectionnez une image depuis votre appareil</p>
+                    </div>
+                </div>
+                
+                <div class="option" onclick="takeProfilePictureWithCamera()">
+                    <div class="option-icon">
+                        <i class="fas fa-camera"></i>
+                    </div>
+                    <div class="option-content">
+                        <h3>Prendre une photo</h3>
+                        <p>Utilisez votre caméra pour prendre une photo</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('profilePictureModal')">
+                    Annuler
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    document.body.style.overflow = 'hidden';
+}
+
+function chooseProfilePictureFile() {
     document.getElementById('profilePictureInput').click();
+    closeModal('profilePictureModal');
+}
+
+function takeProfilePictureWithCamera() {
+    closeModal('profilePictureModal');
+    
+    // Créer une modal pour la caméra
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.id = 'cameraProfileModal';
+    modal.innerHTML = `
+        <div class="modal-content camera-profile-modal">
+            <span class="close-btn" onclick="closeCameraProfileModal()">&times;</span>
+            <h2><i class="fas fa-camera"></i> Prendre une photo</h2>
+            
+            <div class="camera-preview">
+                <video id="profileCameraPreview" autoplay playsinline></video>
+                <div class="camera-overlay">
+                    <div class="circle-frame"></div>
+                </div>
+            </div>
+            
+            <div class="camera-controls">
+                <button class="btn btn-secondary" onclick="switchCamera()">
+                    <i class="fas fa-sync-alt"></i> Changer de caméra
+                </button>
+                <button class="btn btn-primary" onclick="captureProfilePicture()">
+                    <i class="fas fa-camera"></i> Prendre la photo
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    document.body.style.overflow = 'hidden';
+    
+    // Démarrer la caméra
+    startCameraForProfilePicture();
+}
+
+let currentFacingMode = 'user';
+
+function startCameraForProfilePicture() {
+    navigator.mediaDevices.getUserMedia({ 
+        video: { 
+            width: { ideal: 720 },
+            height: { ideal: 720 },
+            facingMode: currentFacingMode
+        },
+        audio: false
+    })
+    .then(stream => {
+        cameraStream = stream;
+        const video = document.getElementById('profileCameraPreview');
+        video.srcObject = stream;
+    })
+    .catch(error => {
+        console.error('Erreur caméra:', error);
+        showNotification('Impossible d\'accéder à la caméra', 'error');
+        closeCameraProfileModal();
+    });
+}
+
+function switchCamera() {
+    currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
+    
+    // Arrêter le flux actuel
+    if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+    }
+    
+    // Redémarrer avec le nouveau mode
+    startCameraForProfilePicture();
+}
+
+function captureProfilePicture() {
+    const video = document.getElementById('profileCameraPreview');
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    
+    const ctx = canvas.getContext('2d');
+    
+    // Dessiner l'image en gardant les proportions
+    const scale = Math.min(canvas.width / video.videoWidth, canvas.height / video.videoHeight);
+    const x = (canvas.width / 2) - (video.videoWidth / 2) * scale;
+    const y = (canvas.height / 2) - (video.videoHeight / 2) * scale;
+    
+    ctx.drawImage(video, x, y, video.videoWidth * scale, video.videoHeight * scale);
+    
+    // Convertir en blob
+    canvas.toBlob(blob => {
+        const file = new File([blob], 'profile_picture.jpg', { type: 'image/jpeg' });
+        processProfilePictureFile(file);
+    }, 'image/jpeg', 0.9);
+    
+    // Arrêter la caméra et fermer la modal
+    closeCameraProfileModal();
+}
+
+function closeCameraProfileModal() {
+    if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraStream = null;
+    }
+    closeModal('cameraProfileModal');
 }
 
 function setupProfilePictureUpload() {
@@ -2350,44 +2594,48 @@ function setupProfilePictureUpload() {
         profilePictureInput.addEventListener('change', function(event) {
             const file = event.target.files[0];
             if (file) {
-                if (!file.type.startsWith('image/')) {
-                    showNotification('Veuillez sélectionner une image valide', 'error');
-                    return;
-                }
-                
-                if (file.size > 5 * 1024 * 1024) { // 5MB limit
-                    showNotification('L\'image est trop volumineuse (max 5MB)', 'error');
-                    return;
-                }
-                
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    // Mettre à jour l'avatar de l'utilisateur
-                    currentUser.avatar = e.target.result;
-                    
-                    // Mettre à jour toutes les images de profil dans l'interface
-                    document.querySelectorAll('#userAvatar, #profileAvatar').forEach(img => {
-                        img.src = e.target.result;
-                    });
-                    
-                    // Mettre à jour l'avatar dans les vidéos existantes
-                    videos.forEach(video => {
-                        if (video.userId === currentUser.id) {
-                            video.avatar = e.target.result;
-                        }
-                    });
-                    
-                    // Sauvegarder
-                    saveUserData();
-                    saveVideos();
-                    
-                    showNotification('Photo de profil mise à jour 📸', 'success');
-                };
-                
-                reader.readAsDataURL(file);
+                processProfilePictureFile(file);
             }
         });
     }
+}
+
+function processProfilePictureFile(file) {
+    if (!file.type.startsWith('image/')) {
+        showNotification('Veuillez sélectionner une image valide', 'error');
+        return;
+    }
+    
+    if (file.size > 5 * 1024 * 1024) { // 5MB limit
+        showNotification('L\'image est trop volumineuse (max 5MB)', 'error');
+        return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        // Mettre à jour l'avatar de l'utilisateur
+        currentUser.avatar = e.target.result;
+        
+        // Mettre à jour toutes les images de profil dans l'interface
+        document.querySelectorAll('#userAvatar, #profileAvatar').forEach(img => {
+            img.src = e.target.result;
+        });
+        
+        // Mettre à jour l'avatar dans les vidéos existantes
+        videos.forEach(video => {
+            if (video.userId === currentUser.id) {
+                video.avatar = e.target.result;
+            }
+        });
+        
+        // Sauvegarder
+        saveUserData();
+        saveVideos();
+        
+        showNotification('Photo de profil mise à jour 📸', 'success');
+    };
+    
+    reader.readAsDataURL(file);
 }
 
 // ==================== FONCTIONS LIVE STREAMING ====================
@@ -2760,12 +3008,6 @@ function initializeNewFeatures() {
     setupCameraFeatures();
     setupProfilePictureUpload();
     
-    // Mettre à jour le bouton Live dans la navbar
-    const liveBtn = document.querySelector('.btn-live');
-    if (liveBtn) {
-        liveBtn.addEventListener('click', openLiveStream);
-    }
-    
     // Ajouter un écouteur pour la touche Entrée dans le chat
     document.addEventListener('keypress', function(e) {
         if (e.target && e.target.id === 'chatMessage' && e.key === 'Enter') {
@@ -2852,6 +3094,10 @@ window.sendChatMessage = sendChatMessage;
 window.closeLiveNotification = closeLiveNotification;
 window.startCameraRecording = startCameraRecording;
 window.stopCameraRecording = stopCameraRecording;
+window.openCameraForRecording = openCameraForRecording;
+window.openFileUpload = openFileUpload;
+window.startCameraForRecording = startCameraForRecording;
+window.stopCameraForRecording = stopCameraForRecording;
 
 // Ajout pour éviter l'erreur de fonction non définie
 function showMyVideos() {
