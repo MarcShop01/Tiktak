@@ -229,3 +229,25 @@
     <script src="script.js"></script>
 </body>
 </html>
+<!-- Dans chaque vidéo, mettez à jour la section des actions : -->
+<div class="video-actions">
+    <div class="action ${isLiked ? 'liked' : ''}" onclick="toggleLike('${video.id}')">
+        <i class="fas fa-heart"></i>
+        <span>${UI.formatNumber(video.likes)}</span>
+    </div>
+    
+    <div class="action" onclick="openComments('${video.id}')">
+        <i class="fas fa-comment"></i>
+        <span>${UI.formatNumber(video.comments)}</span>
+    </div>
+    
+    <div class="action" onclick="shareVideo('${video.id}')">
+        <i class="fas fa-share"></i>
+        <span>${UI.formatNumber(video.shares)}</span>
+    </div>
+    
+    <div class="action" onclick="openGiftShopForVideo('${video.id}', '${video.userId}')">
+        <i class="fas fa-gift"></i>
+        <span>${UI.formatNumber(video.gifts || 0)}</span>
+    </div>
+</div>
