@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TikTok Clone</title>
+    <title>TIKTAK - Votre application de vidéos</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -11,19 +11,7 @@
     <!-- Loading Screen -->
     <div id="loadingScreen" class="loading-screen">
         <div class="loading-spinner"></div>
-        <p>Chargement...</p>
-    </div>
-
-    <!-- Login Modal -->
-    <div id="loginModal" class="modal-overlay" style="display: none;">
-        <div class="modal-content auth-modal">
-            <span class="close-btn" onclick="hideLoginModal()">&times;</span>
-            <h2>Connexion</h2>
-            <p style="margin-bottom: 20px; color: #aaa;">Mode démo activé - Connectez-vous pour tester les fonctionnalités</p>
-            <button class="btn btn-primary" onclick="hideLoginModal(); document.getElementById('appContainer').style.display='block'">
-                Se connecter (Démo)
-            </button>
-        </div>
+        <p>Chargement TIKTAK...</p>
     </div>
 
     <!-- Main App -->
@@ -31,7 +19,7 @@
         <!-- Navigation -->
         <nav class="navbar">
             <div class="logo">
-                <i class="fas fa-video"></i> TikTok Clone
+                <i class="fas fa-video"></i> <span class="logo-text">TIKTAK</span>
             </div>
             
             <div class="search-bar">
@@ -42,15 +30,15 @@
             <div class="nav-right">
                 <div class="coin-balance" id="coinBalance" onclick="openCoinShop()">
                     <i class="fas fa-coins"></i>
-                    <span>100</span>
+                    <span id="coinCount">100</span>
                 </div>
                 
                 <button class="btn btn-live" onclick="openLiveSetup()">
-                    <i class="fas fa-broadcast-tower"></i> Live
+                    <i class="fas fa-broadcast-tower"></i> <span class="live-text">Live</span>
                 </button>
                 
                 <button class="btn btn-upload" onclick="openCreateModal()">
-                    <i class="fas fa-plus"></i> Créer
+                    <i class="fas fa-plus"></i>
                 </button>
                 
                 <div class="user-menu" onclick="toggleUserMenu()">
@@ -63,38 +51,38 @@
                 <a href="#" onclick="openWallet()"><i class="fas fa-wallet"></i> Mon portefeuille</a>
                 <a href="#" onclick="openSettings()"><i class="fas fa-cog"></i> Paramètres</a>
                 <div class="divider"></div>
-                <a href="#" onclick="hideLoginModal()"><i class="fas fa-sign-out-alt"></i> Déconnexion</a>
+                <a href="#" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Déconnexion</a>
             </div>
         </nav>
 
         <!-- Main Content -->
         <main class="main-content">
             <div class="video-feed" id="videoFeed">
-                <!-- Les vidéos seront chargées ici -->
+                <!-- Les vidéos seront chargées ici depuis localStorage -->
             </div>
             
             <!-- Sidebar (visible sur desktop) -->
             <aside class="sidebar">
                 <div class="sidebar-section">
                     <h3>Découvrir</h3>
-                    <a href="#"><i class="fas fa-fire"></i> Tendances</a>
-                    <a href="#"><i class="fas fa-music"></i> Musique</a>
-                    <a href="#"><i class="fas fa-gamepad"></i> Gaming</a>
-                    <a href="#"><i class="fas fa-graduation-cap"></i> Éducation</a>
+                    <a href="#" onclick="showTrending()"><i class="fas fa-fire"></i> Tendances</a>
+                    <a href="#" onclick="showFollowing()"><i class="fas fa-users"></i> Abonnements</a>
+                    <a href="#" onclick="showFavorites()"><i class="fas fa-heart"></i> Favoris</a>
+                    <a href="#" onclick="showMyVideos()"><i class="fas fa-video"></i> Mes vidéos</a>
                 </div>
             </aside>
         </main>
 
         <!-- Bottom Navigation (Mobile) -->
         <div class="bottom-nav">
-            <a href="#" class="nav-item active"><i class="fas fa-home"></i></a>
-            <a href="#" class="nav-item"><i class="fas fa-search"></i></a>
+            <a href="#" class="nav-item active" onclick="showHome()"><i class="fas fa-home"></i></a>
+            <a href="#" class="nav-item" onclick="openSearch()"><i class="fas fa-search"></i></a>
             <a href="#" class="nav-item" onclick="openCreateModal()"><i class="fas fa-plus-square"></i></a>
-            <a href="#" class="nav-item"><i class="fas fa-inbox"></i></a>
+            <a href="#" class="nav-item" onclick="openNotifications()"><i class="fas fa-bell"></i></a>
             <a href="#" class="nav-item" onclick="openProfile()"><i class="fas fa-user"></i></a>
         </div>
 
-        <!-- Modales -->
+        <!-- Modale de création -->
         <div id="createModal" class="modal-overlay" style="display: none;">
             <div class="modal-content">
                 <span class="close-btn" onclick="closeCreateModal()">&times;</span>
@@ -109,13 +97,13 @@
                 </div>
                 
                 <div class="modal-actions">
-                    <button class="btn btn-action" onclick="startRecording()">
-                        <i class="fas fa-video"></i> Filmer
+                    <button class="btn btn-action" onclick="simulateRecording()">
+                        <i class="fas fa-video"></i> Simuler vidéo
                     </button>
                     <button class="btn btn-action" onclick="openFilePicker()">
                         <i class="fas fa-upload"></i> Importer
                     </button>
-                    <input type="file" id="videoInput" accept="video/*" style="display: none;">
+                    <input type="file" id="videoInput" accept="video/*,image/*" style="display: none;">
                 </div>
                 
                 <div class="form-section">
@@ -125,7 +113,7 @@
                     <div class="form-group">
                         <label>
                             <input type="checkbox" id="monetizeVideo">
-                            Monétiser cette vidéo
+                            Monétiser cette vidéo (démo)
                         </label>
                     </div>
                     
@@ -134,6 +122,7 @@
                         <select id="videoPrivacy">
                             <option value="public">Public</option>
                             <option value="private">Privé</option>
+                            <option value="draft">Brouillon</option>
                         </select>
                     </div>
                     
@@ -144,145 +133,84 @@
                 </div>
                 
                 <div class="modal-footer">
-                    <button class="btn btn-secondary" onclick="closeCreateModal()">Annuler</button>
-                    <button class="btn btn-primary" onclick="publishVideo()" id="publishBtn" disabled>
+                    <button class="btn btn-secondary" onclick="saveAsDraft()">Sauvegarder brouillon</button>
+                    <button class="btn btn-primary" onclick="publishVideo()" id="publishBtn">
                         <i class="fas fa-paper-plane"></i> Publier
                     </button>
                 </div>
             </div>
         </div>
 
-        <!-- Live Setup Modal -->
-        <div id="liveSetupModal" class="modal-overlay" style="display: none;">
+        <!-- Modale Profil -->
+        <div id="profileModal" class="modal-overlay" style="display: none;">
             <div class="modal-content">
-                <span class="close-btn" onclick="closeLiveSetup()">&times;</span>
-                <h2>Démarrer un live</h2>
+                <span class="close-btn" onclick="closeProfile()">&times;</span>
+                <h2>Mon Profil</h2>
                 
-                <div class="form-section">
-                    <div class="form-group">
-                        <label>Titre du live</label>
-                        <input type="text" id="liveTitle" placeholder="Titre de votre live...">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>Description</label>
-                        <textarea id="liveDescription" placeholder="Décrivez votre live..." rows="3"></textarea>
+                <div class="profile-header">
+                    <img id="profileAvatar" src="https://randomuser.me/api/portraits/lego/1.jpg" alt="Avatar">
+                    <div class="profile-info">
+                        <h3 id="profileUsername">Utilisateur TIKTAK</h3>
+                        <p><i class="fas fa-coins"></i> <span id="profileCoins">100</span> coins</p>
+                        <p id="profileStats">0 vidéos • 0 abonnés • 0 abonnements</p>
                     </div>
                 </div>
                 
-                <div class="modal-footer">
-                    <button class="btn btn-secondary" onclick="closeLiveSetup()">Annuler</button>
-                    <button class="btn btn-primary" onclick="startLiveStream()">
-                        <i class="fas fa-broadcast-tower"></i> Démarrer
-                    </button>
+                <div class="profile-tabs">
+                    <button class="profile-tab active" onclick="showProfileTab('videos')">Mes vidéos</button>
+                    <button class="profile-tab" onclick="showProfileTab('likes')">J'aime</button>
+                    <button class="profile-tab" onclick="showProfileTab('drafts')">Brouillons</button>
+                </div>
+                
+                <div id="profileVideos" class="profile-content">
+                    <!-- Vidéos de l'utilisateur -->
+                </div>
+                
+                <div id="profileLikes" class="profile-content" style="display: none;">
+                    <!-- Vidéos aimées -->
+                </div>
+                
+                <div id="profileDrafts" class="profile-content" style="display: none;">
+                    <!-- Brouillons -->
                 </div>
             </div>
         </div>
 
-        <!-- Live Interface -->
-        <div id="liveInterface" class="live-interface" style="display: none;">
-            <div class="live-header">
-                <div class="streamer-info">
-                    <img id="streamerAvatar" src="" alt="">
-                    <div>
-                        <h3 id="streamerName"></h3>
-                        <span class="viewer-count"><i class="fas fa-eye"></i> <span id="viewerCount">0</span> spectateurs</span>
-                    </div>
-                </div>
-                
-                <div class="live-controls">
-                    <button class="btn btn-gift" onclick="openGiftShop()">
-                        <i class="fas fa-gift"></i> Cadeaux
-                    </button>
-                    <button class="btn btn-danger" onclick="endLiveStream()">
-                        <i class="fas fa-stop"></i> Terminer
-                    </button>
-                </div>
-            </div>
-            
-            <div class="live-content">
-                <div class="video-container">
-                    <div class="live-placeholder">
-                        <i class="fas fa-broadcast-tower"></i>
-                        <p>Live en cours (Mode démo)</p>
-                    </div>
-                    <div class="live-stats">
-                        <span class="stat"><i class="fas fa-heart"></i> <span id="liveLikes">0</span></span>
-                        <span class="stat"><i class="fas fa-gift"></i> <span id="liveGifts">0</span></span>
-                        <span class="stat"><i class="fas fa-comment"></i> <span id="liveComments">0</span></span>
-                    </div>
-                </div>
-                
-                <div class="live-sidebar">
-                    <div class="chat-container">
-                        <div class="chat-header">
-                            <h4>Chat en direct</h4>
-                            <span>0 en ligne</span>
-                        </div>
-                        
-                        <div class="chat-messages" id="chatMessages">
-                            <div class="chat-message">
-                                <strong>Système:</strong> Bienvenue sur le live!
-                            </div>
-                        </div>
-                        
-                        <div class="chat-input">
-                            <input type="text" id="chatInput" placeholder="Envoyer un message...">
-                            <button id="sendChatBtn"><i class="fas fa-paper-plane"></i></button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Gift Shop Modal -->
-        <div id="giftShopModal" class="modal-overlay" style="display: none;">
+        <!-- Modale Paramètres -->
+        <div id="settingsModal" class="modal-overlay" style="display: none;">
             <div class="modal-content">
-                <span class="close-btn" onclick="closeGiftShop()">&times;</span>
-                <h2>Envoyer un cadeau</h2>
+                <span class="close-btn" onclick="closeSettings()">&times;</span>
+                <h2>Paramètres</h2>
                 
-                <div class="gifts-grid">
-                    <div class="gift-item" onclick="selectGift('rose', 1)">
-                        <div class="gift-icon">🌹</div>
-                        <div class="gift-name">Rose</div>
-                        <div class="gift-price">1 coin</div>
+                <div class="settings-section">
+                    <h3>Compte</h3>
+                    <div class="setting-item">
+                        <label>Nom d'utilisateur</label>
+                        <input type="text" id="settingsUsername" value="Utilisateur TIKTAK">
                     </div>
-                    
-                    <div class="gift-item" onclick="selectGift('crown', 10)">
-                        <div class="gift-icon">👑</div>
-                        <div class="gift-name">Couronne</div>
-                        <div class="gift-price">10 coins</div>
+                    <div class="setting-item">
+                        <label>Email</label>
+                        <input type="email" id="settingsEmail" value="user@tiktak.demo">
                     </div>
-                    
-                    <div class="gift-item" onclick="selectGift('diamond', 50)">
-                        <div class="gift-icon">💎</div>
-                        <div class="gift-name">Diamant</div>
-                        <div class="gift-price">50 coins</div>
-                    </div>
-                    
-                    <div class="gift-item" onclick="selectGift('rocket', 100)">
-                        <div class="gift-icon">🚀</div>
-                        <div class="gift-name">Fusée</div>
-                        <div class="gift-price">100 coins</div>
-                    </div>
+                    <button class="btn btn-secondary" onclick="saveSettings()">Enregistrer</button>
                 </div>
                 
-                <div class="selected-gift" id="selectedGift" style="display: none;">
-                    <h3>Cadeau sélectionné</h3>
-                    <div class="gift-preview">
-                        <span id="selectedGiftIcon">🌹</span>
-                        <div>
-                            <h4 id="selectedGiftName">Rose</h4>
-                            <p>Coût: <span id="selectedGiftPrice">1</span> coins</p>
-                        </div>
+                <div class="settings-section">
+                    <h3>Application</h3>
+                    <div class="setting-item">
+                        <label>
+                            <input type="checkbox" id="settingsNotifications" checked>
+                            Notifications
+                        </label>
                     </div>
-                    
-                    <div class="gift-message">
-                        <input type="text" id="giftMessage" placeholder="Ajouter un message...">
+                    <div class="setting-item">
+                        <label>
+                            <input type="checkbox" id="settingsAutoplay" checked>
+                            Lecture automatique
+                        </label>
                     </div>
-                    
-                    <button class="btn btn-primary" onclick="sendGift()">
-                        <i class="fas fa-gift"></i> Envoyer le cadeau
+                    <button class="btn btn-danger" onclick="clearLocalStorage()">
+                        <i class="fas fa-trash"></i> Réinitialiser les données
                     </button>
                 </div>
             </div>
@@ -292,7 +220,6 @@
         <div id="notificationsContainer" class="notifications-container"></div>
     </div>
 
-    <!-- Script unique -->
     <script src="script.js"></script>
 </body>
 </html>
