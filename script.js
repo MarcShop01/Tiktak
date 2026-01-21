@@ -1,3 +1,450 @@
+// ==================== CONFIGURATION FIREBASE ====================
+const firebaseConfig = {
+    apiKey: "AIzaSyD6UBg16fK3WP6ttzzmGMLglruXO4-KEzA",
+    authDomain: "tiktak-97036.firebaseapp.com",
+    projectId: "tiktak-97036",
+    storageBucket: "tiktak-97036.appspot.com",
+    messagingSenderId: "329130229096",
+    appId: "1:329130229096:web:2dabf7f2a39de191b62add",
+    measurementId: "G-8HN67F2F2R"
+};
+
+// Initialiser Firebase
+try {
+    if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+        console.log('✅ Firebase initialisé avec succès');
+    } else {
+        firebase.app();
+    }
+} catch (error) {
+    console.error('❌ Erreur initialisation Firebase:', error);
+}
+
+// Initialiser les services
+const db = firebase.firestore();
+const auth = firebase.auth();
+const storage = firebase.storage();
+
+// ==================== FONCTIONS FIREBASE ====================
+
+// Créer un utilisateur anonyme
+async function createAnonymousUser() {
+    try {
+        const userCredential = await auth.signInAnonymously();
+        const user = userCredential.user;
+        
+        const userData = {
+            username: `User${Math.floor(Math.random() * 10000)}`,
+            avatar: `https://i.pravatar.cc/150?img=${Math.floor(Math.random() * 70)}`,
+            coins: 1000,
+            likedVideos: [],
+            myVideos: [],
+            drafts: [],
+            following: [],
+            followers: [],
+            notifications: [],
+            settings: {
+                notifications: true,
+                autoplay: true,
+                privacy: 'public'
+            },
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            isAnonymous: true,
+            lastLogin: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        
+        await db.collection('users').doc(user.uid).set(userData);
+        console.log('👤 Utilisateur créé:', user.uid);
+        
+        return { id: user.uid, ...userData };
+    } catch (error) {
+        console.error('❌ Erreur création utilisateur:', error);
+        throw error;
+    }
+}
+
+// Obtenir l'utilisateur courant
+async function getCurrentUser() {
+    return new Promise((resolve, reject) => {
+        const unsubscribe = auth.onAuthStateChanged(async (user) => {
+            unsubscribe();
+            if (user) {
+                const userDoc = await db.collection('users').doc(user.uid).get();
+                if (userDoc.exists) {
+                    resolve({ id: userDoc.id, ...userDoc.data() });
+                } else {
+                    const newUser = await createAnonymousUser();
+                    resolve(newUser);
+                }
+            } else {
+                const newUser = await createAnonymousUser();
+                resolve(newUser);
+            }
+        }, reject);
+    });
+}
+
+// Charger les vidéos
+async function loadVideos(limit = 50) {
+    try {
+        console.log('📥 Chargement des vidéos depuis Firebase...');
+        
+        const snapshot = await db.collection('videos')
+            .where('privacy', '==', 'public')
+            .orderBy('createdAt', 'desc')
+            .limit(limit)
+            .get();
+        
+        if (snapshot.empty) {
+            console.log('📭 Aucune vidéo trouvée dans la base de données');
+            return [];
+        }
+        
+        const allVideos = [];
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            let createdAt = new Date();
+            
+            if (data.createdAt && data.createdAt.toDate) {
+                createdAt = data.createdAt.toDate();
+            } else if (data.createdAt) {
+                createdAt = new Date(data.createdAt);
+            }
+            
+            allVideos.push({
+                id: doc.id,
+                ...data,
+                createdAt: createdAt,
+                likes: data.likes || 0,
+                comments: data.comments || 0,
+                shares: data.shares || 0,
+                views: data.views || 0,
+                gifts: data.gifts || 0,
+                duration: data.duration || '00:15',
+                privacy: data.privacy || 'public'
+            });
+        });
+        
+        console.log(`✅ ${allVideos.length} vidéos chargées`);
+        return allVideos;
+        
+    } catch (error) {
+        console.error('❌ Erreur chargement vidéos:', error);
+        return [];
+    }
+}
+
+// Sauvegarder une vidéo
+async function saveVideo(videoData) {
+    try {
+        const user = auth.currentUser;
+        if (!user) throw new Error('Utilisateur non connecté');
+        
+        const videoRef = db.collection('videos').doc();
+        const videoWithMetadata = {
+            ...videoData,
+            id: videoRef.id,
+            userId: user.uid,
+            username: videoData.username || 'Utilisateur',
+            avatar: videoData.avatar || 'https://i.pravatar.cc/150?img=1',
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            likes: 0,
+            comments: 0,
+            shares: 0,
+            views: 0,
+            gifts: 0,
+            privacy: videoData.privacy || 'public',
+            duration: '00:15'
+        };
+        
+        await videoRef.set(videoWithMetadata);
+        
+        await db.collection('users').doc(user.uid).update({
+            myVideos: firebase.firestore.FieldValue.arrayUnion(videoRef.id),
+            coins: firebase.firestore.FieldValue.increment(10),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        
+        console.log('✅ Vidéo sauvegardée:', videoRef.id);
+        return { ...videoWithMetadata, createdAt: new Date() };
+        
+    } catch (error) {
+        console.error('❌ Erreur sauvegarde vidéo:', error);
+        throw error;
+    }
+}
+
+// Mettre à jour une vidéo
+async function updateVideo(videoId, updates) {
+    try {
+        await db.collection('videos').doc(videoId).update({
+            ...updates,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        return true;
+    } catch (error) {
+        console.error('❌ Erreur mise à jour vidéo:', error);
+        throw error;
+    }
+}
+
+// Incrémenter les vues
+async function incrementViews(videoId) {
+    try {
+        await db.collection('videos').doc(videoId).update({
+            views: firebase.firestore.FieldValue.increment(1),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        return true;
+    } catch (error) {
+        console.error('⚠️ Vue non comptabilisée:', error);
+        return false;
+    }
+}
+
+// Mettre à jour les likes
+async function updateLikes(videoId, userId, action = 'like') {
+    try {
+        const increment = action === 'like' ? 1 : -1;
+        await db.collection('videos').doc(videoId).update({
+            likes: firebase.firestore.FieldValue.increment(increment),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        
+        const userRef = db.collection('users').doc(userId);
+        if (action === 'like') {
+            await userRef.update({
+                likedVideos: firebase.firestore.FieldValue.arrayUnion(videoId),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        } else {
+            await userRef.update({
+                likedVideos: firebase.firestore.FieldValue.arrayRemove(videoId),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        }
+        
+        return true;
+    } catch (error) {
+        console.error('❌ Erreur mise à jour likes:', error);
+        throw error;
+    }
+}
+
+// Suivre un utilisateur
+async function followUser(followerId, followingId) {
+    try {
+        await db.collection('users').doc(followerId).update({
+            following: firebase.firestore.FieldValue.arrayUnion(followingId),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        
+        await db.collection('users').doc(followingId).update({
+            followers: firebase.firestore.FieldValue.arrayUnion(followerId),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        
+        return true;
+    } catch (error) {
+        console.error('❌ Erreur follow:', error);
+        throw error;
+    }
+}
+
+// Rechercher des vidéos
+async function searchVideos(query) {
+    try {
+        console.log(`🔍 Recherche: "${query}"`);
+        
+        const allVideos = await loadVideos(100);
+        const normalizedQuery = query.toLowerCase().trim();
+        
+        if (!normalizedQuery) return allVideos;
+        
+        const results = allVideos.filter(video => {
+            if (video.caption && video.caption.toLowerCase().includes(normalizedQuery)) {
+                return true;
+            }
+            
+            if (video.username && video.username.toLowerCase().includes(normalizedQuery)) {
+                return true;
+            }
+            
+            if (video.hashtags && Array.isArray(video.hashtags)) {
+                for (const tag of video.hashtags) {
+                    if (tag.toLowerCase().includes(normalizedQuery)) {
+                        return true;
+                    }
+                }
+            }
+            
+            return false;
+        });
+        
+        console.log(`✅ ${results.length} résultats trouvés pour "${query}"`);
+        return results;
+        
+    } catch (error) {
+        console.error('❌ Erreur recherche:', error);
+        return [];
+    }
+}
+
+// Mettre à jour l'utilisateur
+async function updateUser(userId, updates) {
+    try {
+        await db.collection('users').doc(userId).update({
+            ...updates,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        return true;
+    } catch (error) {
+        console.error('❌ Erreur mise à jour utilisateur:', error);
+        throw error;
+    }
+}
+
+// Charger un utilisateur
+async function loadUser(userId) {
+    try {
+        const userDoc = await db.collection('users').doc(userId).get();
+        if (userDoc.exists) {
+            return { id: userDoc.id, ...userDoc.data() };
+        }
+        return {
+            id: userId,
+            username: 'Utilisateur',
+            avatar: 'https://i.pravatar.cc/150?img=1',
+            followers: [],
+            following: []
+        };
+    } catch (error) {
+        console.error('❌ Erreur chargement utilisateur:', error);
+        return {
+            id: userId,
+            username: 'Utilisateur',
+            avatar: 'https://i.pravatar.cc/150?img=1',
+            followers: [],
+            following: []
+        };
+    }
+}
+
+// Initialiser la base de données
+async function initializeDatabase() {
+    try {
+        const user = await getCurrentUser();
+        
+        const videosCount = await db.collection('videos').get();
+        if (videosCount.empty) {
+            console.log('📝 Initialisation de la base de données avec des vidéos de démo...');
+            
+            const demoVideos = [
+                {
+                    userId: user.id,
+                    username: user.username,
+                    avatar: user.avatar,
+                    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+                    thumbnail: 'https://images.unsplash.com/photo-1611605698335-8b1569810432',
+                    caption: 'Bienvenue sur TIKTAK ! 🎬 Créez votre première vidéo ! #bienvenue #tiktak',
+                    likes: 15,
+                    comments: 3,
+                    shares: 2,
+                    views: 150,
+                    gifts: 0,
+                    hashtags: ['#bienvenue', '#tiktak', '#premierevideo'],
+                    duration: '00:15',
+                    privacy: 'public',
+                    isMonetized: false
+                },
+                {
+                    userId: user.id,
+                    username: user.username,
+                    avatar: user.avatar,
+                    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+                    thumbnail: 'https://images.unsplash.com/photo-1518709268805-4e9042af2176',
+                    caption: 'Découvrez les fonctionnalités de TIKTAK #fun #video',
+                    likes: 25,
+                    comments: 5,
+                    shares: 3,
+                    views: 250,
+                    gifts: 0,
+                    hashtags: ['#fun', '#video', '#decouverte'],
+                    duration: '00:20',
+                    privacy: 'public',
+                    isMonetized: false
+                }
+            ];
+            
+            for (const demoVideo of demoVideos) {
+                await saveVideo(demoVideo);
+            }
+        }
+        
+        return true;
+    } catch (error) {
+        console.error('❌ Erreur initialisation base:', error);
+        return false;
+    }
+}
+
+// Écoute en temps réel des nouvelles vidéos
+function setupRealtimeListener(callback) {
+    try {
+        console.log('👂 Configuration de l\'écoute en temps réel...');
+        
+        return db.collection('videos')
+            .where('privacy', '==', 'public')
+            .orderBy('createdAt', 'desc')
+            .limit(10)
+            .onSnapshot((snapshot) => {
+                const newVideos = [];
+                snapshot.docChanges().forEach((change) => {
+                    if (change.type === 'added') {
+                        const data = change.doc.data();
+                        newVideos.push({
+                            id: change.doc.id,
+                            ...data,
+                            createdAt: data.createdAt?.toDate?.() || new Date()
+                        });
+                    }
+                });
+                
+                if (newVideos.length > 0 && callback) {
+                    callback(newVideos);
+                }
+            }, (error) => {
+                console.warn('⚠️ Écoute temps réel désactivée:', error);
+            });
+    } catch (error) {
+        console.warn('⚠️ Impossible de configurer l\'écoute temps réel:', error);
+        return null;
+    }
+}
+
+// Exporter les fonctions Firebase
+window.firebaseApp = {
+    db,
+    auth,
+    storage,
+    createAnonymousUser,
+    getCurrentUser,
+    saveVideo,
+    loadVideos,
+    updateVideo,
+    incrementViews,
+    updateLikes,
+    followUser,
+    searchVideos,
+    updateUser,
+    loadUser,
+    initializeDatabase,
+    setupRealtimeListener
+};
+
 // ==================== VARIABLES GLOBALES ====================
 let currentUser = null;
 let videos = [];
@@ -66,28 +513,6 @@ async function cacheVideoUsers() {
                 console.warn(`⚠️ Impossible de charger l'utilisateur ${userId}:`, error);
             }
         }
-    }
-}
-
-function setupRealtimeListener() {
-    try {
-        realtimeUnsubscribe = firebaseApp.setupRealtimeListener((newVideos) => {
-            console.log('🆕 Nouvelle vidéo en temps réel:', newVideos.length);
-            
-            newVideos.forEach(newVideo => {
-                if (!videos.some(v => v.id === newVideo.id)) {
-                    videos.unshift(newVideo);
-                }
-            });
-            
-            renderVideoFeed();
-            
-            if (newVideos.length > 0) {
-                showNotification('Nouvelle vidéo disponible ! 📹', 'info');
-            }
-        });
-    } catch (error) {
-        console.warn('⚠️ Écoute temps réel non disponible:', error);
     }
 }
 
@@ -198,7 +623,7 @@ function createVideoElement(video, autoPlay = false) {
                 Votre navigateur ne supporte pas la vidéo.
             </video>
             
-            <button class="manual-play-btn" onclick="toggleVideoPlay(this.parentElement.querySelector('video'))" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0, 242, 254, 0.9); color: white; border: none; border-radius: 50%; width: 70px; height: 70px; font-size: 28px; cursor: pointer; z-index: 10; display: flex; align-items: center; justify-content: center;">
+            <button class="manual-play-btn" onclick="toggleVideoPlay(this.parentElement.querySelector('video'))">
                 <i class="fas fa-play"></i>
             </button>
         </div>
@@ -270,7 +695,6 @@ async function toggleVideoPlay(videoElement) {
         }
         
         try {
-            // Activer le son si nécessaire
             if (videoElement.muted) {
                 videoElement.muted = false;
             }
@@ -300,6 +724,7 @@ async function toggleVideoPlay(videoElement) {
         currentPlayingVideo = null;
     }
 }
+
 // ==================== INTERACTIONS ====================
 async function toggleLike(videoId) {
     try {
@@ -630,6 +1055,7 @@ async function postComment(videoId) {
         showNotification('Erreur lors de la publication', 'error');
     }
 }
+
 // ==================== CRÉATION DE VIDÉO ====================
 function openCreateModal() {
     document.getElementById('createModal').style.display = 'flex';
@@ -1026,3 +1452,447 @@ function openSearch() {
         searchInput.select();
     }
 }
+
+// ==================== ÉCOUTEURS D'ÉVÉNEMENTS ====================
+
+function setupEventListeners() {
+    console.log('🔧 Configuration des écouteurs d\'événements...');
+    
+    // Recherche par Entrée
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                performSearch(this.value);
+            }
+        });
+    }
+    
+    // Input vidéo
+    setupVideoInput();
+    
+    // Input photo de profil
+    const profilePictureInput = document.getElementById('profilePictureInput');
+    if (profilePictureInput) {
+        profilePictureInput.addEventListener('change', async function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    currentUser.avatar = e.target.result;
+                    updateUI();
+                    firebaseApp.updateUser(currentUser.id, { avatar: currentUser.avatar });
+                    showNotification('Photo de profil mise à jour ✅', 'success');
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+    
+    // Fermer les menus en cliquant à l'extérieur
+    document.addEventListener('click', function(e) {
+        const menu = document.getElementById('userDropdown');
+        const userMenu = document.querySelector('.user-menu');
+        if (menu && menu.style.display === 'block' && userMenu && !userMenu.contains(e.target) && !menu.contains(e.target)) {
+            menu.style.display = 'none';
+        }
+        
+        // Fermer les modales
+        ['createModal', 'profileModal', 'settingsModal'].forEach(modalId => {
+            const modal = document.getElementById(modalId);
+            if (modal && modal.style.display === 'flex' && e.target === modal) {
+                if (modalId === 'createModal') closeCreateModal();
+                if (modalId === 'profileModal') closeProfile();
+                if (modalId === 'settingsModal') closeSettings();
+            }
+        });
+    });
+    
+    // Navigation mobile
+    document.querySelectorAll('.bottom-nav .nav-item').forEach(item => {
+        item.addEventListener('click', function(e) {
+            e.preventDefault();
+            document.querySelectorAll('.bottom-nav .nav-item').forEach(i => i.classList.remove('active'));
+            this.classList.add('active');
+        });
+    });
+    
+    // Gestion du rafraîchissement
+    window.addEventListener('beforeunload', function() {
+        if (realtimeUnsubscribe) {
+            realtimeUnsubscribe();
+        }
+    });
+    
+    console.log('✅ Écouteurs d\'événements configurés');
+}
+
+// ==================== FONCTIONS NON IMPLÉMENTÉES ====================
+function openWallet() {
+    showNotification('Portefeuille - Solde: ' + (currentUser.coins || 0) + ' coins', 'info');
+}
+
+function openNotifications() {
+    showNotification('Aucune nouvelle notification', 'info');
+}
+
+function showTrending() {
+    renderVideoFeed('trending');
+}
+
+function showFollowing() {
+    const followingVideos = videos.filter(v => currentUser.following?.includes(v.userId));
+    if (followingVideos.length === 0) {
+        showNotification('Vous ne suivez personne', 'info');
+        renderVideoFeed();
+    } else {
+        const videoFeed = document.getElementById('videoFeed');
+        videoFeed.innerHTML = '';
+        followingVideos.forEach(video => videoFeed.appendChild(createVideoElement(video)));
+        showNotification('Affichage des abonnements', 'info');
+    }
+}
+
+function showFavorites() {
+    const favoriteVideos = videos.filter(v => currentUser.likedVideos?.includes(v.id));
+    if (favoriteVideos.length === 0) {
+        showNotification('Vous n\'avez pas de vidéos favorites', 'info');
+    } else {
+        const videoFeed = document.getElementById('videoFeed');
+        videoFeed.innerHTML = '';
+        favoriteVideos.forEach(video => videoFeed.appendChild(createVideoElement(video)));
+        showNotification('Affichage des favoris', 'info');
+    }
+}
+
+function showMyVideos() {
+    const myVideos = videos.filter(v => v.userId === currentUser.id);
+    if (myVideos.length === 0) {
+        showNotification('Vous n\'avez pas de vidéos', 'info');
+    } else {
+        const videoFeed = document.getElementById('videoFeed');
+        videoFeed.innerHTML = '';
+        myVideos.forEach(video => videoFeed.appendChild(createVideoElement(video)));
+        showNotification('Affichage de vos vidéos', 'info');
+    }
+}
+
+function openCreatorProfile(userId) {
+    showNotification('Profil créateur: ' + (usersCache[userId]?.username || userId), 'info');
+}
+
+function openLiveStream() {
+    showNotification('Live streaming à venir', 'info');
+}
+
+function clearLocalStorage() {
+    if (confirm('Réinitialiser les données locales ?')) {
+        localStorage.clear();
+        location.reload();
+    }
+}
+
+function logout() {
+    if (confirm('Se déconnecter ?')) {
+        try {
+            firebaseApp.auth.signOut().then(() => {
+                localStorage.clear();
+                location.reload();
+            });
+        } catch (error) {
+            location.reload();
+        }
+    }
+}
+
+function openProfile() {
+    loadProfileData();
+    document.getElementById('profileModal').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+}
+
+function closeProfile() {
+    document.getElementById('profileModal').style.display = 'none';
+    document.body.style.overflow = 'auto';
+}
+
+function loadProfileData() {
+    document.getElementById('profileUsername').textContent = currentUser.username || 'Utilisateur';
+    document.getElementById('profileCoins').textContent = currentUser.coins || 0;
+    document.getElementById('profileAvatar').src = currentUser.avatar || 'https://i.pravatar.cc/150?img=1';
+    
+    const userVideos = videos.filter(v => v.userId === currentUser.id);
+    const stats = `${userVideos.length} vidéos • ${currentUser.followers?.length || 0} abonnés • ${currentUser.following?.length || 0} abonnements`;
+    document.getElementById('profileStats').textContent = stats;
+    
+    showProfileTab('videos');
+}
+
+function showProfileTab(tabName) {
+    // Désactiver tous les onglets
+    document.querySelectorAll('.profile-tab').forEach(tab => tab.classList.remove('active'));
+    document.querySelectorAll('.profile-content').forEach(content => content.style.display = 'none');
+    
+    // Activer l'onglet sélectionné
+    const tabs = document.querySelectorAll('.profile-tab');
+    const clickedTab = event ? event.target : tabs[0];
+    clickedTab.classList.add('active');
+    
+    const contentId = 'profile' + tabName.charAt(0).toUpperCase() + tabName.slice(1);
+    const content = document.getElementById(contentId);
+    if (content) content.style.display = 'block';
+    
+    // Charger le contenu
+    switch(tabName) {
+        case 'videos':
+            loadProfileVideos();
+            break;
+        case 'likes':
+            loadProfileLikes();
+            break;
+        case 'drafts':
+            loadProfileDrafts();
+            break;
+    }
+}
+
+function loadProfileVideos() {
+    const container = document.getElementById('profileVideos');
+    const userVideos = videos.filter(v => v.userId === currentUser.id);
+    
+    if (userVideos.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-video-slash"></i>
+                <h3>Aucune vidéo</h3>
+                <p>Commencez à créer du contenu !</p>
+                <button class="btn btn-primary" onclick="openCreateModal(); closeProfile();">
+                    Créer une vidéo
+                </button>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = `
+        <div class="videos-grid">
+            ${userVideos.map(video => `
+                <div class="video-thumbnail" onclick="openVideoDetail('${video.id}')">
+                    <img src="${video.thumbnail || 'https://images.unsplash.com/photo-1611605698335-8b1569810432'}" alt="${video.caption || ''}" style="width: 100%; height: 150px; object-fit: cover; border-radius: 10px;">
+                    <div class="thumbnail-overlay" style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.7); padding: 5px; display: flex; justify-content: space-between; color: white; font-size: 12px;">
+                        <span><i class="fas fa-eye"></i> ${formatNumber(video.views || 0)}</span>
+                        <span><i class="fas fa-heart"></i> ${formatNumber(video.likes || 0)}</span>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+function loadProfileLikes() {
+    const container = document.getElementById('profileLikes');
+    const likedVideos = videos.filter(v => currentUser.likedVideos?.includes(v.id));
+    
+    if (likedVideos.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-heart"></i>
+                <h3>Aucun like</h3>
+                <p>Les vidéos que vous aimez apparaîtront ici</p>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = `
+        <div class="videos-grid">
+            ${likedVideos.map(video => `
+                <div class="video-thumbnail" onclick="openVideoDetail('${video.id}')">
+                    <img src="${video.thumbnail || 'https://images.unsplash.com/photo-1611605698335-8b1569810432'}" alt="${video.caption || ''}" style="width: 100%; height: 150px; object-fit: cover; border-radius: 10px;">
+                    <div class="thumbnail-overlay" style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.7); padding: 5px; display: flex; justify-content: space-between; color: white; font-size: 12px;">
+                        <span><i class="fas fa-eye"></i> ${formatNumber(video.views || 0)}</span>
+                        <span><i class="fas fa-heart"></i> ${formatNumber(video.likes || 0)}</span>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+function loadProfileDrafts() {
+    const container = document.getElementById('profileDrafts');
+    
+    if (!currentUser.drafts || currentUser.drafts.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-file-alt"></i>
+                <h3>Aucun brouillon</h3>
+                <p>Vos vidéos non publiées apparaîtront ici</p>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = `
+        <div class="drafts-list">
+            ${currentUser.drafts.map(draft => `
+                <div class="draft-item" style="background: #333; padding: 15px; border-radius: 8px; margin: 10px 0; border-left: 4px solid #00f2fe; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h4 style="margin: 0; color: white;">${draft.caption}</h4>
+                        <p style="margin: 5px 0 0 0; color: #aaa; font-size: 12px;">Crée le ${draft.date}</p>
+                        ${draft.isMonetized ? '<span class="draft-monetized" style="background: #ffd700; color: #000; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: bold; margin-left: 10px;">Monétisé</span>' : ''}
+                    </div>
+                    <div class="draft-actions" style="display: flex; gap: 10px;">
+                        <button class="btn btn-small btn-primary" onclick="editDraft('${draft.id}')" style="padding: 5px 10px; font-size: 12px; background: #00f2fe; color: #000; border: none; border-radius: 5px; cursor: pointer;">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-small btn-danger" onclick="deleteDraft('${draft.id}')" style="padding: 5px 10px; font-size: 12px; background: #ff4757; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+function changeProfilePicture() {
+    document.getElementById('profilePictureInput').click();
+}
+
+function openSettings() {
+    loadSettings();
+    document.getElementById('settingsModal').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+}
+
+function closeSettings() {
+    document.getElementById('settingsModal').style.display = 'none';
+    document.body.style.overflow = 'auto';
+}
+
+function loadSettings() {
+    document.getElementById('settingsUsername').value = currentUser.username || 'Utilisateur';
+    document.getElementById('settingsEmail').value = currentUser.email || '';
+    document.getElementById('settingsNotifications').checked = currentUser.settings?.notifications || true;
+    document.getElementById('settingsAutoplay').checked = currentUser.settings?.autoplay || true;
+}
+
+async function saveSettings() {
+    const username = document.getElementById('settingsUsername').value.trim();
+    const email = document.getElementById('settingsEmail').value.trim();
+    const notifications = document.getElementById('settingsNotifications').checked;
+    const autoplay = document.getElementById('settingsAutoplay').checked;
+    
+    if (username && username !== currentUser.username) {
+        currentUser.username = username;
+        
+        // Mettre à jour les vidéos de l'utilisateur
+        for (const video of videos) {
+            if (video.userId === currentUser.id) {
+                video.username = username;
+                await firebaseApp.updateVideo(video.id, { username: username });
+            }
+        }
+    }
+    
+    if (email) currentUser.email = email;
+    
+    currentUser.settings = {
+        notifications: notifications,
+        autoplay: autoplay,
+        privacy: currentUser.settings?.privacy || 'public'
+    };
+    
+    await firebaseApp.updateUser(currentUser.id, {
+        username: currentUser.username,
+        email: currentUser.email,
+        settings: currentUser.settings
+    });
+    
+    closeSettings();
+    updateUI();
+    showNotification('Paramètres sauvegardés ✅', 'success');
+}
+
+// ==================== FONCTIONS RESTANTES ====================
+
+function openVideoDetail(videoId) {
+    showNotification('Détails vidéo: ' + videoId, 'info');
+}
+
+function editDraft(draftId) {
+    showNotification('Édition brouillon: ' + draftId, 'info');
+}
+
+function deleteDraft(draftId) {
+    if (confirm('Supprimer ce brouillon ?')) {
+        currentUser.drafts = currentUser.drafts.filter(d => d.id !== draftId);
+        firebaseApp.updateUser(currentUser.id, { drafts: currentUser.drafts });
+        showNotification('Brouillon supprimé', 'success');
+    }
+}
+
+// ==================== EXPORT DES FONCTIONS ====================
+
+window.openCreateModal = openCreateModal;
+window.closeCreateModal = closeCreateModal;
+window.openProfile = openProfile;
+window.closeProfile = closeProfile;
+window.openSettings = openSettings;
+window.closeSettings = closeSettings;
+window.toggleUserMenu = toggleUserMenu;
+window.openFilePicker = openFilePicker;
+window.simulateRecording = simulateRecording;
+window.publishVideo = publishVideo;
+window.saveAsDraft = saveAsDraft;
+window.toggleVideoPlay = toggleVideoPlay;
+window.toggleLike = toggleLike;
+window.openCommentsModal = openCommentsModal;
+window.shareVideo = shareVideo;
+window.openGiftShop = openGiftShop;
+window.openNotifications = openNotifications;
+window.openWallet = openWallet;
+window.logout = logout;
+window.showHome = showHome;
+window.showTrending = showTrending;
+window.showFollowing = showFollowing;
+window.showFavorites = showFavorites;
+window.openSearch = openSearch;
+window.saveSettings = saveSettings;
+window.clearLocalStorage = clearLocalStorage;
+window.openCreatorProfile = openCreatorProfile;
+window.toggleFollow = toggleFollow;
+window.changeProfilePicture = changeProfilePicture;
+window.openLiveStream = openLiveStream;
+window.performSearch = performSearch;
+window.showProfileTab = showProfileTab;
+window.editDraft = editDraft;
+window.deleteDraft = deleteDraft;
+window.openVideoDetail = openVideoDetail;
+window.changeSortingAlgorithm = changeSortingAlgorithm;
+window.openCameraForRecording = openCameraForRecording;
+window.openFileUpload = openFileUpload;
+window.formatNumber = formatNumber;
+window.postComment = postComment;
+
+// Initialiser les écouteurs d'événements au chargement
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(() => {
+        setupEventListeners();
+    }, 1000);
+});
+
+// Initialiser Firebase au chargement
+window.addEventListener('DOMContentLoaded', async () => {
+    try {
+        console.log('🚀 Initialisation Firebase...');
+        await firebaseApp.initializeDatabase();
+        console.log('✅ Base de données prête');
+    } catch (error) {
+        console.error('❌ Erreur initialisation:', error);
+    }
+});
+
+console.log('✅ script.js chargé avec succès - MODE RÉEL ACTIF');
