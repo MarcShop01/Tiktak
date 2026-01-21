@@ -90,10 +90,10 @@ async function getCurrentUser() {
 // Charger les vidéos SANS BESOIN D'INDEX
 async function loadVideos(limit = 50) {
     try {
-        // Solution: Charger sans filtre complexe
+        // Nous allons charger les vidéos triées par date de création (descendant) et filtrer côté client pour la privacy
         const snapshot = await db.collection('videos')
             .orderBy('createdAt', 'desc')
-            .limit(limit * 3) // Charger plus pour compenser
+            .limit(limit * 3) // Charger plus pour compenser le filtrage côté client
             .get();
         
         if (snapshot.empty) {
@@ -104,22 +104,27 @@ async function loadVideos(limit = 50) {
         const allVideos = [];
         snapshot.forEach(doc => {
             const data = doc.data();
-            // Filtrer côté client
+            // Convertir les timestamps Firestore en objets Date
+            const createdAt = data.createdAt ? data.createdAt.toDate() : new Date();
+            // Filtrer côté client pour les vidéos publiques
             if (data.privacy === 'public' || !data.privacy) {
                 allVideos.push({
                     id: doc.id,
                     ...data,
-                    createdAt: data.createdAt ? data.createdAt.toDate() : new Date()
+                    createdAt: createdAt
                 });
             }
         });
         
-        console.log(`✅ ${allVideos.length} vidéos chargées`);
-        return allVideos.slice(0, limit);
+        // Trier par date (déjà fait par la requête) et limiter
+        const sortedVideos = allVideos.sort((a, b) => b.createdAt - a.createdAt).slice(0, limit);
+        
+        console.log(`✅ ${sortedVideos.length} vidéos chargées`);
+        return sortedVideos;
         
     } catch (error) {
         console.error('❌ Erreur chargement vidéos:', error);
-        // Retourner vide au lieu de démo
+        // En cas d'erreur, retourner un tableau vide
         return [];
     }
 }
@@ -247,8 +252,8 @@ async function followUser(followerId, followingId) {
 // Rechercher des vidéos
 async function searchVideos(query) {
     try {
-        // Charger toutes et filtrer côté client
-        const allVideos = await loadVideos(100);
+        // Charger toutes les vidéos et filtrer côté client
+        const allVideos = await loadVideos(100); // Augmenter la limite pour la recherche
         const normalizedQuery = query.toLowerCase();
         
         return allVideos.filter(video => 
