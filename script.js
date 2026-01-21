@@ -155,11 +155,11 @@ async function initializeApp() {
 
 async function initializeGitHubStorage() {
     try {
-        // Configuration GitHub
+        // Configuration GitHub - À MODIFIER AVEC VOS INFORMATIONS
         const config = {
-            owner: 'TON_USERNAME_GITHUB', // À remplacer
-            repo: 'tiktok-data', // À remplacer
-            token: 'TON_TOKEN_GITHUB', // À remplacer
+            owner: 'TON_USERNAME_GITHUB', // À remplacer par votre username GitHub
+            repo: 'tiktok-data', // À remplacer par le nom de votre dépôt
+            token: 'TON_TOKEN_GITHUB', // À remplacer par votre token GitHub
             branch: 'main'
         };
         
