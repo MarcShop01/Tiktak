@@ -27,11 +27,22 @@ const ALGORITHM_CONFIG = {
 };
 
 // ==================== INITIALISATION ====================
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
+    console.log('🚀 TIKTAK - Démarrage...');
+    
     setTimeout(async () => {
         document.getElementById('loadingScreen').style.display = 'none';
         document.getElementById('appContainer').style.display = 'block';
-        await initializeApp();
+        
+        try {
+            await initializeApp();
+        } catch (error) {
+            console.error('❌ Erreur initialisation:', error);
+            await initializeDemoMode();
+            await renderVideoFeed();
+            updateUI();
+            showNotification('Application démarrée en mode démo 🎬', 'info');
+        }
     }, 1500);
 });
 
@@ -61,8 +72,9 @@ async function initializeApp() {
     } catch (error) {
         console.error('❌ Erreur initialisation:', error);
         showNotification('Erreur de chargement', 'error');
-        await loadDemoData();
+        await initializeDemoMode();
         await renderVideoFeed();
+        updateUI();
     }
 }
 
@@ -77,7 +89,7 @@ async function cacheVideoUsers() {
                 usersCache[video.userId] = {
                     id: video.userId,
                     username: video.username || 'Utilisateur',
-                    avatar: video.avatar || 'https://randomuser.me/api/portraits/lego/1.jpg',
+                    avatar: video.avatar || 'https://i.pravatar.cc/150?img=1',
                     followers: [],
                     following: [],
                     videos: []
@@ -88,25 +100,119 @@ async function cacheVideoUsers() {
 }
 
 function setupRealtimeListener() {
-    // Écouter les nouvelles vidéos
-    firebaseApp.db.collection('videos')
-        .where('privacy', '==', 'public')
-        .orderBy('createdAt', 'desc')
-        .limit(10)
-        .onSnapshot((snapshot) => {
-            snapshot.docChanges().forEach((change) => {
-                if (change.type === 'added') {
-                    const newVideo = { id: change.doc.id, ...change.doc.data() };
-                    
-                    // Vérifier si la vidéo n'est pas déjà dans la liste
-                    if (!videos.find(v => v.id === newVideo.id)) {
-                        videos.unshift(newVideo);
-                        renderVideoFeed();
-                        showNotification('Nouvelle vidéo disponible ! 📹', 'info');
+    try {
+        // Écouter les nouvelles vidéos
+        firebaseApp.db.collection('videos')
+            .where('privacy', '==', 'public')
+            .orderBy('createdAt', 'desc')
+            .limit(10)
+            .onSnapshot((snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    if (change.type === 'added') {
+                        const newVideo = { id: change.doc.id, ...change.doc.data() };
+                        
+                        // Vérifier si la vidéo n'est pas déjà dans la liste
+                        if (!videos.find(v => v.id === newVideo.id)) {
+                            videos.unshift(newVideo);
+                            renderVideoFeed();
+                            showNotification('Nouvelle vidéo disponible ! 📹', 'info');
+                        }
                     }
-                }
+                });
+            }, (error) => {
+                console.warn('⚠️ Écoute temps réel désactivée:', error);
             });
-        });
+    } catch (error) {
+        console.warn('⚠️ Impossible de configurer l\'écoute temps réel');
+    }
+}
+
+// ==================== FONCTIONS DE DÉMO ====================
+
+async function initializeDemoMode() {
+    console.log('🚀 Initialisation en mode démo...');
+    
+    // Créer un utilisateur démo
+    currentUser = {
+        id: 'demo_user',
+        username: 'Utilisateur Démo',
+        avatar: 'https://i.pravatar.cc/150?img=1',
+        coins: 1000,
+        likedVideos: [],
+        myVideos: [],
+        drafts: [],
+        following: [],
+        followers: [],
+        settings: { notifications: true, autoplay: true }
+    };
+    
+    // Charger les vidéos de démo
+    videos = getDemoVideos();
+    
+    // Mettre en cache les utilisateurs
+    usersCache = {
+        'demo_user1': {
+            id: 'demo_user1',
+            username: 'Créateur Pro',
+            avatar: 'https://i.pravatar.cc/150?img=12',
+            followers: ['demo_user', 'demo_user2'],
+            following: ['demo_user2']
+        },
+        'demo_user2': {
+            id: 'demo_user2',
+            username: 'Artiste Talent',
+            avatar: 'https://i.pravatar.cc/150?img=25',
+            followers: ['demo_user1'],
+            following: ['demo_user1']
+        }
+    };
+    
+    return true;
+}
+
+function getDemoVideos() {
+    return [
+        {
+            id: 'demo1',
+            userId: 'demo_user1',
+            username: 'Créateur Pro',
+            avatar: 'https://i.pravatar.cc/150?img=12',
+            videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+            thumbnail: 'https://images.unsplash.com/photo-1611605698335-8b1569810432',
+            caption: 'Découvrez les merveilles de la nature ! 🌿 #nature #beauté',
+            likes: 2450,
+            comments: 128,
+            shares: 45,
+            views: 15000,
+            timestamp: Date.now() - 3600000,
+            isMonetized: true,
+            gifts: 12,
+            hashtags: ['#nature', '#beauté', '#découverte'],
+            duration: '00:15',
+            privacy: 'public',
+            createdAt: new Date(Date.now() - 3600000).toISOString()
+        },
+        {
+            id: 'demo2',
+            userId: 'demo_user2',
+            username: 'Artiste Talent',
+            avatar: 'https://i.pravatar.cc/150?img=25',
+            videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+            thumbnail: 'https://images.unsplash.com/photo-1518709268805-4e9042af2176',
+            caption: 'Art digital en temps réel 🎨 #art #digital #création',
+            likes: 3250,
+            comments: 256,
+            shares: 89,
+            views: 25000,
+            timestamp: Date.now() - 7200000,
+            isMonetized: false,
+            gifts: 25,
+            hashtags: ['#art', '#digital', '#création'],
+            duration: '00:20',
+            privacy: 'public',
+            createdAt: new Date(Date.now() - 7200000).toISOString()
+        }
+    ];
 }
 
 // ==================== GESTION DES VIDÉOS ====================
@@ -159,8 +265,8 @@ async function renderVideoFeed(sortingAlgorithm = 'score') {
             break;
         case 'latest':
             videosToDisplay = [...videos].sort((a, b) => {
-                const aTime = a.createdAt?.toMillis?.() || a.timestamp || 0;
-                const bTime = b.createdAt?.toMillis?.() || b.timestamp || 0;
+                const aTime = a.createdAt ? new Date(a.createdAt).getTime() : a.timestamp || 0;
+                const bTime = b.createdAt ? new Date(b.createdAt).getTime() : b.timestamp || 0;
                 return bTime - aTime;
             });
             break;
@@ -181,30 +287,30 @@ async function renderVideoFeed(sortingAlgorithm = 'score') {
 function calculateVideoScore(video) {
     const user = usersCache[video.userId] || {};
     const followers = user.followers?.length || 0;
-    const videoTime = video.createdAt?.toMillis?.() || video.timestamp || Date.now();
+    const videoTime = video.createdAt ? new Date(video.createdAt).getTime() : video.timestamp || Date.now();
     const hoursSinceUpload = (Date.now() - videoTime) / (1000 * 60 * 60);
     
     let score = 0;
     
     // Score de base
-    score += video.likes * ALGORITHM_CONFIG.weights.likes;
-    score += video.comments * ALGORITHM_CONFIG.weights.comments;
-    score += video.shares * ALGORITHM_CONFIG.weights.shares;
-    score += video.views * ALGORITHM_CONFIG.weights.views;
+    score += (video.likes || 0) * ALGORITHM_CONFIG.weights.likes;
+    score += (video.comments || 0) * ALGORITHM_CONFIG.weights.comments;
+    score += (video.shares || 0) * ALGORITHM_CONFIG.weights.shares;
+    score += (video.views || 0) * ALGORITHM_CONFIG.weights.views;
     score += followers * ALGORITHM_CONFIG.weights.followers;
     
     // Récence
     score += Math.max(0, 100 - (hoursSinceUpload * 5)) * ALGORITHM_CONFIG.weights.recency;
     
     // Engagement
-    const engagementRate = video.views > 0 ? ((video.likes + video.comments) / video.views) * 100 : 0;
+    const engagementRate = video.views > 0 ? (((video.likes || 0) + (video.comments || 0)) / video.views) * 100 : 0;
     score += engagementRate * ALGORITHM_CONFIG.weights.engagement;
     
     // Boosts
     let boost = 1;
-    if (video.likes > 1000) boost *= ALGORITHM_CONFIG.boosts.viral;
+    if ((video.likes || 0) > 1000) boost *= ALGORITHM_CONFIG.boosts.viral;
     if (followers > 1000) boost *= ALGORITHM_CONFIG.boosts.popular;
-    if (hoursSinceUpload < 24 && video.likes > 100) boost *= ALGORITHM_CONFIG.boosts.trending;
+    if (hoursSinceUpload < 24 && (video.likes || 0) > 100) boost *= ALGORITHM_CONFIG.boosts.trending;
     if (currentUser?.following?.includes(video.userId)) boost *= ALGORITHM_CONFIG.boosts.following;
     if (video.isMonetized) boost *= ALGORITHM_CONFIG.boosts.monetized;
     if (hoursSinceUpload < 1) boost *= ALGORITHM_CONFIG.boosts.recent;
@@ -224,13 +330,13 @@ function getTrendingVideos() {
     const now = Date.now();
     return [...videos]
         .filter(video => {
-            const videoTime = video.createdAt?.toMillis?.() || video.timestamp || now;
+            const videoTime = video.createdAt ? new Date(video.createdAt).getTime() : video.timestamp || now;
             const hours = (now - videoTime) / (1000 * 60 * 60);
-            return hours < 48 && (video.likes > 100 || video.shares > 20);
+            return hours < 48 && ((video.likes || 0) > 100 || (video.shares || 0) > 20);
         })
         .sort((a, b) => {
-            const aRate = a.likes / ((now - (a.createdAt?.toMillis?.() || a.timestamp || now)) / 3600000);
-            const bRate = b.likes / ((now - (b.createdAt?.toMillis?.() || b.timestamp || now)) / 3600000);
+            const aRate = (a.likes || 0) / ((now - (a.createdAt ? new Date(a.createdAt).getTime() : a.timestamp || now)) / 3600000);
+            const bRate = (b.likes || 0) / ((now - (b.createdAt ? new Date(b.createdAt).getTime() : b.timestamp || now)) / 3600000);
             return bRate - aRate;
         });
 }
@@ -258,8 +364,8 @@ function createVideoElement(video, autoPlay = false) {
     
     // Badges
     const badges = [];
-    if (video.likes > 1000) badges.push('<span class="viral-badge">VIRAL</span>');
-    if (user.followers?.length > 1000) badges.push('<span class="popular-badge">POPULAIRE</span>');
+    if ((video.likes || 0) > 1000) badges.push('<span class="viral-badge">VIRAL</span>');
+    if ((user.followers?.length || 0) > 1000) badges.push('<span class="popular-badge">POPULAIRE</span>');
     if (video.isMonetized) badges.push('<span class="monetization-badge"><i class="fas fa-coins"></i></span>');
     
     const container = document.createElement('div');
@@ -277,19 +383,21 @@ function createVideoElement(video, autoPlay = false) {
             onclick="toggleVideoPlay(this)"
             ${autoPlay && currentUser?.settings?.autoplay ? 'autoplay muted' : ''}
             loop
+            preload="metadata"
         ></video>
         
         <div class="video-overlay">
             <div class="creator-info">
-                <img src="${user.avatar || video.avatar}" alt="${user.username || video.username}" 
+                <img src="${user.avatar || video.avatar || 'https://i.pravatar.cc/150?img=1'}" 
+                     alt="${user.username || video.username || 'Utilisateur'}" 
                      onclick="openCreatorProfile('${video.userId}')">
                 <div class="creator-details">
                     <div class="creator-name">
-                        <h4>${user.username || video.username}</h4>
+                        <h4>${user.username || video.username || 'Utilisateur'}</h4>
                         ${isFollowing ? '<span class="following-badge">Abonné</span>' : ''}
                         ${badges.join('')}
                     </div>
-                    <p class="video-caption">${video.caption}</p>
+                    <p class="video-caption">${video.caption || 'Pas de description'}</p>
                     <div class="hashtags">
                         ${(video.hashtags || []).map(tag => `<span class="hashtag">${tag}</span>`).join('')}
                     </div>
@@ -305,7 +413,7 @@ function createVideoElement(video, autoPlay = false) {
                 </div>
                 <div class="video-details">
                     <span class="duration">${video.duration || '00:15'}</span>
-                    <span class="time-ago">${getTimeAgo(video.createdAt?.toMillis?.() || video.timestamp)}</span>
+                    <span class="time-ago">${getTimeAgo(video.createdAt ? new Date(video.createdAt).getTime() : video.timestamp)}</span>
                 </div>
             </div>
         </div>
@@ -354,22 +462,26 @@ async function toggleVideoPlay(videoElement) {
             if (prevBtn) prevBtn.innerHTML = '<i class="fas fa-play"></i>';
         }
         
-        await videoElement.play();
-        playBtn.innerHTML = '<i class="fas fa-pause"></i>';
-        currentPlayingVideo = videoElement;
-        
-        // Incrémenter les vues
-        const videoId = container.dataset.videoId;
-        await firebaseApp.incrementViews(videoId);
-        
-        // Mettre à jour localement
-        const video = videos.find(v => v.id === videoId);
-        if (video) {
-            video.views = (video.views || 0) + 1;
-            const viewCount = container.querySelector('.view-count');
-            if (viewCount) {
-                viewCount.innerHTML = `<i class="fas fa-eye"></i> ${formatNumber(video.views)} vues`;
+        try {
+            await videoElement.play();
+            playBtn.innerHTML = '<i class="fas fa-pause"></i>';
+            currentPlayingVideo = videoElement;
+            
+            // Incrémenter les vues
+            const videoId = container.dataset.videoId;
+            await firebaseApp.incrementViews(videoId);
+            
+            // Mettre à jour localement
+            const video = videos.find(v => v.id === videoId);
+            if (video) {
+                video.views = (video.views || 0) + 1;
+                const viewCount = container.querySelector('.view-count');
+                if (viewCount) {
+                    viewCount.innerHTML = `<i class="fas fa-eye"></i> ${formatNumber(video.views)} vues`;
+                }
             }
+        } catch (error) {
+            console.error('Erreur lecture vidéo:', error);
         }
     } else {
         videoElement.pause();
@@ -390,6 +502,7 @@ async function toggleLike(videoId) {
         if (!isLiked) {
             // Ajouter le like
             video.likes = (video.likes || 0) + 1;
+            currentUser.likedVideos = currentUser.likedVideos || [];
             currentUser.likedVideos.push(videoId);
             
             await firebaseApp.updateLikes(videoId, currentUser.id, 'like');
@@ -401,7 +514,7 @@ async function toggleLike(videoId) {
             showNotification('Vidéo aimée ! ❤️', 'success');
             
             // Récompense
-            currentUser.coins += 1;
+            currentUser.coins = (currentUser.coins || 0) + 1;
             await firebaseApp.updateUser(currentUser.id, {
                 coins: currentUser.coins
             });
@@ -409,7 +522,7 @@ async function toggleLike(videoId) {
         } else {
             // Retirer le like
             video.likes = Math.max(0, (video.likes || 1) - 1);
-            currentUser.likedVideos = currentUser.likedVideos.filter(id => id !== videoId);
+            currentUser.likedVideos = (currentUser.likedVideos || []).filter(id => id !== videoId);
             
             await firebaseApp.updateLikes(videoId, currentUser.id, 'unlike');
             await firebaseApp.updateUser(currentUser.id, {
@@ -437,7 +550,8 @@ async function toggleLike(videoId) {
 
 async function toggleFollow(userId, buttonElement) {
     try {
-        const isFollowing = currentUser?.following?.includes(userId);
+        currentUser.following = currentUser.following || [];
+        const isFollowing = currentUser.following.includes(userId);
         
         if (!isFollowing) {
             // Suivre
@@ -448,7 +562,7 @@ async function toggleFollow(userId, buttonElement) {
             showNotification('Utilisateur suivi !', 'success');
             
             // Récompense
-            currentUser.coins += 5;
+            currentUser.coins = (currentUser.coins || 0) + 5;
             await firebaseApp.updateUser(currentUser.id, {
                 coins: currentUser.coins
             });
@@ -456,14 +570,18 @@ async function toggleFollow(userId, buttonElement) {
             // Se désabonner
             currentUser.following = currentUser.following.filter(id => id !== userId);
             
-            // Note: Nous devrions avoir une fonction unfollow
-            await firebaseApp.db.collection('users').doc(currentUser.id).update({
-                following: firebase.firestore.FieldValue.arrayRemove(userId)
+            await firebaseApp.updateUser(currentUser.id, {
+                following: currentUser.following
             });
             
-            await firebaseApp.db.collection('users').doc(userId).update({
-                followers: firebase.firestore.FieldValue.arrayRemove(currentUser.id)
-            });
+            // Mettre à jour l'autre utilisateur
+            try {
+                await firebaseApp.db.collection('users').doc(userId).update({
+                    followers: firebase.firestore.FieldValue.arrayRemove(currentUser.id)
+                });
+            } catch (e) {
+                console.warn('⚠️ Impossible de mettre à jour les followers');
+            }
             
             buttonElement.classList.remove('following');
             buttonElement.innerHTML = '<i class="fas fa-plus"></i>';
@@ -485,29 +603,41 @@ async function toggleFollow(userId, buttonElement) {
 async function shareVideo(videoId) {
     try {
         const video = videos.find(v => v.id === videoId);
-        if (!video) return;
+        if (!video) {
+            showNotification('Vidéo non trouvée', 'error');
+            return;
+        }
         
         // Incrémenter les partages
         video.shares = (video.shares || 0) + 1;
         await firebaseApp.updateVideo(videoId, { shares: video.shares });
         
-        // Partager
+        // URL de partage
         const shareUrl = `${window.location.origin}${window.location.pathname}?video=${videoId}`;
         const shareText = `Regarde cette vidéo sur TIKTAK: ${video.caption}`;
         
+        // Essayer Web Share API
         if (navigator.share) {
-            await navigator.share({
-                title: 'TIKTAK',
-                text: shareText,
-                url: shareUrl
-            });
+            try {
+                await navigator.share({
+                    title: 'TIKTAK - Application de vidéos',
+                    text: shareText,
+                    url: shareUrl
+                });
+                console.log('✅ Partage réussi via Web Share API');
+            } catch (shareError) {
+                // L'utilisateur a annulé le partage
+                console.log('Partage annulé');
+                // Fallback au copier-coller
+                await copyToClipboard(`${shareText}\n${shareUrl}`);
+            }
         } else {
-            await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
-            showNotification('Lien copié ! 📋', 'success');
+            // Fallback: copier dans le presse-papier
+            await copyToClipboard(`${shareText}\n${shareUrl}`);
         }
         
         // Récompense
-        currentUser.coins += 3;
+        currentUser.coins = (currentUser.coins || 0) + 3;
         await firebaseApp.updateUser(currentUser.id, {
             coins: currentUser.coins
         });
@@ -522,11 +652,35 @@ async function shareVideo(videoId) {
         }
         
         updateUI();
-        showNotification('Vidéo partagée ! 📤', 'success');
+        showNotification('Vidéo partagée avec succès ! 📤', 'success');
         
     } catch (error) {
         console.error('❌ Erreur partage:', error);
         showNotification('Erreur lors du partage', 'error');
+    }
+}
+
+// Fonction helper pour copier dans le presse-papier
+async function copyToClipboard(text) {
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(text);
+            showNotification('Lien copié dans le presse-papier ! 📋', 'success');
+        } else {
+            // Fallback pour anciens navigateurs
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            showNotification('Lien copié ! 📋', 'success');
+        }
+        return true;
+    } catch (err) {
+        console.error('Erreur copie presse-papier:', err);
+        showNotification('Erreur lors de la copie', 'error');
+        return false;
     }
 }
 
@@ -552,7 +706,7 @@ function showCreateOptions() {
 function openFileUpload() {
     document.getElementById('createOptions').style.display = 'none';
     document.getElementById('videoUploadSection').style.display = 'block';
-    document.getElementById('fileUploadControls').style.display = 'flex';
+    document.getElementById('fileUploadControls').style.display = 'block';
     document.getElementById('cameraControls').style.display = 'none';
 }
 
@@ -625,7 +779,13 @@ function simulateRecording() {
     const videoElement = document.getElementById('previewVideo');
     const placeholder = document.querySelector('.preview-placeholder');
     
-    videoElement.src = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4';
+    const demoVideos = [
+        'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+        'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+        'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'
+    ];
+    
+    videoElement.src = demoVideos[Math.floor(Math.random() * demoVideos.length)];
     videoElement.style.display = 'block';
     placeholder.style.display = 'none';
     
@@ -660,7 +820,7 @@ async function publishVideo() {
     try {
         const hashtags = extractHashtags(caption);
         const videoUrl = document.getElementById('previewVideo').src || 
-                        'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4';
+                        'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
         
         const videoData = {
             userId: currentUser.id,
@@ -679,8 +839,9 @@ async function publishVideo() {
         videos.unshift(newVideo);
         
         // Mettre à jour l'utilisateur
+        currentUser.myVideos = currentUser.myVideos || [];
         currentUser.myVideos.push(newVideo.id);
-        currentUser.coins += 10;
+        currentUser.coins = (currentUser.coins || 0) + 10;
         if (isMonetized) currentUser.coins += 5;
         
         await firebaseApp.updateUser(currentUser.id, {
@@ -721,6 +882,8 @@ function saveAsDraft() {
     }).then(() => {
         showNotification('Brouillon sauvegardé 📁', 'success');
         closeCreateModal();
+    }).catch(error => {
+        showNotification('Erreur sauvegarde brouillon', 'error');
     });
 }
 
@@ -819,9 +982,9 @@ function closeProfile() {
 }
 
 function loadProfileData() {
-    document.getElementById('profileUsername').textContent = currentUser.username;
+    document.getElementById('profileUsername').textContent = currentUser.username || 'Utilisateur';
     document.getElementById('profileCoins').textContent = currentUser.coins || 0;
-    document.getElementById('profileAvatar').src = currentUser.avatar;
+    document.getElementById('profileAvatar').src = currentUser.avatar || 'https://i.pravatar.cc/150?img=1';
     
     const userVideos = videos.filter(v => v.userId === currentUser.id);
     const stats = `${userVideos.length} vidéos • ${currentUser.followers?.length || 0} abonnés • ${currentUser.following?.length || 0} abonnements`;
@@ -876,7 +1039,7 @@ function loadProfileVideos() {
         <div class="videos-grid">
             ${userVideos.map(video => `
                 <div class="video-thumbnail" onclick="openVideoDetail('${video.id}')">
-                    <img src="${video.thumbnail}" alt="${video.caption}">
+                    <img src="${video.thumbnail || 'https://images.unsplash.com/photo-1611605698335-8b1569810432'}" alt="${video.caption || ''}">
                     <div class="thumbnail-overlay">
                         <span><i class="fas fa-eye"></i> ${formatNumber(video.views || 0)}</span>
                         <span><i class="fas fa-heart"></i> ${formatNumber(video.likes || 0)}</span>
@@ -906,7 +1069,7 @@ function loadProfileLikes() {
         <div class="videos-grid">
             ${likedVideos.map(video => `
                 <div class="video-thumbnail" onclick="openVideoDetail('${video.id}')">
-                    <img src="${video.thumbnail}" alt="${video.caption}">
+                    <img src="${video.thumbnail || 'https://images.unsplash.com/photo-1611605698335-8b1569810432'}" alt="${video.caption || ''}">
                     <div class="thumbnail-overlay">
                         <span><i class="fas fa-eye"></i> ${formatNumber(video.views || 0)}</span>
                         <span><i class="fas fa-heart"></i> ${formatNumber(video.likes || 0)}</span>
@@ -1018,7 +1181,7 @@ async function saveSettings() {
 // ==================== UTILITAIRES ====================
 
 function formatNumber(num) {
-    if (!num) return '0';
+    if (!num && num !== 0) return '0';
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
     if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
     return num.toString();
@@ -1072,7 +1235,14 @@ function showHeartAnimation() {
 
 function showNotification(message, type = 'info') {
     const container = document.getElementById('notificationsContainer');
-    if (!container) return;
+    if (!container) {
+        // Créer le conteneur s'il n'existe pas
+        const newContainer = document.createElement('div');
+        newContainer.id = 'notificationsContainer';
+        newContainer.className = 'notifications-container';
+        document.body.appendChild(newContainer);
+        container = newContainer;
+    }
     
     const notification = document.createElement('div');
     notification.className = `notification notification-${type}`;
@@ -1092,15 +1262,31 @@ function showNotification(message, type = 'info') {
 }
 
 function updateUI() {
-    document.getElementById('coinCount').textContent = currentUser.coins || 0;
-    document.getElementById('userAvatar').src = currentUser.avatar;
+    try {
+        // Mettre à jour le solde de coins
+        const coinCount = document.getElementById('coinCount');
+        if (coinCount && currentUser) {
+            coinCount.textContent = currentUser.coins || 0;
+        }
+        
+        // Mettre à jour l'avatar
+        const userAvatar = document.getElementById('userAvatar');
+        if (userAvatar && currentUser.avatar) {
+            userAvatar.src = currentUser.avatar;
+        }
+        
+        console.log('✅ Interface utilisateur mise à jour');
+    } catch (error) {
+        console.error('❌ Erreur mise à jour UI:', error);
+    }
 }
 
 // ==================== NAVIGATION ====================
 
 function showHome() {
     document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
-    document.querySelector('.nav-item:nth-child(1)').classList.add('active');
+    const firstNavItem = document.querySelector('.nav-item:nth-child(1)');
+    if (firstNavItem) firstNavItem.classList.add('active');
     renderVideoFeed();
 }
 
@@ -1136,25 +1322,28 @@ function setupEventListeners() {
     setupVideoInput();
     
     // Input photo de profil
-    document.getElementById('profilePictureInput').addEventListener('change', async function(e) {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                currentUser.avatar = e.target.result;
-                updateUI();
-                firebaseApp.updateUser(currentUser.id, { avatar: currentUser.avatar });
-                showNotification('Photo de profil mise à jour ✅', 'success');
-            };
-            reader.readAsDataURL(file);
-        }
-    });
+    const profilePictureInput = document.getElementById('profilePictureInput');
+    if (profilePictureInput) {
+        profilePictureInput.addEventListener('change', async function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    currentUser.avatar = e.target.result;
+                    updateUI();
+                    firebaseApp.updateUser(currentUser.id, { avatar: currentUser.avatar });
+                    showNotification('Photo de profil mise à jour ✅', 'success');
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
     
     // Fermer les menus en cliquant à l'extérieur
     document.addEventListener('click', function(e) {
         const menu = document.getElementById('userDropdown');
         const userMenu = document.querySelector('.user-menu');
-        if (menu && menu.style.display === 'block' && !userMenu.contains(e.target) && !menu.contains(e.target)) {
+        if (menu && menu.style.display === 'block' && userMenu && !userMenu.contains(e.target) && !menu.contains(e.target)) {
             menu.style.display = 'none';
         }
         
@@ -1176,32 +1365,6 @@ function setupEventListeners() {
             this.classList.add('active');
         });
     });
-}
-
-// ==================== FONCTIONS DE DÉMO ====================
-
-async function loadDemoData() {
-    videos = [
-        {
-            id: 'demo1',
-            userId: 'demo_user1',
-            username: 'Créateur Pro',
-            avatar: 'https://randomuser.me/api/portraits/lego/2.jpg',
-            videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-            thumbnail: 'https://images.unsplash.com/photo-1611605698335-8b1569810432?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1074&q=80',
-            caption: 'Découvrez les merveilles de la nature ! 🌿 #nature #beauté',
-            likes: 2450,
-            comments: 128,
-            shares: 45,
-            views: 15000,
-            timestamp: Date.now() - 3600000,
-            isMonetized: true,
-            gifts: 12,
-            hashtags: ['#nature', '#beauté', '#découverte'],
-            duration: '00:15',
-            privacy: 'public'
-        }
-    ];
 }
 
 // ==================== FONCTIONS NON IMPLÉMENTÉES ====================
@@ -1272,10 +1435,14 @@ function clearLocalStorage() {
 
 function logout() {
     if (confirm('Se déconnecter ?')) {
-        firebaseApp.auth.signOut().then(() => {
-            localStorage.clear();
+        try {
+            firebaseApp.auth.signOut().then(() => {
+                localStorage.clear();
+                location.reload();
+            });
+        } catch (error) {
             location.reload();
-        });
+        }
     }
 }
 
@@ -1336,3 +1503,13 @@ window.openVideoDetail = openVideoDetail;
 window.changeSortingAlgorithm = changeSortingAlgorithm;
 window.openCameraForRecording = openCameraForRecording;
 window.openFileUpload = openFileUpload;
+window.formatNumber = formatNumber;
+
+// Initialiser les écouteurs d'événements
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(() => {
+        setupEventListeners();
+    }, 1000);
+});
+
+console.log('✅ script.js chargé avec succès');
