@@ -58,7 +58,7 @@
         <!-- Main Content -->
         <main class="main-content">
             <div class="video-feed" id="videoFeed">
-                <!-- Les vidéos seront chargées ici depuis localStorage -->
+                <!-- Les vidéos seront chargées ici depuis GitHub -->
             </div>
             
             <!-- Sidebar (visible sur desktop) -->
@@ -370,7 +370,7 @@
                         </label>
                     </div>
                     <button class="btn btn-danger" onclick="clearLocalStorage()">
-                        <i class="fas fa-trash"></i> Réinitialiser les données
+                        <i class="fas fa-trash"></i> Réinitialiser les données locales
                     </button>
                 </div>
             </div>
@@ -380,6 +380,14 @@
         <div id="notificationsContainer" class="notifications-container"></div>
     </div>
 
+    <!-- Ajout des scripts GitHub Storage -->
+    <script src="storage/githubStorage.js"></script>
+    <script src="storage/localCache.js"></script>
+    
+    <!-- Script principal modifié -->
     <script src="script.js"></script>
+    
+    <!-- Script d'initialisation -->
+    <script src="init.js"></script>
 </body>
 </html>
