@@ -45,6 +45,11 @@ let isRecording = false;
 let mediaRecorder = null;
 let recordedChunks = [];
 
+// ==================== VARIABLES POUR GITHUB STORAGE ====================
+let githubStorage = null;
+let localCache = null;
+let isGitHubInitialized = false;
+
 // ==================== VARIABLES POUR LES NOUVELLES FONCTIONNALITÉS ====================
 let cameraStream = null;
 let recordingTimer = null;
@@ -58,6 +63,59 @@ let isUsingCamera = false;
 let liveMessages = [];
 let liveStreamActive = false;
 
+// ==================== FONCTIONS UTILITAIRES ====================
+function formatNumber(num) {
+    if (num >= 1000000) {
+        return (num / 1000000).toFixed(1) + 'M';
+    }
+    if (num >= 1000) {
+        return (num / 1000).toFixed(1) + 'K';
+    }
+    return num.toString();
+}
+
+function getTimeAgo(timestamp) {
+    const seconds = Math.floor((Date.now() - timestamp) / 1000);
+    
+    if (seconds < 60) return 'À l\'instant';
+    if (seconds < 3600) return Math.floor(seconds / 60) + ' min';
+    if (seconds < 86400) return Math.floor(seconds / 3600) + ' h';
+    if (seconds < 2592000) return Math.floor(seconds / 86400) + ' j';
+    if (seconds < 31536000) return Math.floor(seconds / 2592000) + ' mois';
+    return Math.floor(seconds / 31536000) + ' an';
+}
+
+function extractHashtags(text) {
+    const hashtags = text.match(/#[\wÀ-ÿ]+/g);
+    return hashtags ? hashtags.slice(0, 5) : [];
+}
+
+function generateThumbnail() {
+    const thumbnails = [
+        'https://images.unsplash.com/photo-1611605698335-8b1569810432?ixlib=rb-4.0.3&auto=format&fit=crop&w=1074&q=80',
+        'https://images.unsplash.com/photo-1518709268805-4e9042af2176?ixlib=rb-4.0.3&auto=format&fit=crop&w=1068&q=80',
+        'https://images.unsplash.com/photo-1517649763962-0c623066013b?ixlib=rb-4.0.3&auto=format&fit=crop&w=1170&q=80',
+        'https://images.unsplash.com/photo-1565958011703-44f9829ba187?ixlib=rb-4.0.3&auto=format&fit=crop&w=1065&q=80'
+    ];
+    return thumbnails[Math.floor(Math.random() * thumbnails.length)];
+}
+
+function formatFileSize(bytes) {
+    if (bytes >= 1000000) {
+        return (bytes / 1000000).toFixed(1) + ' MB';
+    }
+    if (bytes >= 1000) {
+        return (bytes / 1000).toFixed(1) + ' KB';
+    }
+    return bytes + ' B';
+}
+
+function formatDuration(seconds) {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+}
+
 // ==================== INITIALISATION ====================
 document.addEventListener('DOMContentLoaded', function() {
     // Simuler le chargement
@@ -68,35 +126,160 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 1500);
 });
 
-function initializeApp() {
-    loadDataFromStorage();
-    setupEventListeners();
-    renderVideoFeed();
-    updateUI();
-    initializeNewFeatures();
-    initializeLiveFeatures();
-    showNotification('Bienvenue sur TIKTAK ! 🎬', 'success');
+async function initializeApp() {
+    console.log('Initialisation de l\'application...');
+    
+    try {
+        // Vérifier si GitHub Storage est disponible
+        if (typeof GitHubStorage !== 'undefined') {
+            await initializeGitHubStorage();
+        } else {
+            console.warn('GitHubStorage non disponible, utilisation du cache local');
+            await initializeWithLocalStorage();
+        }
+        
+        setupEventListeners();
+        await renderVideoFeed();
+        updateUI();
+        initializeNewFeatures();
+        initializeLiveFeatures();
+        showNotification('Bienvenue sur TIKTAK ! 🎬', 'success');
+        
+        console.log('Application initialisée avec succès');
+    } catch (error) {
+        console.error('Erreur lors de l\'initialisation:', error);
+        showNotification('Erreur lors du chargement des données', 'error');
+        await initializeWithLocalStorage();
+    }
 }
 
-function loadDataFromStorage() {
-    // Charger les vidéos
-    const savedVideos = localStorage.getItem('tiktak_videos');
-    videos = savedVideos ? JSON.parse(savedVideos) : getDemoVideos();
-    
-    // Charger l'utilisateur
-    const savedUser = localStorage.getItem('tiktak_user');
-    if (savedUser) {
-        const parsedUser = JSON.parse(savedUser);
-        currentUser = { ...currentUser, ...parsedUser };
+async function initializeGitHubStorage() {
+    try {
+        // Configuration GitHub
+        const config = {
+            owner: 'TON_USERNAME_GITHUB', // À remplacer
+            repo: 'tiktok-data', // À remplacer
+            token: 'TON_TOKEN_GITHUB', // À remplacer
+            branch: 'main'
+        };
+        
+        // Initialiser le cache local
+        localCache = new LocalCache();
+        
+        // Initialiser le stockage GitHub
+        githubStorage = new GitHubStorage(config);
+        
+        // Vérifier la connexion
+        const test = await githubStorage.readFile('data/videos/index.json');
+        if (test) {
+            console.log('✅ Connexion GitHub Storage réussie');
+            isGitHubInitialized = true;
+        }
+        
+        // Charger les vidéos
+        await loadVideosFromGitHub();
+        
+        // Charger l'utilisateur
+        await loadCurrentUser();
+        
+    } catch (error) {
+        console.error('Erreur initialisation GitHub:', error);
+        throw error;
     }
+}
+
+async function initializeWithLocalStorage() {
+    console.log('Utilisation du localStorage comme fallback');
+    isGitHubInitialized = false;
     
-    // Charger les commentaires
-    const savedComments = localStorage.getItem('tiktak_comments');
-    comments = savedComments ? JSON.parse(savedComments) : {};
+    // Initialiser le cache local
+    localCache = new LocalCache();
     
-    // Charger les transactions
-    const savedTransactions = localStorage.getItem('tiktak_transactions');
-    transactions = savedTransactions ? JSON.parse(savedTransactions) : [];
+    // Charger depuis localStorage
+    await loadDataFromStorage();
+}
+
+async function loadVideosFromGitHub() {
+    try {
+        const videoIndex = await githubStorage.readFile('data/videos/index.json');
+        if (videoIndex && videoIndex.videos) {
+            videos = videoIndex.videos;
+            console.log(`✅ ${videos.length} vidéos chargées depuis GitHub`);
+        } else {
+            console.log('Aucune vidéo trouvée, initialisation avec vidéos de démo');
+            videos = getDemoVideos();
+            await saveVideosToGitHub();
+        }
+    } catch (error) {
+        console.error('Erreur chargement vidéos GitHub:', error);
+        videos = getDemoVideos();
+    }
+}
+
+async function loadCurrentUser() {
+    try {
+        const userId = localStorage.getItem('tiktak_current_user_id') || 'user_1';
+        const userData = await githubStorage.readFile(`data/users/${userId}.json`);
+        
+        if (userData) {
+            currentUser = userData;
+            console.log('✅ Utilisateur chargé depuis GitHub:', currentUser.username);
+        } else {
+            // Créer un nouvel utilisateur
+            await createNewUser();
+        }
+    } catch (error) {
+        console.error('Erreur chargement utilisateur:', error);
+        await loadDataFromStorage();
+    }
+}
+
+async function createNewUser() {
+    const userId = 'user_' + Date.now();
+    const userData = {
+        id: userId,
+        profile: {
+            username: 'Utilisateur TIKTAK',
+            display_name: 'Utilisateur TIKTAK',
+            bio: '',
+            avatar_url: 'https://randomuser.me/api/portraits/lego/1.jpg',
+            join_date: new Date().toISOString(),
+            verified: false
+        },
+        stats: {
+            total_videos: 0,
+            total_likes: 0,
+            total_followers: 0,
+            total_following: 0,
+            total_views: 0
+        },
+        preferences: {
+            language: 'fr',
+            theme: 'dark',
+            autoplay: true,
+            notifications: true
+        },
+        privacy: {
+            account_private: false,
+            show_online_status: true
+        },
+        likedVideos: [],
+        myVideos: [],
+        drafts: [],
+        following: [],
+        followers: [],
+        notifications: [],
+        coins: 100
+    };
+    
+    try {
+        await githubStorage.writeFile(`data/users/${userId}.json`, userData, 'Création nouvel utilisateur');
+        currentUser = userData;
+        localStorage.setItem('tiktak_current_user_id', userId);
+        console.log('✅ Nouvel utilisateur créé:', userId);
+    } catch (error) {
+        console.error('Erreur création utilisateur:', error);
+    }
 }
 
 function getDemoVideos() {
@@ -138,104 +321,95 @@ function getDemoVideos() {
             hashtags: ['#art', '#digital', '#création'],
             duration: '00:30',
             privacy: 'public'
-        },
-        {
-            id: '3',
-            userId: 'user_4',
-            username: 'Sport Extrême',
-            avatar: 'https://randomuser.me/api/portraits/lego/4.jpg',
-            videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-            thumbnail: 'https://images.unsplash.com/photo-1517649763962-0c623066013b?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1170&q=80',
-            caption: 'Journée de sport extrême ! 🚵‍♂️ #sport #aventure',
-            likes: 5200,
-            comments: 412,
-            shares: 156,
-            views: 45000,
-            timestamp: Date.now() - 10800000,
-            isMonetized: true,
-            gifts: 25,
-            hashtags: ['#sport', '#aventure', '#extrême'],
-            duration: '00:45',
-            privacy: 'public'
-        },
-        {
-            id: '4',
-            userId: 'user_5',
-            username: 'Cuisine Créative',
-            avatar: 'https://randomuser.me/api/portraits/lego/5.jpg',
-            videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4',
-            thumbnail: 'https://images.unsplash.com/photo-1565958011703-44f9829ba187?ixlib=rb-4.0.3&auto=format&fit=crop&w=1065&q=80',
-            caption: 'Recette facile et délicieuse 🍰 #cuisine #recette',
-            likes: 3100,
-            comments: 189,
-            shares: 67,
-            views: 32000,
-            timestamp: Date.now() - 14400000,
-            isMonetized: true,
-            gifts: 15,
-            hashtags: ['#cuisine', '#recette', '#food'],
-            duration: '01:00',
-            privacy: 'public'
         }
     ];
 }
 
-// ==================== GESTION DES MODALES ====================
-function openCreateModal() {
-    document.getElementById('createModal').style.display = 'flex';
-    document.body.style.overflow = 'hidden';
-    dispatchEvent(new CustomEvent('modalOpen'));
+// ==================== FONCTIONS DE SAUVEGARDE ====================
+async function saveVideosToGitHub() {
+    if (!isGitHubInitialized || !githubStorage) return;
     
-    // Afficher les options de création
-    showCreateOptions();
+    try {
+        const videoIndex = {
+            last_updated: new Date().toISOString(),
+            total_videos: videos.length,
+            videos: videos
+        };
+        
+        await githubStorage.writeFile('data/videos/index.json', videoIndex, 'Mise à jour des vidéos');
+        console.log('✅ Vidéos sauvegardées sur GitHub');
+    } catch (error) {
+        console.error('Erreur sauvegarde vidéos:', error);
+        saveVideosToLocalStorage();
+    }
 }
 
-function closeCreateModal() {
-    document.getElementById('createModal').style.display = 'none';
-    document.body.style.overflow = 'auto';
-    resetCreateModal();
+async function saveCurrentUserToGitHub() {
+    if (!isGitHubInitialized || !githubStorage || !currentUser.id) return;
+    
+    try {
+        await githubStorage.writeFile(`data/users/${currentUser.id}.json`, currentUser, 'Mise à jour utilisateur');
+        console.log('✅ Utilisateur sauvegardé sur GitHub');
+    } catch (error) {
+        console.error('Erreur sauvegarde utilisateur:', error);
+        saveUserDataToLocalStorage();
+    }
 }
 
-function openProfile() {
-    loadProfileData();
-    document.getElementById('profileModal').style.display = 'flex';
-    document.body.style.overflow = 'hidden';
-    dispatchEvent(new CustomEvent('modalOpen'));
+function saveVideosToLocalStorage() {
+    localStorage.setItem('tiktak_videos', JSON.stringify(videos));
 }
 
-function closeProfile() {
-    document.getElementById('profileModal').style.display = 'none';
-    document.body.style.overflow = 'auto';
+function saveUserDataToLocalStorage() {
+    localStorage.setItem('tiktak_user', JSON.stringify(currentUser));
 }
 
-function openSettings() {
-    loadSettings();
-    document.getElementById('settingsModal').style.display = 'flex';
-    document.body.style.overflow = 'hidden';
-    dispatchEvent(new CustomEvent('modalOpen'));
-}
-
-function closeSettings() {
-    document.getElementById('settingsModal').style.display = 'none';
-    document.body.style.overflow = 'auto';
-}
-
-function toggleUserMenu() {
-    const menu = document.getElementById('userDropdown');
-    menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+async function loadDataFromStorage() {
+    // Charger les vidéos
+    const savedVideos = localStorage.getItem('tiktak_videos');
+    videos = savedVideos ? JSON.parse(savedVideos) : getDemoVideos();
+    
+    // Charger l'utilisateur
+    const savedUser = localStorage.getItem('tiktak_user');
+    if (savedUser) {
+        const parsedUser = JSON.parse(savedUser);
+        currentUser = { ...currentUser, ...parsedUser };
+    }
+    
+    // Charger les commentaires
+    const savedComments = localStorage.getItem('tiktak_comments');
+    comments = savedComments ? JSON.parse(savedComments) : {};
+    
+    // Charger les transactions
+    const savedTransactions = localStorage.getItem('tiktak_transactions');
+    transactions = savedTransactions ? JSON.parse(savedTransactions) : [];
 }
 
 // ==================== GESTION DES VIDÉOS ====================
-function renderVideoFeed() {
+async function renderVideoFeed() {
     const videoFeed = document.getElementById('videoFeed');
     videoFeed.innerHTML = '';
+    
+    if (videos.length === 0) {
+        videoFeed.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-video-slash"></i>
+                <h3>Aucune vidéo disponible</h3>
+                <p>Soyez le premier à créer du contenu !</p>
+                <button class="btn btn-primary" onclick="openCreateModal()">
+                    Créer une vidéo
+                </button>
+            </div>
+        `;
+        return;
+    }
     
     videos.forEach(video => {
         videoFeed.appendChild(createVideoElement(video));
     });
     
     // Initialiser la lecture automatique si activée
-    if (currentUser.settings.autoplay) {
+    if (currentUser.settings?.autoplay) {
         const firstVideo = document.querySelector('.video-container video');
         if (firstVideo) {
             firstVideo.muted = true;
@@ -245,9 +419,9 @@ function renderVideoFeed() {
 }
 
 function createVideoElement(video) {
-    const isLiked = currentUser.likedVideos.includes(video.id);
+    const isLiked = currentUser.likedVideos?.includes(video.id) || false;
     const timeAgo = getTimeAgo(video.timestamp);
-    const isFollowing = currentUser.following.includes(video.userId);
+    const isFollowing = currentUser.following?.includes(video.userId) || false;
     
     const container = document.createElement('div');
     container.className = 'video-container';
@@ -353,11 +527,17 @@ function toggleVideoPlay(videoElement) {
     }
 }
 
-function incrementViews(videoId) {
+async function incrementViews(videoId) {
     const videoIndex = videos.findIndex(v => v.id === videoId);
     if (videoIndex !== -1) {
         videos[videoIndex].views++;
-        saveVideos();
+        
+        // Sauvegarder
+        if (isGitHubInitialized) {
+            await saveVideosToGitHub();
+        } else {
+            saveVideosToLocalStorage();
+        }
         
         // Mettre à jour l'UI
         const container = document.querySelector(`.video-container[data-video-id="${videoId}"]`);
@@ -369,17 +549,18 @@ function incrementViews(videoId) {
 }
 
 // ==================== INTERACTIONS SOCIALES ====================
-function toggleLike(videoId) {
+async function toggleLike(videoId) {
     const videoIndex = videos.findIndex(v => v.id === videoId);
     if (videoIndex === -1) return;
     
     const video = videos[videoIndex];
-    const userLikedIndex = currentUser.likedVideos.indexOf(videoId);
+    const userLikedIndex = currentUser.likedVideos?.indexOf(videoId) || -1;
     const container = document.querySelector(`.video-container[data-video-id="${videoId}"]`);
     
     if (userLikedIndex === -1) {
         // Ajouter le like
         video.likes++;
+        if (!currentUser.likedVideos) currentUser.likedVideos = [];
         currentUser.likedVideos.push(videoId);
         
         // Animation de cœur
@@ -388,7 +569,7 @@ function toggleLike(videoId) {
         
         // Ajouter une notification au créateur
         if (video.userId !== currentUser.id) {
-            addNotification(video.userId, {
+            await addNotification(video.userId, {
                 id: 'notif_' + Date.now(),
                 type: 'like',
                 fromUserId: currentUser.id,
@@ -406,27 +587,36 @@ function toggleLike(videoId) {
         showNotification('Like retiré', 'info');
     }
     
-    saveVideos();
-    saveUserData();
+    // Sauvegarder
+    if (isGitHubInitialized) {
+        await saveVideosToGitHub();
+        await saveCurrentUserToGitHub();
+    } else {
+        saveVideosToLocalStorage();
+        saveUserDataToLocalStorage();
+    }
     
     // Mettre à jour l'UI
-    const likeElement = container.querySelector('.action:nth-child(1)');
-    likeElement.className = `action ${userLikedIndex === -1 ? 'liked' : ''}`;
-    likeElement.querySelector('span').textContent = formatNumber(video.likes);
+    if (container) {
+        const likeElement = container.querySelector('.action:nth-child(1)');
+        likeElement.className = `action ${userLikedIndex === -1 ? 'liked' : ''}`;
+        likeElement.querySelector('span').textContent = formatNumber(video.likes);
+    }
 }
 
-function toggleFollow(userId, buttonElement) {
-    const userIndex = currentUser.following.indexOf(userId);
+async function toggleFollow(userId, buttonElement) {
+    const userIndex = currentUser.following?.indexOf(userId) || -1;
     
     if (userIndex === -1) {
         // Suivre
+        if (!currentUser.following) currentUser.following = [];
         currentUser.following.push(userId);
         buttonElement.innerHTML = '<i class="fas fa-check"></i> Abonné';
         buttonElement.classList.add('following');
         showNotification('Utilisateur suivi !', 'success');
         
         // Ajouter une notification
-        addNotification(userId, {
+        await addNotification(userId, {
             id: 'notif_' + Date.now(),
             type: 'follow',
             fromUserId: currentUser.id,
@@ -443,7 +633,12 @@ function toggleFollow(userId, buttonElement) {
         showNotification('Abonnement annulé', 'info');
     }
     
-    saveUserData();
+    // Sauvegarder
+    if (isGitHubInitialized) {
+        await saveCurrentUserToGitHub();
+    } else {
+        saveUserDataToLocalStorage();
+    }
 }
 
 function shareVideo(videoId) {
@@ -455,31 +650,46 @@ function shareVideo(videoId) {
             title: video.caption,
             text: 'Regarde cette vidéo sur TIKTAK!',
             url: window.location.href + '?video=' + videoId
-        }).then(() => {
+        }).then(async () => {
             video.shares++;
-            saveVideos();
+            if (isGitHubInitialized) {
+                await saveVideosToGitHub();
+            } else {
+                saveVideosToLocalStorage();
+            }
             updateVideoStats(videoId);
             showNotification('Vidéo partagée ! 📤', 'success');
         });
     } else {
         // Fallback pour les navigateurs qui ne supportent pas Web Share API
-        navigator.clipboard.writeText(window.location.href + '?video=' + videoId).then(() => {
+        navigator.clipboard.writeText(window.location.href + '?video=' + videoId).then(async () => {
             video.shares++;
-            saveVideos();
+            if (isGitHubInitialized) {
+                await saveVideosToGitHub();
+            } else {
+                saveVideosToLocalStorage();
+            }
             updateVideoStats(videoId);
             showNotification('Lien copié dans le presse-papier ! 📋', 'success');
         });
     }
 }
 
-function saveVideo(videoId) {
+async function saveVideo(videoId) {
     const video = videos.find(v => v.id === videoId);
     if (!video) return;
     
     // Ajouter aux favoris de l'utilisateur
-    if (!currentUser.myVideos.includes(videoId)) {
+    if (!currentUser.myVideos?.includes(videoId)) {
+        if (!currentUser.myVideos) currentUser.myVideos = [];
         currentUser.myVideos.push(videoId);
-        saveUserData();
+        
+        if (isGitHubInitialized) {
+            await saveCurrentUserToGitHub();
+        } else {
+            saveUserDataToLocalStorage();
+        }
+        
         showNotification('Vidéo enregistrée dans vos favoris ! ⭐', 'success');
     } else {
         showNotification('Vidéo déjà enregistrée', 'info');
@@ -487,6 +697,21 @@ function saveVideo(videoId) {
 }
 
 // ==================== CRÉATION DE VIDÉO ====================
+function openCreateModal() {
+    document.getElementById('createModal').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    dispatchEvent(new CustomEvent('modalOpen'));
+    
+    // Afficher les options de création
+    showCreateOptions();
+}
+
+function closeCreateModal() {
+    document.getElementById('createModal').style.display = 'none';
+    document.body.style.overflow = 'auto';
+    resetCreateModal();
+}
+
 function openFilePicker() {
     document.getElementById('videoInput').click();
 }
@@ -582,63 +807,7 @@ function simulateRecording() {
     document.getElementById('publishBtn').disabled = false;
 }
 
-function startRecording() {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        showNotification('La fonction d\'enregistrement n\'est pas supportée sur votre navigateur', 'error');
-        return;
-    }
-    
-    showNotification('Démarrage de l\'enregistrement... 🎥', 'info');
-    
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-        .then(function(stream) {
-            isRecording = true;
-            mediaRecorder = new MediaRecorder(stream);
-            recordedChunks = [];
-            
-            mediaRecorder.ondataavailable = function(event) {
-                if (event.data.size > 0) {
-                    recordedChunks.push(event.data);
-                }
-            };
-            
-            mediaRecorder.onstop = function() {
-                const blob = new Blob(recordedChunks, { type: 'video/webm' });
-                const file = new File([blob], 'recording.webm', { type: 'video/webm' });
-                processVideoFile(file);
-                
-                // Arrêter tous les tracks du stream
-                stream.getTracks().forEach(track => track.stop());
-            };
-            
-            mediaRecorder.start();
-            document.getElementById('recordBtn').innerHTML = '<i class="fas fa-stop"></i> Arrêter';
-            document.getElementById('recordBtn').classList.add('recording');
-            
-            // Arrêter automatiquement après 60 secondes
-            setTimeout(() => {
-                if (isRecording) {
-                    stopRecording();
-                }
-            }, 60000);
-        })
-        .catch(function(error) {
-            console.error('Erreur d\'enregistrement:', error);
-            showNotification('Erreur lors de l\'accès à la caméra/microphone', 'error');
-        });
-}
-
-function stopRecording() {
-    if (mediaRecorder && isRecording) {
-        mediaRecorder.stop();
-        isRecording = false;
-        document.getElementById('recordBtn').innerHTML = '<i class="fas fa-video"></i> Enregistrer';
-        document.getElementById('recordBtn').classList.remove('recording');
-        showNotification('Enregistrement terminé ✅', 'success');
-    }
-}
-
-function publishVideo() {
+async function publishVideo() {
     const caption = document.getElementById('videoCaption').value.trim();
     const isMonetized = document.getElementById('monetizeVideo').checked;
     const privacy = document.getElementById('videoPrivacy').value;
@@ -667,7 +836,7 @@ function publishVideo() {
     const hashtags = extractHashtags(caption);
     
     // Simuler le processus de publication
-    setTimeout(() => {
+    setTimeout(async () => {
         const videoUrl = document.getElementById('previewVideo').src || 
                         URL.createObjectURL(currentVideoFile) || 
                         'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4';
@@ -694,12 +863,38 @@ function publishVideo() {
         
         // Ajouter en premier pour l'apparition en haut du feed
         videos.unshift(newVideo);
+        
+        if (!currentUser.myVideos) currentUser.myVideos = [];
         currentUser.myVideos.push(newVideo.id);
         
-        saveVideos();
-        saveUserData();
-        renderVideoFeed();
+        // Sauvegarder
+        if (isGitHubInitialized) {
+            try {
+                // Ajouter la vidéo à GitHub
+                const videoId = await githubStorage.addVideo({
+                    title: caption,
+                    description: caption,
+                    user_id: currentUser.id,
+                    video_url: videoUrl,
+                    thumbnail_url: generateThumbnail(),
+                    hashtags: hashtags,
+                    category: 'general'
+                });
+                
+                newVideo.id = videoId;
+                await saveVideosToGitHub();
+                await saveCurrentUserToGitHub();
+            } catch (error) {
+                console.error('Erreur sauvegarde GitHub:', error);
+                saveVideosToLocalStorage();
+                saveUserDataToLocalStorage();
+            }
+        } else {
+            saveVideosToLocalStorage();
+            saveUserDataToLocalStorage();
+        }
         
+        renderVideoFeed();
         closeCreateModal();
         showNotification('Vidéo publiée avec succès ! 🎉', 'success');
         
@@ -730,8 +925,14 @@ function saveAsDraft(caption, isMonetized) {
         timestamp: Date.now()
     };
     
+    if (!currentUser.drafts) currentUser.drafts = [];
     currentUser.drafts.push(draft);
-    saveUserData();
+    
+    if (isGitHubInitialized) {
+        saveCurrentUserToGitHub();
+    } else {
+        saveUserDataToLocalStorage();
+    }
     
     showNotification('Brouillon sauvegardé 📁', 'success');
     closeCreateModal();
@@ -763,782 +964,67 @@ function resetCreateModal() {
     document.getElementById('videoUploadSection').style.display = 'none';
 }
 
-// ==================== NOUVELLES FONCTIONS DE CRÉATION ====================
-function showCreateOptions() {
-    // Afficher les options de création
-    document.getElementById('createOptions').style.display = 'flex';
-    document.getElementById('videoUploadSection').style.display = 'none';
-}
-
-function openUploadSection() {
-    document.getElementById('createOptions').style.display = 'none';
-    document.getElementById('videoUploadSection').style.display = 'block';
-}
-
-function openCameraForRecording() {
-    openUploadSection();
-    isUsingCamera = true;
-    
-    // Afficher les contrôles de caméra
-    document.getElementById('cameraControls').style.display = 'flex';
-    document.getElementById('fileUploadControls').style.display = 'none';
-    
-    // Démarrer la caméra automatiquement
-    setTimeout(() => {
-        startCameraForRecording();
-    }, 500);
-}
-
-function openFileUpload() {
-    openUploadSection();
-    isUsingCamera = false;
-    
-    // Afficher les contrôles de fichier
-    document.getElementById('cameraControls').style.display = 'none';
-    document.getElementById('fileUploadControls').style.display = 'flex';
-}
-
-function startCameraForRecording() {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        showNotification('La caméra n\'est pas disponible sur votre appareil', 'error');
-        return;
-    }
-    
-    navigator.mediaDevices.getUserMedia({ 
-        video: { 
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: 'user'
-        }, 
-        audio: true 
-    })
-    .then(function(stream) {
-        cameraStream = stream;
-        const videoElement = document.getElementById('cameraPreview');
-        videoElement.srcObject = stream;
-        videoElement.style.display = 'block';
-        
-        // Masquer le placeholder
-        document.querySelector('.preview-placeholder').style.display = 'none';
-        
-        // Afficher le bouton d'enregistrement
-        document.getElementById('startCameraBtn').style.display = 'inline-block';
-        document.getElementById('recordBtn').style.display = 'inline-block';
-        document.getElementById('stopRecordBtn').style.display = 'none';
-        
-        showNotification('Caméra activée 📸', 'success');
-    })
-    .catch(function(error) {
-        console.error('Erreur caméra:', error);
-        showNotification('Impossible d\'accéder à la caméra', 'error');
-        openFileUpload(); // Revenir à l'upload de fichier
-    });
-}
-
-function stopCameraForRecording() {
-    if (cameraStream) {
-        cameraStream.getTracks().forEach(track => track.stop());
-        cameraStream = null;
-    }
-    
-    const videoElement = document.getElementById('cameraPreview');
-    videoElement.srcObject = null;
-    videoElement.style.display = 'none';
-    
-    // Réafficher le placeholder
-    document.querySelector('.preview-placeholder').style.display = 'flex';
-    
-    // Cacher les boutons d'enregistrement
-    document.getElementById('startCameraBtn').style.display = 'none';
-    document.getElementById('recordBtn').style.display = 'none';
-    document.getElementById('stopRecordBtn').style.display = 'none';
-}
-
-// ==================== BOUTIQUE DE CADEAUX ====================
-function openGiftShop(videoId) {
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.id = 'giftShopModal';
-    modal.innerHTML = `
-        <div class="modal-content gift-shop-modal">
-            <span class="close-btn" onclick="closeModal('giftShopModal')">&times;</span>
-            <h2><i class="fas fa-gift"></i> Boutique de Cadeaux</h2>
-            <p class="balance-info">Votre solde: <span class="coin-count">${currentUser.coins}</span> <i class="fas fa-coins"></i></p>
-            
-            <div class="gift-categories" id="giftCategories">
-                ${giftCategories.map(category => `
-                    <button class="gift-category-btn ${category.id === 'all' ? 'active' : ''}" onclick="filterGifts('${category.id}', this)">
-                        <i class="${category.icon}"></i> ${category.name}
-                    </button>
-                `).join('')}
-            </div>
-            
-            <div class="gifts-grid" id="giftsGrid">
-                ${gifts.map(gift => `
-                    <div class="gift-item" data-category="${gift.category}">
-                        <div class="gift-icon">
-                            <i class="${gift.icon}"></i>
-                        </div>
-                        <div class="gift-name">${gift.name}</div>
-                        <div class="gift-description">${gift.description}</div>
-                        <div class="gift-price">
-                            <span class="gift-coins">${gift.coins} <i class="fas fa-coins"></i></span>
-                            <span class="gift-usd">≈ $${gift.price}</span>
-                        </div>
-                        <div class="gift-actions">
-                            <button class="btn btn-small btn-primary" onclick="sendGift('${videoId}', '${gift.id}')">
-                                Envoyer
-                            </button>
-                            <button class="btn btn-small btn-secondary" onclick="previewGift('${gift.id}')">
-                                <i class="fas fa-eye"></i>
-                            </button>
-                        </div>
-                    </div>
-                `).join('')}
-            </div>
-            
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="openCoinShop()">
-                    <i class="fas fa-shopping-cart"></i> Acheter des Coins
-                </button>
-                <button class="btn btn-primary" onclick="closeModal('giftShopModal')">
-                    Fermer
-                </button>
-            </div>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
+// ==================== FONCTIONS LIVE STREAMING ====================
+function openLiveStream() {
+    document.getElementById('liveModal').style.display = 'flex';
     document.body.style.overflow = 'hidden';
+    dispatchEvent(new CustomEvent('modalOpen'));
 }
 
-function closeModal(modalId) {
-    const modal = document.getElementById(modalId);
-    if (modal) {
-        modal.remove();
-        document.body.style.overflow = 'auto';
-    }
-}
-
-function filterGifts(categoryId, buttonElement) {
-    const giftItems = document.querySelectorAll('.gift-item');
-    const categoryButtons = document.querySelectorAll('.gift-category-btn');
-    
-    // Mettre à jour les boutons de catégorie
-    categoryButtons.forEach(btn => btn.classList.remove('active'));
-    buttonElement.classList.add('active');
-    
-    // Filtrer les cadeaux
-    giftItems.forEach(item => {
-        if (categoryId === 'all' || item.dataset.category === categoryId) {
-            item.style.display = 'block';
-        } else {
-            item.style.display = 'none';
-        }
-    });
-}
-
-function sendGift(videoId, giftId) {
-    const gift = gifts.find(g => g.id === giftId);
-    const video = videos.find(v => v.id === videoId);
-    
-    if (!gift || !video) return;
-    
-    if (currentUser.coins < gift.coins) {
-        showNotification('Fonds insuffisants ! Achetez plus de coins.', 'error');
-        openCoinShop();
-        return;
-    }
-    
-    // Déduire les coins
-    currentUser.coins -= gift.coins;
-    
-    // Ajouter les cadeaux à la vidéo
-    video.gifts = (video.gifts || 0) + 1;
-    
-    // Ajouter une transaction
-    addTransaction({
-        id: 'trans_' + Date.now(),
-        type: 'gift_sent',
-        amount: -gift.coins,
-        description: `Cadeau "${gift.name}" envoyé à ${video.username}`,
-        timestamp: Date.now()
-    });
-    
-    // Ajouter une notification au créateur
-    if (video.userId !== currentUser.id) {
-        addNotification(video.userId, {
-            id: 'notif_' + Date.now(),
-            type: 'gift',
-            fromUserId: currentUser.id,
-            fromUsername: currentUser.username,
-            giftId: giftId,
-            giftName: gift.name,
-            videoId: videoId,
-            message: `${currentUser.username} vous a envoyé un cadeau: ${gift.name}`,
-            timestamp: Date.now(),
-            read: false
-        });
-    }
-    
-    // Sauvegarder les données
-    saveUserData();
-    saveVideos();
-    
-    // Mettre à jour l'UI
-    updateUI();
-    updateVideoStats(videoId);
-    
-    // Animation du cadeau
-    showGiftAnimation(gift);
-    
-    showNotification(`Cadeau "${gift.name}" envoyé ! 🎁`, 'success');
-    
-    // Fermer la boutique après un délai
-    setTimeout(() => {
-        closeModal('giftShopModal');
-    }, 1500);
-}
-
-function previewGift(giftId) {
-    const gift = gifts.find(g => g.id === giftId);
-    if (!gift) return;
-    
-    showNotification(`Prévisualisation: ${gift.name} - ${gift.description}`, 'info');
-}
-
-// ==================== BOUTIQUE DE COINS ====================
-function openCoinShop() {
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.id = 'coinShopModal';
-    modal.innerHTML = `
-        <div class="modal-content coin-shop-modal">
-            <span class="close-btn" onclick="closeModal('coinShopModal')">&times;</span>
-            <h2><i class="fas fa-shopping-cart"></i> Boutique de Coins</h2>
-            <p class="current-balance">Votre solde actuel: <strong>${currentUser.coins}</strong> <i class="fas fa-coins"></i></p>
-            
-            <div class="coin-packages">
-                <div class="coin-package" onclick="buyCoins(100, 4.99)">
-                    <div class="package-header">
-                        <i class="fas fa-coins package-icon"></i>
-                        <h3>100 Coins</h3>
-                    </div>
-                    <div class="package-price">$4.99</div>
-                    <div class="package-bonus">+0 bonus</div>
-                    <button class="btn btn-primary">Acheter</button>
-                </div>
-                
-                <div class="coin-package popular" onclick="buyCoins(500, 19.99)">
-                    <div class="package-header">
-                        <i class="fas fa-crown package-icon"></i>
-                        <h3>500 Coins</h3>
-                    </div>
-                    <div class="package-price">$19.99</div>
-                    <div class="package-bonus">+50 bonus</div>
-                    <button class="btn btn-primary">Meilleure offre</button>
-                </div>
-                
-                <div class="coin-package" onclick="buyCoins(1000, 34.99)">
-                    <div class="package-header">
-                        <i class="fas fa-gem package-icon"></i>
-                        <h3>1000 Coins</h3>
-                    </div>
-                    <div class="package-price">$34.99</div>
-                    <div class="package-bonus">+150 bonus</div>
-                    <button class="btn btn-primary">Acheter</button>
-                </div>
-                
-                <div class="coin-package" onclick="buyCoins(5000, 149.99)">
-                    <div class="package-header">
-                        <i class="fas fa-rocket package-icon"></i>
-                        <h3>5000 Coins</h3>
-                    </div>
-                    <div class="package-price">$149.99</div>
-                    <div class="package-bonus">+1000 bonus</div>
-                    <button class="btn btn-primary">Économique</button>
-                </div>
-            </div>
-            
-            <div class="payment-methods">
-                <h4>Méthodes de paiement:</h4>
-                <div class="payment-icons">
-                    <i class="fab fa-cc-visa" title="Visa"></i>
-                    <i class="fab fa-cc-mastercard" title="Mastercard"></i>
-                    <i class="fab fa-cc-paypal" title="PayPal"></i>
-                    <i class="fab fa-cc-apple-pay" title="Apple Pay"></i>
-                    <i class="fab fa-google-pay" title="Google Pay"></i>
-                </div>
-            </div>
-            
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('coinShopModal')">
-                    Annuler
-                </button>
-            </div>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-    document.body.style.overflow = 'hidden';
-}
-
-function buyCoins(coins, price) {
-    // Simuler un processus d'achat
-    showNotification(`Achat de ${coins} coins pour $${price} en cours...`, 'info');
-    
-    // Simuler le traitement du paiement
-    setTimeout(() => {
-        currentUser.coins += coins;
-        
-        // Ajouter une transaction
-        addTransaction({
-            id: 'trans_' + Date.now(),
-            type: 'coin_purchase',
-            amount: coins,
-            description: `Achat de ${coins} coins`,
-            price: price,
-            timestamp: Date.now()
-        });
-        
-        // Sauvegarder
-        saveUserData();
-        updateUI();
-        
-        showNotification(`${coins} coins ajoutés à votre compte ! 💰`, 'success');
-        closeModal('coinShopModal');
-    }, 2000);
-}
-
-// ==================== COMMENTAIRES ====================
-function openCommentsModal(videoId) {
-    const video = videos.find(v => v.id === videoId);
-    if (!video) return;
-    
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.id = 'commentsModal';
-    modal.innerHTML = `
-        <div class="modal-content comments-modal">
-            <span class="close-btn" onclick="closeModal('commentsModal')">&times;</span>
-            <h2><i class="fas fa-comments"></i> Commentaires (${video.comments})</h2>
-            
-            <div class="comments-container" id="commentsContainer">
-                ${renderComments(videoId)}
-            </div>
-            
-            <div class="comment-form">
-                <textarea id="newCommentText" placeholder="Ajouter un commentaire..." rows="3"></textarea>
-                <div class="comment-form-actions">
-                    <button class="btn btn-secondary" onclick="closeModal('commentsModal')">
-                        Annuler
-                    </button>
-                    <button class="btn btn-primary" onclick="postComment('${videoId}')">
-                        <i class="fas fa-paper-plane"></i> Commenter
-                    </button>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-    document.body.style.overflow = 'hidden';
-    
-    // Focus sur le champ de commentaire
-    setTimeout(() => {
-        document.getElementById('newCommentText').focus();
-    }, 100);
-}
-
-function renderComments(videoId) {
-    const videoComments = comments[videoId] || [];
-    
-    if (videoComments.length === 0) {
-        return `
-            <div class="empty-comments">
-                <i class="fas fa-comment-slash"></i>
-                <h3>Aucun commentaire</h3>
-                <p>Soyez le premier à commenter !</p>
-            </div>
-        `;
-    }
-    
-    return videoComments.map(comment => `
-        <div class="comment-item" data-comment-id="${comment.id}">
-            <div class="comment-header">
-                <img src="${comment.userAvatar || 'https://randomuser.me/api/portraits/lego/1.jpg'}" alt="${comment.username}">
-                <div>
-                    <strong>${comment.username}</strong>
-                    <small>${getTimeAgo(comment.timestamp)}</small>
-                </div>
-                <div class="comment-actions">
-                    <button class="comment-like-btn" onclick="likeComment('${videoId}', '${comment.id}')">
-                        <i class="fas fa-heart"></i> ${comment.likes || 0}
-                    </button>
-                    ${comment.userId === currentUser.id ? `
-                        <button class="comment-delete-btn" onclick="deleteComment('${videoId}', '${comment.id}')">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    ` : ''}
-                </div>
-            </div>
-            <div class="comment-text">${comment.text}</div>
-        </div>
-    `).join('');
-}
-
-function postComment(videoId) {
-    const commentText = document.getElementById('newCommentText').value.trim();
-    if (!commentText) {
-        showNotification('Veuillez écrire un commentaire', 'error');
-        return;
-    }
-    
-    const video = videos.find(v => v.id === videoId);
-    if (!video) return;
-    
-    // Créer le commentaire
-    const comment = {
-        id: 'comment_' + Date.now(),
-        videoId: videoId,
-        userId: currentUser.id,
-        username: currentUser.username,
-        userAvatar: currentUser.avatar,
-        text: commentText,
-        likes: 0,
-        timestamp: Date.now()
-    };
-    
-    // Ajouter aux commentaires
-    if (!comments[videoId]) {
-        comments[videoId] = [];
-    }
-    comments[videoId].unshift(comment);
-    
-    // Mettre à jour le nombre de commentaires
-    video.comments++;
-    
-    // Sauvegarder
-    saveComments();
-    saveVideos();
-    
-    // Ajouter une notification au créateur
-    if (video.userId !== currentUser.id) {
-        addNotification(video.userId, {
-            id: 'notif_' + Date.now(),
-            type: 'comment',
-            fromUserId: currentUser.id,
-            fromUsername: currentUser.username,
-            videoId: videoId,
-            message: `${currentUser.username} a commenté votre vidéo: "${commentText.substring(0, 50)}..."`,
-            timestamp: Date.now(),
-            read: false
-        });
-    }
-    
-    // Mettre à jour l'UI
-    const commentsContainer = document.getElementById('commentsContainer');
-    if (commentsContainer) {
-        commentsContainer.innerHTML = renderComments(videoId);
-    }
-    
-    // Réinitialiser le champ
-    document.getElementById('newCommentText').value = '';
-    
-    // Mettre à jour le compteur dans le feed
-    updateVideoStats(videoId);
-    
-    showNotification('Commentaire publié ! 💬', 'success');
-}
-
-function likeComment(videoId, commentId) {
-    const comment = comments[videoId]?.find(c => c.id === commentId);
-    if (!comment) return;
-    
-    comment.likes = (comment.likes || 0) + 1;
-    saveComments();
-    
-    // Mettre à jour l'UI
-    const commentElement = document.querySelector(`.comment-item[data-comment-id="${commentId}"]`);
-    if (commentElement) {
-        const likeBtn = commentElement.querySelector('.comment-like-btn');
-        likeBtn.innerHTML = `<i class="fas fa-heart"></i> ${comment.likes}`;
-    }
-    
-    showNotification('Commentaire aimé !', 'info');
-}
-
-function deleteComment(videoId, commentId) {
-    if (!confirm('Supprimer ce commentaire ?')) return;
-    
-    const video = videos.find(v => v.id === videoId);
-    const commentIndex = comments[videoId]?.findIndex(c => c.id === commentId);
-    
-    if (commentIndex !== -1 && video) {
-        comments[videoId].splice(commentIndex, 1);
-        video.comments--;
-        
-        // Sauvegarder
-        saveComments();
-        saveVideos();
-        
-        // Mettre à jour l'UI
-        const commentsContainer = document.getElementById('commentsContainer');
-        if (commentsContainer) {
-            commentsContainer.innerHTML = renderComments(videoId);
-        }
-        
-        updateVideoStats(videoId);
-        showNotification('Commentaire supprimé', 'info');
-    }
+function closeLiveModal() {
+    document.getElementById('liveModal').style.display = 'none';
+    document.body.style.overflow = 'auto';
 }
 
 // ==================== PROFIL UTILISATEUR ====================
+function openProfile() {
+    loadProfileData();
+    document.getElementById('profileModal').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    dispatchEvent(new CustomEvent('modalOpen'));
+}
+
+function closeProfile() {
+    document.getElementById('profileModal').style.display = 'none';
+    document.body.style.overflow = 'auto';
+}
+
 function loadProfileData() {
     // Mettre à jour les informations de base
-    document.getElementById('profileUsername').textContent = currentUser.username;
-    document.getElementById('profileCoins').textContent = currentUser.coins;
-    document.getElementById('profileAvatar').src = currentUser.avatar;
+    document.getElementById('profileUsername').textContent = currentUser.username || 'Utilisateur TIKTAK';
+    document.getElementById('profileCoins').textContent = currentUser.coins || 100;
+    document.getElementById('profileAvatar').src = currentUser.avatar || 'https://randomuser.me/api/portraits/lego/1.jpg';
     
     // Calculer les statistiques
     const userVideos = videos.filter(v => v.userId === currentUser.id);
-    const stats = `${userVideos.length} vidéos • ${currentUser.followers.length} abonnés • ${currentUser.following.length} abonnements`;
+    const stats = `${userVideos.length} vidéos • ${currentUser.followers?.length || 0} abonnés • ${currentUser.following?.length || 0} abonnements`;
     document.getElementById('profileStats').textContent = stats;
     
     // Afficher l'onglet par défaut
     showProfileTab('videos');
 }
 
-function showProfileTab(tabName) {
-    // Mettre à jour les onglets actifs
-    document.querySelectorAll('.profile-tab').forEach(tab => tab.classList.remove('active'));
-    event.target.classList.add('active');
-    
-    // Afficher le contenu correspondant
-    const contents = ['profileVideos', 'profileLikes', 'profileDrafts'];
-    contents.forEach(content => {
-        document.getElementById(content).style.display = 'none';
-    });
-    
-    const activeContent = document.getElementById('profile' + tabName.charAt(0).toUpperCase() + tabName.slice(1));
-    activeContent.style.display = 'block';
-    
-    // Charger le contenu de l'onglet
-    switch(tabName) {
-        case 'videos':
-            loadProfileVideos();
-            break;
-        case 'likes':
-            loadProfileLikes();
-            break;
-        case 'drafts':
-            loadProfileDrafts();
-            break;
-    }
-}
-
-function loadProfileVideos() {
-    const container = document.getElementById('profileVideos');
-    const userVideos = videos.filter(v => v.userId === currentUser.id);
-    
-    if (userVideos.length === 0) {
-        container.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-video-slash"></i>
-                <h3>Aucune vidéo</h3>
-                <p>Commencez à créer du contenu !</p>
-                <button class="btn btn-primary" onclick="openCreateModal(); closeProfile();">
-                    Créer une vidéo
-                </button>
-            </div>
-        `;
-        return;
-    }
-    
-    let videosHTML = '<div class="videos-grid">';
-    userVideos.forEach(video => {
-        videosHTML += `
-            <div class="video-thumbnail" onclick="openVideoDetail('${video.id}')">
-                <img src="${video.thumbnail}" alt="${video.caption}">
-                <div class="thumbnail-overlay">
-                    <span><i class="fas fa-heart"></i> ${formatNumber(video.likes)}</span>
-                    <span><i class="fas fa-eye"></i> ${formatNumber(video.views)}</span>
-                    ${video.isMonetized ? '<span class="monetized-indicator"><i class="fas fa-coins"></i></span>' : ''}
-                </div>
-            </div>
-        `;
-    });
-    videosHTML += '</div>';
-    
-    container.innerHTML = videosHTML;
-}
-
-function loadProfileLikes() {
-    const container = document.getElementById('profileLikes');
-    const likedVideos = videos.filter(v => currentUser.likedVideos.includes(v.id));
-    
-    if (likedVideos.length === 0) {
-        container.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-heart"></i>
-                <h3>Aucun like</h3>
-                <p>Les vidéos que vous aimez apparaîtront ici</p>
-            </div>
-        `;
-        return;
-    }
-    
-    let videosHTML = '<div class="videos-grid">';
-    likedVideos.forEach(video => {
-        videosHTML += `
-            <div class="video-thumbnail" onclick="openVideoDetail('${video.id}')">
-                <img src="${video.thumbnail}" alt="${video.caption}">
-                <div class="thumbnail-overlay">
-                    <span><i class="fas fa-heart"></i> ${formatNumber(video.likes)}</span>
-                    <span><i class="fas fa-eye"></i> ${formatNumber(video.views)}</span>
-                </div>
-            </div>
-        `;
-    });
-    videosHTML += '</div>';
-    
-    container.innerHTML = videosHTML;
-}
-
-function loadProfileDrafts() {
-    const container = document.getElementById('profileDrafts');
-    
-    if (currentUser.drafts.length === 0) {
-        container.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-file-alt"></i>
-                <h3>Aucun brouillon</h3>
-                <p>Vos vidéos non publiées apparaîtront ici</p>
-            </div>
-        `;
-        return;
-    }
-    
-    let draftsHTML = '<div class="drafts-list">';
-    currentUser.drafts.forEach(draft => {
-        draftsHTML += `
-            <div class="draft-item">
-                <div class="draft-info">
-                    <h4>${draft.caption}</h4>
-                    <p><i class="fas fa-calendar"></i> ${draft.date}</p>
-                    ${draft.isMonetized ? '<span class="draft-monetized"><i class="fas fa-coins"></i> Monétisé</span>' : ''}
-                </div>
-                <div class="draft-actions">
-                    <button class="btn btn-small btn-secondary" onclick="editDraft('${draft.id}')">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <button class="btn btn-small btn-danger" onclick="deleteDraft('${draft.id}')">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            </div>
-        `;
-    });
-    draftsHTML += '</div>';
-    
-    container.innerHTML = draftsHTML;
-}
-
-function editDraft(draftId) {
-    const draft = currentUser.drafts.find(d => d.id === draftId);
-    if (!draft) return;
-    
-    openCreateModal();
-    document.getElementById('videoCaption').value = draft.caption;
-    document.getElementById('monetizeVideo').checked = draft.isMonetized || false;
-    document.getElementById('videoPrivacy').value = 'draft';
-    
-    showNotification('Brouillon chargé pour édition', 'info');
-}
-
-function deleteDraft(draftId) {
-    if (!confirm('Supprimer ce brouillon ?')) return;
-    
-    const draftIndex = currentUser.drafts.findIndex(d => d.id === draftId);
-    if (draftIndex !== -1) {
-        currentUser.drafts.splice(draftIndex, 1);
-        saveUserData();
-        loadProfileDrafts();
-        showNotification('Brouillon supprimé', 'success');
-    }
-}
-
-function openVideoDetail(videoId) {
-    const video = videos.find(v => v.id === videoId);
-    if (!video) return;
-    
-    // Créer une modale de détail
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.id = 'videoDetailModal';
-    modal.innerHTML = `
-        <div class="modal-content video-detail-modal">
-            <span class="close-btn" onclick="closeModal('videoDetailModal')">&times;</span>
-            
-            <div class="video-detail-container">
-                <video src="${video.videoUrl}" poster="${video.thumbnail}" controls autoplay></video>
-                
-                <div class="video-detail-info">
-                    <div class="creator-info">
-                        <img src="${video.avatar}" alt="${video.username}">
-                        <div>
-                            <h4>${video.username}</h4>
-                            <p>${getTimeAgo(video.timestamp)}</p>
-                        </div>
-                    </div>
-                    
-                    <div class="video-description">
-                        <p>${video.caption}</p>
-                        <div class="hashtags">
-                            ${video.hashtags ? video.hashtags.map(tag => `<span class="hashtag">${tag}</span>`).join('') : ''}
-                        </div>
-                    </div>
-                    
-                    <div class="video-stats-detailed">
-                        <div class="stat">
-                            <i class="fas fa-heart"></i>
-                            <span>${formatNumber(video.likes)} likes</span>
-                        </div>
-                        <div class="stat">
-                            <i class="fas fa-comment"></i>
-                            <span>${formatNumber(video.comments)} commentaires</span>
-                        </div>
-                        <div class="stat">
-                            <i class="fas fa-share"></i>
-                            <span>${formatNumber(video.shares)} partages</span>
-                        </div>
-                        <div class="stat">
-                            <i class="fas fa-eye"></i>
-                            <span>${formatNumber(video.views)} vues</span>
-                        </div>
-                        <div class="stat">
-                            <i class="fas fa-gift"></i>
-                            <span>${formatNumber(video.gifts || 0)} cadeaux</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-    document.body.style.overflow = 'hidden';
-}
-
 // ==================== PARAMÈTRES ====================
-function loadSettings() {
-    document.getElementById('settingsUsername').value = currentUser.username;
-    document.getElementById('settingsEmail').value = currentUser.email || 'user@tiktak.demo';
-    document.getElementById('settingsNotifications').checked = currentUser.settings.notifications;
-    document.getElementById('settingsAutoplay').checked = currentUser.settings.autoplay;
+function openSettings() {
+    loadSettings();
+    document.getElementById('settingsModal').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    dispatchEvent(new CustomEvent('modalOpen'));
 }
 
-function saveSettings() {
+function closeSettings() {
+    document.getElementById('settingsModal').style.display = 'none';
+    document.body.style.overflow = 'auto';
+}
+
+function loadSettings() {
+    document.getElementById('settingsUsername').value = currentUser.username || 'Utilisateur TIKTAK';
+    document.getElementById('settingsEmail').value = currentUser.email || 'user@tiktak.demo';
+    document.getElementById('settingsNotifications').checked = currentUser.settings?.notifications || true;
+    document.getElementById('settingsAutoplay').checked = currentUser.settings?.autoplay || true;
+}
+
+async function saveSettings() {
     const newUsername = document.getElementById('settingsUsername').value.trim();
     const newEmail = document.getElementById('settingsEmail').value.trim();
     
@@ -1552,324 +1038,34 @@ function saveSettings() {
             }
         });
         
-        saveVideos();
+        if (isGitHubInitialized) {
+            await saveVideosToGitHub();
+        } else {
+            saveVideosToLocalStorage();
+        }
     }
     
     if (newEmail) {
         currentUser.email = newEmail;
     }
     
+    currentUser.settings = currentUser.settings || {};
     currentUser.settings.notifications = document.getElementById('settingsNotifications').checked;
     currentUser.settings.autoplay = document.getElementById('settingsAutoplay').checked;
     
-    saveUserData();
+    if (isGitHubInitialized) {
+        await saveCurrentUserToGitHub();
+    } else {
+        saveUserDataToLocalStorage();
+    }
+    
     showNotification('Paramètres sauvegardés ✅', 'success');
     
     // Mettre à jour l'UI
     updateUI();
 }
 
-// ==================== TRANSACTIONS ====================
-function addTransaction(transaction) {
-    transactions.unshift(transaction);
-    localStorage.setItem('tiktak_transactions', JSON.stringify(transactions));
-}
-
-function openTransactions() {
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.id = 'transactionsModal';
-    
-    let transactionsHTML = '<div class="transactions-list">';
-    transactions.slice(0, 20).forEach(trans => {
-        const typeIcon = getTransactionIcon(trans.type);
-        const amountClass = trans.amount > 0 ? 'positive' : 'negative';
-        
-        transactionsHTML += `
-            <div class="transaction-item">
-                <div class="transaction-icon">
-                    <i class="${typeIcon}"></i>
-                </div>
-                <div class="transaction-details">
-                    <div class="transaction-description">${trans.description}</div>
-                    <div class="transaction-info">
-                        <span class="transaction-date">${new Date(trans.timestamp).toLocaleDateString('fr-FR')}</span>
-                    </div>
-                </div>
-                <div class="transaction-amount ${amountClass}">
-                    ${trans.amount > 0 ? '+' : ''}${trans.amount} <i class="fas fa-coins"></i>
-                </div>
-            </div>
-        `;
-    });
-    transactionsHTML += '</div>';
-    
-    modal.innerHTML = `
-        <div class="modal-content">
-            <span class="close-btn" onclick="closeModal('transactionsModal')">&times;</span>
-            <h2><i class="fas fa-history"></i> Historique des Transactions</h2>
-            ${transactionsHTML}
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-    document.body.style.overflow = 'hidden';
-}
-
-function getTransactionIcon(type) {
-    switch(type) {
-        case 'coin_purchase': return 'fas fa-shopping-cart';
-        case 'gift_sent': return 'fas fa-gift';
-        case 'video_upload': return 'fas fa-video';
-        case 'gift_received': return 'fas fa-gift';
-        default: return 'fas fa-exchange-alt';
-    }
-}
-
 // ==================== NOTIFICATIONS ====================
-function openNotifications() {
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.id = 'notificationsModal';
-    
-    const userNotifications = currentUser.notifications || [];
-    
-    let notificationsHTML = '<div class="notifications-list">';
-    if (userNotifications.length === 0) {
-        notificationsHTML += `
-            <div class="empty-state">
-                <i class="fas fa-bell-slash"></i>
-                <h3>Aucune notification</h3>
-                <p>Vous serez notifié des nouvelles activités</p>
-            </div>
-        `;
-    } else {
-        userNotifications.forEach(notif => {
-            const icon = getNotificationIcon(notif.type);
-            notificationsHTML += `
-                <div class="notification-item ${notif.read ? '' : 'unread'}" onclick="handleNotificationClick('${notif.id}')">
-                    <div class="notification-icon">
-                        <i class="${icon}"></i>
-                    </div>
-                    <div class="notification-content">
-                        <p>${notif.message}</p>
-                        <small>${getTimeAgo(notif.timestamp)}</small>
-                    </div>
-                    ${!notif.read ? '<span class="unread-dot"></span>' : ''}
-                </div>
-            `;
-        });
-    }
-    notificationsHTML += '</div>';
-    
-    modal.innerHTML = `
-        <div class="modal-content">
-            <span class="close-btn" onclick="closeModal('notificationsModal')">&times;</span>
-            <h2><i class="fas fa-bell"></i> Notifications</h2>
-            <div class="notifications-header">
-                <button class="btn btn-small" onclick="markAllAsRead()">
-                    <i class="fas fa-check-double"></i> Tout marquer comme lu
-                </button>
-                <button class="btn btn-small btn-danger" onclick="clearAllNotifications()">
-                    <i class="fas fa-trash"></i> Tout supprimer
-                </button>
-            </div>
-            ${notificationsHTML}
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-    document.body.style.overflow = 'hidden';
-}
-
-function getNotificationIcon(type) {
-    switch(type) {
-        case 'like': return 'fas fa-heart';
-        case 'comment': return 'fas fa-comment';
-        case 'follow': return 'fas fa-user-plus';
-        case 'gift': return 'fas fa-gift';
-        default: return 'fas fa-bell';
-    }
-}
-
-function addNotification(userId, notification) {
-    // Dans une application réelle, cette fonction enverrait la notification au serveur
-    // Pour la démo, nous l'ajoutons simplement à l'utilisateur actuel si c'est lui
-    if (userId === currentUser.id) {
-        currentUser.notifications.unshift(notification);
-        saveUserData();
-        
-        // Mettre à jour le badge de notifications
-        updateNotificationBadge();
-    }
-}
-
-function handleNotificationClick(notificationId) {
-    const notification = currentUser.notifications.find(n => n.id === notificationId);
-    if (!notification) return;
-    
-    // Marquer comme lu
-    notification.read = true;
-    saveUserData();
-    
-    // Traiter selon le type
-    switch(notification.type) {
-        case 'like':
-        case 'comment':
-        case 'gift':
-            if (notification.videoId) {
-                openVideoDetail(notification.videoId);
-            }
-            break;
-        case 'follow':
-            openCreatorProfile(notification.fromUserId);
-            break;
-    }
-    
-    // Fermer la modale
-    closeModal('notificationsModal');
-}
-
-function markAllAsRead() {
-    currentUser.notifications.forEach(notif => notif.read = true);
-    saveUserData();
-    openNotifications(); // Recharger
-    updateNotificationBadge();
-}
-
-function clearAllNotifications() {
-    if (confirm('Supprimer toutes les notifications ?')) {
-        currentUser.notifications = [];
-        saveUserData();
-        openNotifications(); // Recharger
-        updateNotificationBadge();
-    }
-}
-
-function updateNotificationBadge() {
-    const unreadCount = currentUser.notifications.filter(n => !n.read).length;
-    const badge = document.querySelector('.notification-badge');
-    
-    if (unreadCount > 0) {
-        if (!badge) {
-            const bell = document.querySelector('.nav-item:nth-child(4)');
-            if (bell) {
-                const newBadge = document.createElement('span');
-                newBadge.className = 'notification-badge';
-                newBadge.textContent = unreadCount > 9 ? '9+' : unreadCount;
-                bell.appendChild(newBadge);
-            }
-        } else {
-            badge.textContent = unreadCount > 9 ? '9+' : unreadCount;
-        }
-    } else if (badge) {
-        badge.remove();
-    }
-}
-
-// ==================== FONCTIONS UTILITAIRES ====================
-function saveVideos() {
-    localStorage.setItem('tiktak_videos', JSON.stringify(videos));
-}
-
-function saveUserData() {
-    localStorage.setItem('tiktak_user', JSON.stringify(currentUser));
-}
-
-function saveComments() {
-    localStorage.setItem('tiktak_comments', JSON.stringify(comments));
-}
-
-function formatNumber(num) {
-    if (num >= 1000000) {
-        return (num / 1000000).toFixed(1) + 'M';
-    }
-    if (num >= 1000) {
-        return (num / 1000).toFixed(1) + 'K';
-    }
-    return num.toString();
-}
-
-function formatFileSize(bytes) {
-    if (bytes >= 1000000) {
-        return (bytes / 1000000).toFixed(1) + ' MB';
-    }
-    if (bytes >= 1000) {
-        return (bytes / 1000).toFixed(1) + ' KB';
-    }
-    return bytes + ' B';
-}
-
-function formatDuration(seconds) {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-}
-
-function getTimeAgo(timestamp) {
-    const seconds = Math.floor((Date.now() - timestamp) / 1000);
-    
-    if (seconds < 60) return 'À l\'instant';
-    if (seconds < 3600) return Math.floor(seconds / 60) + ' min';
-    if (seconds < 86400) return Math.floor(seconds / 3600) + ' h';
-    if (seconds < 2592000) return Math.floor(seconds / 86400) + ' j';
-    if (seconds < 31536000) return Math.floor(seconds / 2592000) + ' mois';
-    return Math.floor(seconds / 31536000) + ' an';
-}
-
-function extractHashtags(text) {
-    const hashtags = text.match(/#[\wÀ-ÿ]+/g);
-    return hashtags ? hashtags.slice(0, 5) : []; // Maximum 5 hashtags
-}
-
-function generateThumbnail() {
-    // Dans une application réelle, on générerait une miniature à partir de la vidéo
-    // Pour la démo, on utilise des images aléatoires
-    const thumbnails = [
-        'https://images.unsplash.com/photo-1611605698335-8b1569810432?ixlib=rb-4.0.3&auto=format&fit=crop&w=1074&q=80',
-        'https://images.unsplash.com/photo-1518709268805-4e9042af2176?ixlib=rb-4.0.3&auto=format&fit=crop&w=1068&q=80',
-        'https://images.unsplash.com/photo-1517649763962-0c623066013b?ixlib=rb-4.0.3&auto=format&fit=crop&w=1170&q=80',
-        'https://images.unsplash.com/photo-1565958011703-44f9829ba187?ixlib=rb-4.0.3&auto=format&fit=crop&w=1065&q=80'
-    ];
-    return thumbnails[Math.floor(Math.random() * thumbnails.length)];
-}
-
-function updateUI() {
-    // Mettre à jour le solde de coins
-    document.getElementById('coinCount').textContent = currentUser.coins;
-    document.getElementById('coinBalance').title = `${currentUser.coins} coins disponibles`;
-    
-    // Mettre à jour l'avatar utilisateur
-    document.getElementById('userAvatar').src = currentUser.avatar;
-    
-    // Mettre à jour le badge de notifications
-    updateNotificationBadge();
-}
-
-function updateVideoStats(videoId) {
-    const video = videos.find(v => v.id === videoId);
-    if (!video) return;
-    
-    const container = document.querySelector(`.video-container[data-video-id="${videoId}"]`);
-    if (!container) return;
-    
-    // Mettre à jour les likes
-    const likeElement = container.querySelector('.action:nth-child(1)');
-    likeElement.querySelector('span').textContent = formatNumber(video.likes);
-    
-    // Mettre à jour les commentaires
-    const commentElement = container.querySelector('.action:nth-child(2)');
-    commentElement.querySelector('span').textContent = formatNumber(video.comments);
-    
-    // Mettre à jour les partages
-    const shareElement = container.querySelector('.action:nth-child(3)');
-    shareElement.querySelector('span').textContent = formatNumber(video.shares);
-    
-    // Mettre à jour les cadeaux
-    const giftElement = container.querySelector('.action:nth-child(4)');
-    giftElement.querySelector('span').textContent = formatNumber(video.gifts || 0);
-}
-
 function showNotification(message, type = 'info') {
     const container = document.getElementById('notificationsContainer');
     const notification = document.createElement('div');
@@ -1892,6 +1088,104 @@ function showNotification(message, type = 'info') {
     }, 5000);
 }
 
+async function addNotification(userId, notification) {
+    // Dans une application réelle, cette fonction enverrait la notification au serveur
+    // Pour la démo, nous l'ajoutons simplement à l'utilisateur actuel si c'est lui
+    if (userId === currentUser.id) {
+        if (!currentUser.notifications) currentUser.notifications = [];
+        currentUser.notifications.unshift(notification);
+        
+        if (isGitHubInitialized) {
+            await saveCurrentUserToGitHub();
+        } else {
+            saveUserDataToLocalStorage();
+        }
+        
+        // Mettre à jour le badge de notifications
+        updateNotificationBadge();
+    }
+}
+
+// ==================== MISE À JOUR DE L'INTERFACE ====================
+function updateUI() {
+    // Mettre à jour le solde de coins
+    document.getElementById('coinCount').textContent = currentUser.coins || 100;
+    document.getElementById('coinBalance').title = `${currentUser.coins || 100} coins disponibles`;
+    
+    // Mettre à jour l'avatar utilisateur
+    document.getElementById('userAvatar').src = currentUser.avatar || 'https://randomuser.me/api/portraits/lego/1.jpg';
+    
+    // Mettre à jour le badge de notifications
+    updateNotificationBadge();
+}
+
+function updateNotificationBadge() {
+    const unreadCount = currentUser.notifications?.filter(n => !n.read).length || 0;
+    const badge = document.querySelector('.notification-badge');
+    
+    if (unreadCount > 0) {
+        if (!badge) {
+            const bell = document.querySelector('.nav-item:nth-child(4)');
+            if (bell) {
+                const newBadge = document.createElement('span');
+                newBadge.className = 'notification-badge';
+                newBadge.textContent = unreadCount > 9 ? '9+' : unreadCount;
+                bell.appendChild(newBadge);
+            }
+        } else {
+            badge.textContent = unreadCount > 9 ? '9+' : unreadCount;
+        }
+    } else if (badge) {
+        badge.remove();
+    }
+}
+
+function updateVideoStats(videoId) {
+    const video = videos.find(v => v.id === videoId);
+    if (!video) return;
+    
+    const container = document.querySelector(`.video-container[data-video-id="${videoId}"]`);
+    if (!container) return;
+    
+    // Mettre à jour les likes
+    const likeElement = container.querySelector('.action:nth-child(1)');
+    if (likeElement) {
+        likeElement.querySelector('span').textContent = formatNumber(video.likes);
+    }
+    
+    // Mettre à jour les commentaires
+    const commentElement = container.querySelector('.action:nth-child(2)');
+    if (commentElement) {
+        commentElement.querySelector('span').textContent = formatNumber(video.comments);
+    }
+    
+    // Mettre à jour les partages
+    const shareElement = container.querySelector('.action:nth-child(3)');
+    if (shareElement) {
+        shareElement.querySelector('span').textContent = formatNumber(video.shares);
+    }
+    
+    // Mettre à jour les cadeaux
+    const giftElement = container.querySelector('.action:nth-child(4)');
+    if (giftElement) {
+        giftElement.querySelector('span').textContent = formatNumber(video.gifts || 0);
+    }
+}
+
+// ==================== NAVIGATION ====================
+function showHome() {
+    showNotification('Accueil', 'info');
+    document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+    document.querySelector('.nav-item:nth-child(1)').classList.add('active');
+    renderVideoFeed();
+}
+
+function toggleUserMenu() {
+    const menu = document.getElementById('userDropdown');
+    menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+}
+
+// ==================== FONCTIONS RESTANTES (simplifiées pour GitHub Storage) ====================
 function showHeartAnimation() {
     const heart = document.createElement('div');
     heart.innerHTML = '<i class="fas fa-heart"></i>';
@@ -1913,225 +1207,45 @@ function showHeartAnimation() {
     }, 1000);
 }
 
-function showGiftAnimation(gift) {
-    const animation = document.createElement('div');
-    animation.className = 'gift-animation';
-    animation.innerHTML = `<i class="${gift.icon}"></i>`;
-    animation.style.color = getRandomColor();
-    
-    document.body.appendChild(animation);
-    
-    setTimeout(() => {
-        animation.remove();
-    }, 2000);
+function showCreateOptions() {
+    document.getElementById('createOptions').style.display = 'flex';
+    document.getElementById('videoUploadSection').style.display = 'none';
 }
 
-function getRandomColor() {
-    const colors = ['#ff4757', '#00f2fe', '#ffd700', '#ffaa00', '#00ff88', '#4facfe'];
-    return colors[Math.floor(Math.random() * colors.length)];
+function openUploadSection() {
+    document.getElementById('createOptions').style.display = 'none';
+    document.getElementById('videoUploadSection').style.display = 'block';
 }
 
-// ==================== NAVIGATION ====================
-function showHome() {
-    showNotification('Accueil', 'info');
-    document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
-    document.querySelector('.nav-item:nth-child(1)').classList.add('active');
-    renderVideoFeed();
+function openCameraForRecording() {
+    openUploadSection();
+    isUsingCamera = true;
+    document.getElementById('cameraControls').style.display = 'flex';
+    document.getElementById('fileUploadControls').style.display = 'none';
 }
 
-function showTrending() {
-    // Trier les vidéos par popularité
-    const trendingVideos = [...videos].sort((a, b) => 
-        (b.likes + b.comments * 2 + b.shares * 3 + b.views * 0.1) - 
-        (a.likes + a.comments * 2 + a.shares * 3 + a.views * 0.1)
-    );
-    
-    const videoFeed = document.getElementById('videoFeed');
-    videoFeed.innerHTML = '';
-    trendingVideos.forEach(video => {
-        videoFeed.appendChild(createVideoElement(video));
-    });
-    
-    showNotification('Tendances', 'info');
+function openFileUpload() {
+    openUploadSection();
+    isUsingCamera = false;
+    document.getElementById('cameraControls').style.display = 'none';
+    document.getElementById('fileUploadControls').style.display = 'flex';
 }
 
-function showFollowing() {
-    const followingVideos = videos.filter(v => currentUser.following.includes(v.userId));
-    
-    const videoFeed = document.getElementById('videoFeed');
-    videoFeed.innerHTML = '';
-    
-    if (followingVideos.length === 0) {
-        videoFeed.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-users"></i>
-                <h3>Pas encore d'abonnements</h3>
-                <p>Suivez des créateurs pour voir leurs vidéos ici</p>
-            </div>
-        `;
-    } else {
-        followingVideos.forEach(video => {
-            videoFeed.appendChild(createVideoElement(video));
-        });
+function clearLocalStorage() {
+    if (confirm('Voulez-vous vraiment réinitialiser toutes les données locales ? Cette action est irréversible.')) {
+        localStorage.clear();
+        location.reload();
     }
-    
-    showNotification('Abonnements', 'info');
-}
-
-function showFavorites() {
-    const favoriteVideos = videos.filter(v => currentUser.likedVideos.includes(v.id));
-    
-    const videoFeed = document.getElementById('videoFeed');
-    videoFeed.innerHTML = '';
-    
-    if (favoriteVideos.length === 0) {
-        videoFeed.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-heart"></i>
-                <h3>Pas encore de favoris</h3>
-                <p>Likez des vidéos pour les retrouver ici</p>
-            </div>
-        `;
-    } else {
-        favoriteVideos.forEach(video => {
-            videoFeed.appendChild(createVideoElement(video));
-        });
-    }
-    
-    showNotification('Favoris', 'info');
-}
-
-function openSearch() {
-    const searchInput = document.getElementById('searchInput');
-    if (searchInput.style.display === 'none' || searchInput.style.display === '') {
-        searchInput.style.display = 'block';
-        searchInput.focus();
-    } else {
-        searchInput.style.display = 'none';
-    }
-}
-
-function openWallet() {
-    openCoinShop();
 }
 
 function logout() {
     if (confirm('Voulez-vous vraiment vous déconnecter ?')) {
         showNotification('Déconnexion...', 'info');
         setTimeout(() => {
-            // Effacer les données de session
-            localStorage.removeItem('tiktak_user');
+            localStorage.removeItem('tiktak_current_user_id');
             location.reload();
         }, 1000);
     }
-}
-
-function openCreatorProfile(userId) {
-    const user = getUserById(userId);
-    if (!user) return;
-    
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.id = 'creatorProfileModal';
-    
-    modal.innerHTML = `
-        <div class="modal-content profile-modal">
-            <span class="close-btn" onclick="closeModal('creatorProfileModal')">&times;</span>
-            
-            <div class="creator-profile-header">
-                <img src="${user.avatar}" alt="${user.username}">
-                <div class="creator-profile-info">
-                    <h3>${user.username}</h3>
-                    <p><i class="fas fa-coins"></i> ${user.coins || 0} coins</p>
-                    <div class="creator-stats">
-                        <div class="stat">
-                            <strong>${videos.filter(v => v.userId === userId).length}</strong>
-                            <span>Vidéos</span>
-                        </div>
-                        <div class="stat">
-                            <strong>${user.followers ? user.followers.length : 0}</strong>
-                            <span>Abonnés</span>
-                        </div>
-                        <div class="stat">
-                            <strong>${user.following ? user.following.length : 0}</strong>
-                            <span>Abonnements</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="creator-videos">
-                <h4>Vidéos de ${user.username}</h4>
-                <div class="videos-grid">
-                    ${videos.filter(v => v.userId === userId).map(video => `
-                        <div class="video-thumbnail" onclick="openVideoDetail('${video.id}'); closeModal('creatorProfileModal')">
-                            <img src="${video.thumbnail}" alt="${video.caption}">
-                            <div class="thumbnail-overlay">
-                                <span><i class="fas fa-heart"></i> ${formatNumber(video.likes)}</span>
-                                <span><i class="fas fa-eye"></i> ${formatNumber(video.views)}</span>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-    document.body.style.overflow = 'hidden';
-}
-
-function getUserById(userId) {
-    // Dans une application réelle, ce serait une requête API
-    // Pour la démo, on simule un utilisateur
-    if (userId === currentUser.id) {
-        return currentUser;
-    }
-    
-    // Simuler d'autres utilisateurs
-    const demoUsers = [
-        {
-            id: 'user_2',
-            username: 'Créateur Pro',
-            avatar: 'https://randomuser.me/api/portraits/lego/2.jpg',
-            coins: 500,
-            followers: ['user_1', 'user_3'],
-            following: ['user_3']
-        },
-        {
-            id: 'user_3',
-            username: 'Artiste Digital',
-            avatar: 'https://randomuser.me/api/portraits/lego/3.jpg',
-            coins: 250,
-            followers: ['user_1', 'user_2'],
-            following: ['user_2']
-        },
-        {
-            id: 'user_4',
-            username: 'Sport Extrême',
-            avatar: 'https://randomuser.me/api/portraits/lego/4.jpg',
-            coins: 750,
-            followers: ['user_1'],
-            following: ['user_2']
-        },
-        {
-            id: 'user_5',
-            username: 'Cuisine Créative',
-            avatar: 'https://randomuser.me/api/portraits/lego/5.jpg',
-            coins: 300,
-            followers: ['user_1', 'user_3'],
-            following: ['user_2', 'user_3']
-        }
-    ];
-    
-    return demoUsers.find(u => u.id === userId) || {
-        id: userId,
-        username: 'Utilisateur Inconnu',
-        avatar: 'https://randomuser.me/api/portraits/lego/1.jpg',
-        coins: 0,
-        followers: [],
-        following: []
-    };
 }
 
 // ==================== ÉCOUTEURS D'ÉVÉNEMENTS ====================
@@ -2159,6 +1273,7 @@ function setupEventListeners() {
             closeCreateModal();
             closeProfile();
             closeSettings();
+            closeLiveModal();
             const modals = document.querySelectorAll('.modal-overlay');
             modals.forEach(modal => modal.remove());
             document.body.style.overflow = 'auto';
@@ -2167,21 +1282,20 @@ function setupEventListeners() {
     
     // Fermer les modales en cliquant à l'extérieur
     document.addEventListener('click', function(event) {
-        // Menu utilisateur
         const menu = document.getElementById('userDropdown');
         const userMenu = document.querySelector('.user-menu');
         if (menu && menu.style.display === 'block' && !userMenu.contains(event.target) && !menu.contains(event.target)) {
             menu.style.display = 'none';
         }
         
-        // Modales principales
-        const modals = ['createModal', 'profileModal', 'settingsModal'];
+        const modals = ['createModal', 'profileModal', 'settingsModal', 'liveModal'];
         modals.forEach(modalId => {
             const modal = document.getElementById(modalId);
             if (modal && modal.style.display === 'flex' && event.target === modal) {
                 if (modalId === 'createModal') closeCreateModal();
                 if (modalId === 'profileModal') closeProfile();
                 if (modalId === 'settingsModal') closeSettings();
+                if (modalId === 'liveModal') closeLiveModal();
             }
         });
     });
@@ -2193,36 +1307,6 @@ function setupEventListeners() {
             this.classList.add('active');
         });
     });
-    
-    // Intersection Observer pour le lazy loading des vidéos
-    if ('IntersectionObserver' in window) {
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    const video = entry.target.querySelector('video');
-                    if (video && currentUser.settings.autoplay && video.paused) {
-                        video.muted = true;
-                        video.play().catch(e => console.log('Auto-play prevented'));
-                    }
-                } else {
-                    const video = entry.target.querySelector('video');
-                    if (video && !video.paused) {
-                        video.pause();
-                    }
-                }
-            });
-        }, { threshold: 0.5 });
-        
-        // Observer les vidéos quand elles sont ajoutées au DOM
-        const observerConfig = { childList: true, subtree: true };
-        const domObserver = new MutationObserver(() => {
-            document.querySelectorAll('.video-container').forEach(container => {
-                observer.observe(container);
-            });
-        });
-        
-        domObserver.observe(document.body, observerConfig);
-    }
 }
 
 function performSearch(query) {
@@ -2260,932 +1344,110 @@ function performSearch(query) {
     showNotification(`${results.length} résultat(s) pour "${query}"`, 'success');
 }
 
-// ==================== GESTION DES VIDÉOS EN LECTURE ====================
-document.addEventListener('visibilitychange', function() {
-    if (document.hidden && currentPlayingVideo) {
-        currentPlayingVideo.pause();
-        if (currentPlayingVideo.closest('.video-container')) {
-            currentPlayingVideo.closest('.video-container').querySelector('.manual-play-btn').innerHTML = '<i class="fas fa-play"></i>';
-        }
-    }
-});
-
-// Événement personnalisé pour l'ouverture de modales
-window.addEventListener('modalOpen', function() {
-    if (currentPlayingVideo) {
-        currentPlayingVideo.pause();
-        if (currentPlayingVideo.closest('.video-container')) {
-            currentPlayingVideo.closest('.video-container').querySelector('.manual-play-btn').innerHTML = '<i class="fas fa-play"></i>';
-        }
-    }
-});
-
-// ==================== FONCTIONS CAMÉRA ET ENREGISTREMENT ====================
-function setupCameraFeatures() {
-    const startCameraBtn = document.getElementById('startCameraBtn');
-    const recordBtn = document.getElementById('recordBtn');
-    const stopRecordBtn = document.getElementById('stopRecordBtn');
-    const cameraPreview = document.getElementById('cameraPreview');
-    const videoPreview = document.getElementById('previewVideo');
-    const previewPlaceholder = document.querySelector('.preview-placeholder');
-
-    if (startCameraBtn) {
-        startCameraBtn.addEventListener('click', async function() {
-            try {
-                // Demander l'accès à la caméra et au micro
-                cameraStream = await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 },
-                        facingMode: 'user'
-                    },
-                    audio: true
-                });
-
-                // Afficher l'aperçu de la caméra
-                cameraPreview.srcObject = cameraStream;
-                cameraPreview.style.display = 'block';
-                videoPreview.style.display = 'none';
-                previewPlaceholder.style.display = 'none';
-
-                // Afficher les boutons d'enregistrement
-                startCameraBtn.style.display = 'none';
-                recordBtn.style.display = 'inline-block';
-
-                showNotification('Caméra et microphone activés 🎥', 'success');
-            } catch (error) {
-                console.error('Erreur caméra:', error);
-                showNotification('Erreur d\'accès à la caméra/microphone', 'error');
-                
-                // Proposer une alternative
-                if (confirm('Voulez-vous utiliser une vidéo de démo à la place ?')) {
-                    simulateRecording();
-                }
-            }
-        });
-    }
-
-    if (recordBtn) {
-        recordBtn.addEventListener('click', startCameraRecording);
-    }
-
-    if (stopRecordBtn) {
-        stopRecordBtn.addEventListener('click', stopCameraRecording);
+// ==================== FONCTIONS D'ASSISTANCE ====================
+function openSearch() {
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput.style.display === 'none' || searchInput.style.display === '') {
+        searchInput.style.display = 'block';
+        searchInput.focus();
+    } else {
+        searchInput.style.display = 'none';
     }
 }
 
-function startCameraRecording() {
-    if (!cameraStream) {
-        showNotification('Veuillez d\'abord activer la caméra', 'error');
-        return;
-    }
-
-    recordedChunks = [];
-    isRecording = true;
-    recordingSeconds = 0;
-
-    // Configurer le MediaRecorder
-    mediaRecorder = new MediaRecorder(cameraStream, {
-        mimeType: 'video/webm;codecs=vp9,opus'
-    });
-
-    mediaRecorder.ondataavailable = function(event) {
-        if (event.data.size > 0) {
-            recordedChunks.push(event.data);
-        }
-    };
-
-    mediaRecorder.onstop = function() {
-        // Créer la vidéo à partir des chunks enregistrés
-        const blob = new Blob(recordedChunks, { type: 'video/webm' });
-        const file = new File([blob], 'enregistrement_camera.webm', { type: 'video/webm' });
-        
-        // Traiter le fichier vidéo
-        processVideoFile(file);
-        
-        // Réinitialiser l'interface
-        document.getElementById('recordBtn').style.display = 'inline-block';
-        document.getElementById('stopRecordBtn').style.display = 'none';
-        document.getElementById('cameraPreview').style.display = 'none';
-        document.getElementById('previewVideo').style.display = 'block';
-        
-        // Arrêter le minuteur
-        clearInterval(recordingTimer);
-        const timerElement = document.querySelector('.recording-timer');
-        if (timerElement) timerElement.remove();
-        
-        showNotification('Enregistrement terminé ✅', 'success');
-    };
-
-    // Démarrer l'enregistrement
-    mediaRecorder.start();
-
-    // Afficher les indicateurs
-    document.getElementById('recordBtn').style.display = 'none';
-    document.getElementById('stopRecordBtn').style.display = 'inline-block';
-
-    // Ajouter l'indicateur d'enregistrement
-    const cameraPreview = document.getElementById('cameraPreview');
-    const recordingIndicator = document.createElement('div');
-    recordingIndicator.className = 'recording-indicator';
-    recordingIndicator.innerHTML = '<i class="fas fa-circle"></i> Enregistrement';
-    cameraPreview.parentNode.appendChild(recordingIndicator);
-
-    // Ajouter le minuteur
-    const recordingTimerDiv = document.createElement('div');
-    recordingTimerDiv.className = 'recording-timer';
-    recordingTimerDiv.textContent = '00:00';
-    cameraPreview.parentNode.appendChild(recordingTimerDiv);
-
-    // Démarrer le minuteur
-    recordingTimer = setInterval(() => {
-        recordingSeconds++;
-        const minutes = Math.floor(recordingSeconds / 60).toString().padStart(2, '0');
-        const seconds = (recordingSeconds % 60).toString().padStart(2, '0');
-        recordingTimerDiv.textContent = `${minutes}:${seconds}`;
-    }, 1000);
-
-    showNotification('Enregistrement démarré... ⏺️', 'info');
+function openWallet() {
+    // Implémenter plus tard
+    showNotification('Fonctionnalité portefeuille à venir', 'info');
 }
 
-function stopCameraRecording() {
-    if (mediaRecorder && isRecording) {
-        mediaRecorder.stop();
-        isRecording = false;
-        
-        // Arrêter la caméra
-        if (cameraStream) {
-            cameraStream.getTracks().forEach(track => track.stop());
-            cameraStream = null;
-        }
-    }
+function openNotifications() {
+    showNotification('Fonctionnalité notifications à venir', 'info');
+}
+
+function showTrending() {
+    showNotification('Fonctionnalité tendances à venir', 'info');
+}
+
+function showFollowing() {
+    showNotification('Fonctionnalité abonnements à venir', 'info');
+}
+
+function showFavorites() {
+    showNotification('Fonctionnalité favoris à venir', 'info');
+}
+
+function showMyVideos() {
+    showNotification('Fonctionnalité mes vidéos à venir', 'info');
+}
+
+function showProfileTab(tabName) {
+    showNotification(`Onglet ${tabName} à venir`, 'info');
+}
+
+function openCreatorProfile(userId) {
+    showNotification('Profil créateur à venir', 'info');
+}
+
+function openGiftShop(videoId) {
+    showNotification('Boutique de cadeaux à venir', 'info');
+}
+
+function openCommentsModal(videoId) {
+    showNotification('Commentaires à venir', 'info');
+}
+
+function changeProfilePicture() {
+    showNotification('Changer photo de profil à venir', 'info');
+}
+
+function initializeNewFeatures() {
+    // Fonction vide pour l'instant
+}
+
+function initializeLiveFeatures() {
+    // Fonction vide pour l'instant
+}
+
+function startLiveStream() {
+    showNotification('Démarrage du live à venir', 'info');
+}
+
+function stopLiveStream() {
+    showNotification('Arrêt du live à venir', 'info');
+}
+
+function sendChatMessage() {
+    showNotification('Chat live à venir', 'info');
+}
+
+function setupLiveStream() {
+    showNotification('Configuration live à venir', 'info');
+}
+
+function startCameraForRecording() {
+    showNotification('Caméra à venir', 'info');
+}
+
+function stopCameraForRecording() {
+    showNotification('Arrêt caméra à venir', 'info');
 }
 
 function stopCamera() {
-    if (cameraStream) {
-        cameraStream.getTracks().forEach(track => track.stop());
-        cameraStream = null;
-    }
-    
-    // Réinitialiser l'interface
-    document.getElementById('cameraPreview').style.display = 'none';
-    document.getElementById('startCameraBtn').style.display = 'inline-block';
-    document.getElementById('recordBtn').style.display = 'none';
-    document.getElementById('stopRecordBtn').style.display = 'none';
-    document.getElementById('previewVideo').style.display = 'block';
+    // Fonction vide pour l'instant
 }
 
-// ==================== FONCTIONS PHOTO DE PROFIL ====================
-function changeProfilePicture() {
-    // Créer une modal pour choisir la méthode
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.id = 'profilePictureModal';
-    modal.innerHTML = `
-        <div class="modal-content profile-picture-modal">
-            <span class="close-btn" onclick="closeModal('profilePictureModal')">&times;</span>
-            <h2><i class="fas fa-camera"></i> Changer la photo de profil</h2>
-            
-            <div class="profile-picture-options">
-                <div class="option" onclick="chooseProfilePictureFile()">
-                    <div class="option-icon">
-                        <i class="fas fa-folder-open"></i>
-                    </div>
-                    <div class="option-content">
-                        <h3>Choisir un fichier</h3>
-                        <p>Sélectionnez une image depuis votre appareil</p>
-                    </div>
-                </div>
-                
-                <div class="option" onclick="takeProfilePictureWithCamera()">
-                    <div class="option-icon">
-                        <i class="fas fa-camera"></i>
-                    </div>
-                    <div class="option-content">
-                        <h3>Prendre une photo</h3>
-                        <p>Utilisez votre caméra pour prendre une photo</p>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('profilePictureModal')">
-                    Annuler
-                </button>
-            </div>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-    document.body.style.overflow = 'hidden';
+function startRecording() {
+    showNotification('Enregistrement à venir', 'info');
 }
 
-function chooseProfilePictureFile() {
-    document.getElementById('profilePictureInput').click();
-    closeModal('profilePictureModal');
+function stopRecording() {
+    showNotification('Arrêt enregistrement à venir', 'info');
 }
 
-function takeProfilePictureWithCamera() {
-    closeModal('profilePictureModal');
-    
-    // Créer une modal pour la caméra
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.id = 'cameraProfileModal';
-    modal.innerHTML = `
-        <div class="modal-content camera-profile-modal">
-            <span class="close-btn" onclick="closeCameraProfileModal()">&times;</span>
-            <h2><i class="fas fa-camera"></i> Prendre une photo</h2>
-            
-            <div class="camera-preview">
-                <video id="profileCameraPreview" autoplay playsinline></video>
-                <div class="camera-overlay">
-                    <div class="circle-frame"></div>
-                </div>
-            </div>
-            
-            <div class="camera-controls">
-                <button class="btn btn-secondary" onclick="switchCamera()">
-                    <i class="fas fa-sync-alt"></i> Changer de caméra
-                </button>
-                <button class="btn btn-primary" onclick="captureProfilePicture()">
-                    <i class="fas fa-camera"></i> Prendre la photo
-                </button>
-            </div>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-    document.body.style.overflow = 'hidden';
-    
-    // Démarrer la caméra
-    startCameraForProfilePicture();
+function addTransaction(transaction) {
+    transactions.unshift(transaction);
+    localStorage.setItem('tiktak_transactions', JSON.stringify(transactions));
 }
-
-let currentFacingMode = 'user';
-
-function startCameraForProfilePicture() {
-    navigator.mediaDevices.getUserMedia({ 
-        video: { 
-            width: { ideal: 720 },
-            height: { ideal: 720 },
-            facingMode: currentFacingMode
-        },
-        audio: false
-    })
-    .then(stream => {
-        cameraStream = stream;
-        const video = document.getElementById('profileCameraPreview');
-        video.srcObject = stream;
-    })
-    .catch(error => {
-        console.error('Erreur caméra:', error);
-        showNotification('Impossible d\'accéder à la caméra', 'error');
-        closeCameraProfileModal();
-    });
-}
-
-function switchCamera() {
-    currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
-    
-    // Arrêter le flux actuel
-    if (cameraStream) {
-        cameraStream.getTracks().forEach(track => track.stop());
-    }
-    
-    // Redémarrer avec le nouveau mode
-    startCameraForProfilePicture();
-}
-
-function captureProfilePicture() {
-    const video = document.getElementById('profileCameraPreview');
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    
-    const ctx = canvas.getContext('2d');
-    
-    // Dessiner l'image en gardant les proportions
-    const scale = Math.min(canvas.width / video.videoWidth, canvas.height / video.videoHeight);
-    const x = (canvas.width / 2) - (video.videoWidth / 2) * scale;
-    const y = (canvas.height / 2) - (video.videoHeight / 2) * scale;
-    
-    ctx.drawImage(video, x, y, video.videoWidth * scale, video.videoHeight * scale);
-    
-    // Convertir en blob
-    canvas.toBlob(blob => {
-        const file = new File([blob], 'profile_picture.jpg', { type: 'image/jpeg' });
-        processProfilePictureFile(file);
-    }, 'image/jpeg', 0.9);
-    
-    // Arrêter la caméra et fermer la modal
-    closeCameraProfileModal();
-}
-
-function closeCameraProfileModal() {
-    if (cameraStream) {
-        cameraStream.getTracks().forEach(track => track.stop());
-        cameraStream = null;
-    }
-    closeModal('cameraProfileModal');
-}
-
-function setupProfilePictureUpload() {
-    const profilePictureInput = document.getElementById('profilePictureInput');
-    
-    if (profilePictureInput) {
-        profilePictureInput.addEventListener('change', function(event) {
-            const file = event.target.files[0];
-            if (file) {
-                processProfilePictureFile(file);
-            }
-        });
-    }
-}
-
-function processProfilePictureFile(file) {
-    if (!file.type.startsWith('image/')) {
-        showNotification('Veuillez sélectionner une image valide', 'error');
-        return;
-    }
-    
-    if (file.size > 5 * 1024 * 1024) { // 5MB limit
-        showNotification('L\'image est trop volumineuse (max 5MB)', 'error');
-        return;
-    }
-    
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        // Mettre à jour l'avatar de l'utilisateur
-        currentUser.avatar = e.target.result;
-        
-        // Mettre à jour toutes les images de profil dans l'interface
-        document.querySelectorAll('#userAvatar, #profileAvatar').forEach(img => {
-            img.src = e.target.result;
-        });
-        
-        // Mettre à jour l'avatar dans les vidéos existantes
-        videos.forEach(video => {
-            if (video.userId === currentUser.id) {
-                video.avatar = e.target.result;
-            }
-        });
-        
-        // Sauvegarder
-        saveUserData();
-        saveVideos();
-        
-        showNotification('Photo de profil mise à jour 📸', 'success');
-    };
-    
-    reader.readAsDataURL(file);
-}
-
-// ==================== FONCTIONS LIVE STREAMING COMPLÈTES ====================
-
-// Initialiser les fonctionnalités live
-function initializeLiveFeatures() {
-    // Initialiser les valeurs par défaut
-    const liveTitleInput = document.getElementById('liveTitle');
-    if (liveTitleInput) {
-        liveTitleInput.value = `${currentUser.username} - Live`;
-    }
-    
-    // Ajouter des écouteurs d'événements
-    const chatMessageInput = document.getElementById('chatMessage');
-    if (chatMessageInput) {
-        chatMessageInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter' && isLive) {
-                sendChatMessage();
-            }
-        });
-    }
-}
-
-// Ouvrir la modale de live
-function openLiveStream() {
-    document.getElementById('liveModal').style.display = 'flex';
-    document.body.style.overflow = 'hidden';
-    dispatchEvent(new CustomEvent('modalOpen'));
-    
-    // Réinitialiser l'état du live
-    resetLiveState();
-    
-    // Afficher les boutons appropriés
-    document.getElementById('startLiveBtn').style.display = 'inline-block';
-    document.getElementById('stopLiveBtn').style.display = 'none';
-    document.getElementById('setupLiveBtn').style.display = 'inline-block';
-    document.getElementById('liveSettings').style.display = 'none';
-    
-    // Désactiver le chat
-    document.getElementById('chatMessage').disabled = true;
-    document.querySelector('.chat-input button').disabled = true;
-    
-    // Mettre à jour le statut
-    updateLiveStatus('ready');
-    
-    // Démarrer la prévisualisation de la caméra
-    startLivePreview();
-}
-
-// Fermer la modale de live
-function closeLiveModal() {
-    // Arrêter le live si actif
-    if (isLive) {
-        stopLiveStream();
-    }
-    
-    // Arrêter la prévisualisation
-    stopLivePreview();
-    
-    // Cacher la modale
-    document.getElementById('liveModal').style.display = 'none';
-    document.body.style.overflow = 'auto';
-    
-    // Mettre à jour le bouton live dans la navbar
-    const liveBtn = document.querySelector('.btn-live');
-    if (liveBtn) {
-        liveBtn.classList.remove('live-active');
-        liveBtn.innerHTML = '<i class="fas fa-broadcast-tower"></i> <span class="live-text">Live</span>';
-    }
-}
-
-// Configurer le live
-function setupLiveStream() {
-    const settings = document.getElementById('liveSettings');
-    const setupBtn = document.getElementById('setupLiveBtn');
-    
-    if (!settings || !setupBtn) return;
-    
-    if (settings.style.display === 'none') {
-        settings.style.display = 'block';
-        setupBtn.innerHTML = '<i class="fas fa-check"></i> Terminer la configuration';
-    } else {
-        settings.style.display = 'none';
-        setupBtn.innerHTML = '<i class="fas fa-cog"></i> Configurer le Live';
-        
-        // Vérifier les paramètres
-        const title = document.getElementById('liveTitle').value;
-        if (!title.trim()) {
-            showNotification('Veuillez ajouter un titre pour votre live', 'warning');
-            return;
-        }
-        
-        showNotification('Configuration du live terminée', 'success');
-    }
-}
-
-// Démarrer la prévisualisation
-async function startLivePreview() {
-    try {
-        const constraints = {
-            video: {
-                width: { ideal: 1280 },
-                height: { ideal: 720 },
-                facingMode: 'user'
-            },
-            audio: true
-        };
-        
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        liveStream = stream;
-        
-        const preview = document.getElementById('livePreview');
-        preview.srcObject = stream;
-        
-        showNotification('Caméra et microphone activés pour la prévisualisation', 'success');
-    } catch (error) {
-        console.error('Erreur d\'accès à la caméra/microphone:', error);
-        showNotification('Impossible d\'accéder à la caméra ou au microphone', 'error');
-        
-        // Afficher un message d'erreur dans la prévisualisation
-        const preview = document.getElementById('livePreview');
-        preview.style.background = '#333';
-        preview.innerHTML = '<div style="color: white; text-align: center; padding-top: 100px;">Caméra non disponible</div>';
-    }
-}
-
-// Arrêter la prévisualisation
-function stopLivePreview() {
-    if (liveStream) {
-        liveStream.getTracks().forEach(track => track.stop());
-        liveStream = null;
-    }
-    
-    const preview = document.getElementById('livePreview');
-    if (preview) {
-        preview.srcObject = null;
-    }
-}
-
-// Démarrer le live
-async function startLiveStream() {
-    const title = document.getElementById('liveTitle').value.trim();
-    const category = document.getElementById('liveCategory').value;
-    const useCamera = document.getElementById('liveCamera').checked;
-    const useMicrophone = document.getElementById('liveMicrophone').checked;
-    
-    // Validation
-    if (!title) {
-        showNotification('Veuillez ajouter un titre pour votre live', 'error');
-        return;
-    }
-    
-    if (!useCamera && !useMicrophone) {
-        showNotification('Veuillez activer au moins la caméra ou le microphone', 'error');
-        return;
-    }
-    
-    try {
-        showNotification('Démarrage du live en cours...', 'info');
-        
-        // Si le stream n'est pas déjà actif, le démarrer
-        if (!liveStream) {
-            const constraints = {
-                video: useCamera ? {
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 },
-                    facingMode: 'user'
-                } : false,
-                audio: useMicrophone
-            };
-            
-            liveStream = await navigator.mediaDevices.getUserMedia(constraints);
-        }
-        
-        // Mettre à jour l'interface
-        document.getElementById('startLiveBtn').style.display = 'none';
-        document.getElementById('stopLiveBtn').style.display = 'inline-block';
-        document.getElementById('setupLiveBtn').style.display = 'none';
-        document.getElementById('liveSettings').style.display = 'none';
-        
-        // Activer le chat
-        document.getElementById('chatMessage').disabled = false;
-        document.querySelector('.chat-input button').disabled = false;
-        
-        // Mettre à jour le statut
-        updateLiveStatus('live');
-        isLive = true;
-        liveStreamActive = true;
-        
-        // Initialiser les viewers
-        liveViewers = 1;
-        updateLiveViewers();
-        
-        // Initialiser le chat
-        initializeLiveChat();
-        
-        // Simuler l'augmentation des viewers
-        liveInterval = setInterval(simulateViewerActivity, 3000);
-        
-        // Mettre à jour le bouton live dans la navbar
-        const liveBtn = document.querySelector('.btn-live');
-        liveBtn.classList.add('live-active');
-        liveBtn.innerHTML = '<i class="fas fa-broadcast-tower"></i> <span class="live-text">EN DIRECT</span>';
-        
-        // Afficher une notification
-        showLiveNotification(title);
-        
-        showNotification('Live démarré avec succès ! 🎥', 'success');
-        
-        // Ajouter un message système dans le chat
-        addSystemMessage('Le live a commencé !');
-        
-    } catch (error) {
-        console.error('Erreur lors du démarrage du live:', error);
-        showNotification('Erreur lors du démarrage du live', 'error');
-    }
-}
-
-// Arrêter le live
-function stopLiveStream() {
-    // Arrêter le stream
-    if (liveStream) {
-        liveStream.getTracks().forEach(track => track.stop());
-        liveStream = null;
-    }
-    
-    // Arrêter l'intervalle
-    if (liveInterval) {
-        clearInterval(liveInterval);
-        liveInterval = null;
-    }
-    
-    // Réinitialiser l'interface
-    const startLiveBtn = document.getElementById('startLiveBtn');
-    const stopLiveBtn = document.getElementById('stopLiveBtn');
-    const setupLiveBtn = document.getElementById('setupLiveBtn');
-    
-    if (startLiveBtn) startLiveBtn.style.display = 'inline-block';
-    if (stopLiveBtn) stopLiveBtn.style.display = 'none';
-    if (setupLiveBtn) setupLiveBtn.style.display = 'inline-block';
-    
-    // Désactiver le chat
-    const chatMessage = document.getElementById('chatMessage');
-    const chatButton = document.querySelector('.chat-input button');
-    if (chatMessage) chatMessage.disabled = true;
-    if (chatButton) chatButton.disabled = true;
-    
-    // Réinitialiser les viewers
-    liveViewers = 0;
-    updateLiveViewers();
-    
-    // Mettre à jour le statut
-    updateLiveStatus('ready');
-    isLive = false;
-    liveStreamActive = false;
-    
-    // Mettre à jour le bouton live dans la navbar
-    const liveBtn = document.querySelector('.btn-live');
-    if (liveBtn) {
-        liveBtn.classList.remove('live-active');
-        liveBtn.innerHTML = '<i class="fas fa-broadcast-tower"></i> <span class="live-text">Live</span>';
-    }
-    
-    // Ajouter un message système dans le chat
-    addSystemMessage('Le live est terminé.');
-    
-    // Cacher la notification live
-    hideLiveNotification();
-    
-    showNotification('Live arrêté', 'info');
-    
-    // Redémarrer la prévisualisation
-    setTimeout(startLivePreview, 1000);
-}
-
-// Mettre à jour le statut du live
-function updateLiveStatus(status) {
-    const statusElement = document.querySelector('.live-status span');
-    const indicator = document.querySelector('.live-indicator');
-    
-    if (!statusElement || !indicator) return;
-    
-    switch(status) {
-        case 'ready':
-            statusElement.textContent = 'Prêt à diffuser';
-            indicator.style.display = 'none';
-            break;
-        case 'live':
-            statusElement.textContent = 'EN DIRECT';
-            indicator.style.display = 'inline-block';
-            break;
-        case 'error':
-            statusElement.textContent = 'Erreur';
-            indicator.style.backgroundColor = '#ffaa00';
-            indicator.style.display = 'inline-block';
-            break;
-    }
-}
-
-// Mettre à jour le compteur de viewers
-function updateLiveViewers() {
-    const viewersElement = document.getElementById('liveViewers');
-    if (viewersElement) {
-        viewersElement.textContent = formatNumber(liveViewers);
-    }
-}
-
-// Simuler l'activité des viewers
-function simulateViewerActivity() {
-    if (!isLive) return;
-    
-    // Ajouter ou retirer des viewers aléatoirement
-    const change = Math.floor(Math.random() * 5) - 1; // -1 à +3
-    liveViewers = Math.max(1, liveViewers + change);
-    updateLiveViewers();
-    
-    // Simuler des messages de chat occasionnels
-    if (Math.random() > 0.7) {
-        simulateChatMessage();
-    }
-}
-
-// Initialiser le chat live
-function initializeLiveChat() {
-    const chatContainer = document.getElementById('liveChat');
-    if (!chatContainer) return;
-    
-    chatContainer.innerHTML = '';
-    
-    // Ajouter un message de bienvenue
-    addSystemMessage('Bienvenue dans le chat en direct !');
-}
-
-// Ajouter un message système
-function addSystemMessage(text) {
-    const chatContainer = document.getElementById('liveChat');
-    if (!chatContainer) return;
-    
-    const messageDiv = document.createElement('div');
-    messageDiv.className = 'system-message';
-    messageDiv.innerHTML = `<i class="fas fa-info-circle"></i> <span>${text}</span>`;
-    chatContainer.appendChild(messageDiv);
-    chatContainer.scrollTop = chatContainer.scrollHeight;
-}
-
-// Envoyer un message dans le chat
-function sendChatMessage() {
-    const input = document.getElementById('chatMessage');
-    const message = input.value.trim();
-    
-    if (!message || !isLive) return;
-    
-    // Ajouter le message au chat
-    const chatContainer = document.getElementById('liveChat');
-    if (!chatContainer) return;
-    
-    const messageDiv = document.createElement('div');
-    messageDiv.className = 'chat-message';
-    
-    const time = new Date().toLocaleTimeString('fr-FR', { 
-        hour: '2-digit', 
-        minute: '2-digit' 
-    });
-    
-    messageDiv.innerHTML = `
-        <span class="user">${currentUser.username}:</span>
-        <span class="text">${message}</span>
-        <span class="time">${time}</span>
-    `;
-    
-    chatContainer.appendChild(messageDiv);
-    chatContainer.scrollTop = chatContainer.scrollHeight;
-    
-    // Sauvegarder le message
-    liveMessages.push({
-        user: currentUser.username,
-        message: message,
-        time: time
-    });
-    
-    // Effacer l'input
-    input.value = '';
-    
-    // Simuler des réponses occasionnelles
-    if (Math.random() > 0.6) {
-        setTimeout(simulateChatResponse, 1000 + Math.random() * 2000);
-    }
-}
-
-// Simuler un message de chat
-function simulateChatMessage() {
-    if (!isLive) return;
-    
-    const viewers = [
-        { name: 'Fan123', messages: ['Super live !', '👍', 'Continue !'] },
-        { name: 'GamerPro', messages: ['GG !', 'Bien joué', 'Top qualité'] },
-        { name: 'MusicLover', messages: ['🎵', 'Génial', 'Love it'] },
-        { name: 'Anonymous', messages: ['Première fois ici', 'Intéressant', 'Je follow'] }
-    ];
-    
-    const randomViewer = viewers[Math.floor(Math.random() * viewers.length)];
-    const randomMessage = randomViewer.messages[Math.floor(Math.random() * randomViewer.messages.length)];
-    
-    const chatContainer = document.getElementById('liveChat');
-    if (!chatContainer) return;
-    
-    const messageDiv = document.createElement('div');
-    messageDiv.className = 'chat-message';
-    
-    const time = new Date().toLocaleTimeString('fr-FR', { 
-        hour: '2-digit', 
-        minute: '2-digit' 
-    });
-    
-    messageDiv.innerHTML = `
-        <span class="user">${randomViewer.name}:</span>
-        <span class="text">${randomMessage}</span>
-        <span class="time">${time}</span>
-    `;
-    
-    chatContainer.appendChild(messageDiv);
-    chatContainer.scrollTop = chatContainer.scrollHeight;
-}
-
-// Simuler une réponse dans le chat
-function simulateChatResponse() {
-    if (!isLive) return;
-    
-    const responses = [
-        'Merci !',
-        'Content que ça te plaise !',
-        'N\'hésite pas à partager le live !',
-        'Des questions ? Posez-les dans le chat !'
-    ];
-    
-    const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-    
-    const chatContainer = document.getElementById('liveChat');
-    if (!chatContainer) return;
-    
-    const messageDiv = document.createElement('div');
-    messageDiv.className = 'chat-message';
-    
-    const time = new Date().toLocaleTimeString('fr-FR', { 
-        hour: '2-digit', 
-        minute: '2-digit' 
-    });
-    
-    messageDiv.innerHTML = `
-        <span class="user">${currentUser.username}:</span>
-        <span class="text">${randomResponse}</span>
-        <span class="time">${time}</span>
-    `;
-    
-    chatContainer.appendChild(messageDiv);
-    chatContainer.scrollTop = chatContainer.scrollHeight;
-}
-
-// Afficher une notification de live
-function showLiveNotification(title) {
-    // Supprimer l'ancienne notification si elle existe
-    const oldNotification = document.getElementById('liveNotification');
-    if (oldNotification) {
-        oldNotification.remove();
-    }
-    
-    // Créer une nouvelle notification
-    const notification = document.createElement('div');
-    notification.id = 'liveNotification';
-    notification.className = 'live-notification';
-    notification.innerHTML = `
-        <div class="notification-header">
-            <i class="fas fa-broadcast-tower"></i>
-            <h4>En direct maintenant</h4>
-        </div>
-        <p>${currentUser.username}: ${title}</p>
-        <button class="btn btn-small" onclick="openLiveStream()" style="margin-top: 10px;">
-            <i class="fas fa-play"></i> Rejoindre
-        </button>
-    `;
-    
-    document.body.appendChild(notification);
-    
-    // Masquer automatiquement après 30 secondes
-    setTimeout(() => {
-        hideLiveNotification();
-    }, 30000);
-}
-
-// Cacher la notification de live
-function hideLiveNotification() {
-    const notification = document.getElementById('liveNotification');
-    if (notification) {
-        notification.remove();
-    }
-}
-
-// Réinitialiser l'état du live
-function resetLiveState() {
-    liveViewers = 0;
-    liveMessages = [];
-    updateLiveViewers();
-    
-    // Réinitialiser le chat
-    const chatContainer = document.getElementById('liveChat');
-    if (chatContainer) {
-        chatContainer.innerHTML = `
-            <div class="system-message">
-                <i class="fas fa-info-circle"></i>
-                <span>Le chat s'affichera ici quand vous serez en direct</span>
-            </div>
-        `;
-    }
-    
-    // Réinitialiser les champs
-    const liveTitle = document.getElementById('liveTitle');
-    if (liveTitle) {
-        liveTitle.value = `${currentUser.username} - Live`;
-    }
-    
-    const chatMessage = document.getElementById('chatMessage');
-    if (chatMessage) {
-        chatMessage.value = '';
-    }
-}
-
-// ==================== INITIALISATION DES NOUVELLES FONCTIONNALITÉS ====================
-function initializeNewFeatures() {
-    setupCameraFeatures();
-    setupProfilePictureUpload();
-}
-
-// ==================== NETTOYAGE DES RESSOURCES ====================
-// Ajoutez un écouteur pour nettoyer les ressources à la fermeture de la page
-window.addEventListener('beforeunload', function() {
-    if (cameraStream) {
-        cameraStream.getTracks().forEach(track => track.stop());
-    }
-    
-    if (liveStream) {
-        liveStream.getTracks().forEach(track => track.stop());
-    }
-    
-    if (mediaRecorder && isRecording) {
-        mediaRecorder.stop();
-    }
-});
 
 // ==================== EXPORT DES FONCTIONS GLOBALES ====================
 window.openCreateModal = openCreateModal;
@@ -3215,50 +1477,73 @@ window.showFollowing = showFollowing;
 window.showFavorites = showFavorites;
 window.openSearch = openSearch;
 window.saveSettings = saveSettings;
-window.clearLocalStorage = function() {
-    if (confirm('Voulez-vous vraiment réinitialiser toutes les données ? Cette action est irréversible.')) {
-        localStorage.clear();
-        location.reload();
-    }
-};
+window.clearLocalStorage = clearLocalStorage;
 window.openCreatorProfile = openCreatorProfile;
-window.openTransactions = openTransactions;
-window.buyCoins = buyCoins;
-window.sendGift = sendGift;
+window.openTransactions = function() {
+    showNotification('Transactions à venir', 'info');
+};
+window.buyCoins = function(coins, price) {
+    showNotification('Achat de coins à venir', 'info');
+};
+window.sendGift = function(videoId, giftId) {
+    showNotification('Envoi de cadeau à venir', 'info');
+};
 window.toggleFollow = toggleFollow;
 window.saveVideo = saveVideo;
-window.openCoinShop = openCoinShop;
-window.closeModal = closeModal;
-window.filterGifts = filterGifts;
-window.previewGift = previewGift;
-window.postComment = postComment;
-window.likeComment = likeComment;
-window.deleteComment = deleteComment;
+window.openCoinShop = function() {
+    showNotification('Boutique de coins à venir', 'info');
+};
+window.closeModal = function(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.remove();
+        document.body.style.overflow = 'auto';
+    }
+};
+window.filterGifts = function(categoryId, buttonElement) {
+    showNotification('Filtrage cadeaux à venir', 'info');
+};
+window.previewGift = function(giftId) {
+    showNotification('Prévisualisation cadeau à venir', 'info');
+};
+window.postComment = function(videoId) {
+    showNotification('Publication commentaire à venir', 'info');
+};
+window.likeComment = function(videoId, commentId) {
+    showNotification('Like commentaire à venir', 'info');
+};
+window.deleteComment = function(videoId, commentId) {
+    showNotification('Suppression commentaire à venir', 'info');
+};
 window.showProfileTab = showProfileTab;
-window.editDraft = editDraft;
-window.deleteDraft = deleteDraft;
-window.openVideoDetail = openVideoDetail;
-window.handleNotificationClick = handleNotificationClick;
-window.markAllAsRead = markAllAsRead;
-window.clearAllNotifications = clearAllNotifications;
+window.editDraft = function(draftId) {
+    showNotification('Édition brouillon à venir', 'info');
+};
+window.deleteDraft = function(draftId) {
+    showNotification('Suppression brouillon à venir', 'info');
+};
+window.openVideoDetail = function(videoId) {
+    showNotification('Détail vidéo à venir', 'info');
+};
+window.handleNotificationClick = function(notificationId) {
+    showNotification('Notification à venir', 'info');
+};
+window.markAllAsRead = function() {
+    showNotification('Marquer tout comme lu à venir', 'info');
+};
+window.clearAllNotifications = function() {
+    showNotification('Supprimer toutes les notifications à venir', 'info');
+};
 window.changeProfilePicture = changeProfilePicture;
 window.openLiveStream = openLiveStream;
 window.startLiveStream = startLiveStream;
 window.stopLiveStream = stopLiveStream;
 window.sendChatMessage = sendChatMessage;
-window.closeLiveNotification = hideLiveNotification;
-window.startCameraRecording = startCameraRecording;
-window.stopCameraRecording = stopCameraRecording;
+window.setupLiveStream = setupLiveStream;
+window.startCameraRecording = startRecording;
+window.stopCameraRecording = stopRecording;
 window.openCameraForRecording = openCameraForRecording;
 window.openFileUpload = openFileUpload;
 window.startCameraForRecording = startCameraForRecording;
 window.stopCameraForRecording = stopCameraForRecording;
 window.closeLiveModal = closeLiveModal;
-window.setupLiveStream = setupLiveStream;
-
-// Ajout pour éviter l'erreur de fonction non définie
-function showMyVideos() {
-    // Cette fonction n'est pas implémentée dans le code original
-    // On la définit pour éviter les erreurs
-    showNotification('Fonctionnalité "Mes vidéos" à venir', 'info');
-}
