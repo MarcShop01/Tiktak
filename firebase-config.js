@@ -34,10 +34,11 @@ async function createAnonymousUser() {
         const userCredential = await auth.signInAnonymously();
         const user = userCredential.user;
         
+        // Créer le profil dans Firestore
         const userData = {
             username: `User${Math.floor(Math.random() * 10000)}`,
             avatar: `https://i.pravatar.cc/150?img=${Math.floor(Math.random() * 70)}`,
-            coins: 1000,
+            coins: 100,
             likedVideos: [],
             myVideos: [],
             drafts: [],
@@ -71,10 +72,24 @@ async function getCurrentUser() {
         const unsubscribe = auth.onAuthStateChanged(async (user) => {
             unsubscribe();
             if (user) {
-                const userDoc = await db.collection('users').doc(user.uid).get();
-                if (userDoc.exists) {
-                    resolve({ id: userDoc.id, ...userDoc.data() });
-                } else {
+                try {
+                    const userDoc = await db.collection('users').doc(user.uid).get();
+                    if (userDoc.exists) {
+                        const userData = userDoc.data();
+                        resolve({ 
+                            id: userDoc.id, 
+                            ...userData,
+                            coins: userData.coins || 0,
+                            likedVideos: userData.likedVideos || [],
+                            following: userData.following || [],
+                            drafts: userData.drafts || []
+                        });
+                    } else {
+                        const newUser = await createAnonymousUser();
+                        resolve(newUser);
+                    }
+                } catch (error) {
+                    console.error('❌ Erreur chargement utilisateur:', error);
                     const newUser = await createAnonymousUser();
                     resolve(newUser);
                 }
@@ -92,7 +107,7 @@ async function loadVideos(limit = 50) {
         console.log('📥 Chargement des vidéos depuis Firebase...');
         
         const snapshot = await db.collection('videos')
-            .where('privacy', '==', 'public')
+            .where('privacy', 'in', ['public', undefined])
             .orderBy('createdAt', 'desc')
             .limit(limit)
             .get();
@@ -123,7 +138,9 @@ async function loadVideos(limit = 50) {
                 views: data.views || 0,
                 gifts: data.gifts || 0,
                 duration: data.duration || '00:15',
-                privacy: data.privacy || 'public'
+                privacy: data.privacy || 'public',
+                isMonetized: data.isMonetized || false,
+                hashtags: data.hashtags || []
             });
         });
         
@@ -132,6 +149,7 @@ async function loadVideos(limit = 50) {
         
     } catch (error) {
         console.error('❌ Erreur chargement vidéos:', error);
+        // Retourner un tableau vide au lieu de démo
         return [];
     }
 }
@@ -157,11 +175,14 @@ async function saveVideo(videoData) {
             views: 0,
             gifts: 0,
             privacy: videoData.privacy || 'public',
-            duration: '00:15'
+            duration: '00:15',
+            isMonetized: videoData.isMonetized || false,
+            hashtags: videoData.hashtags || []
         };
         
         await videoRef.set(videoWithMetadata);
         
+        // Mettre à jour l'utilisateur
         await db.collection('users').doc(user.uid).update({
             myVideos: firebase.firestore.FieldValue.arrayUnion(videoRef.id),
             coins: firebase.firestore.FieldValue.increment(10),
@@ -214,6 +235,7 @@ async function updateLikes(videoId, userId, action = 'like') {
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         
+        // Mettre à jour l'utilisateur
         const userRef = db.collection('users').doc(userId);
         if (action === 'like') {
             await userRef.update({
@@ -259,20 +281,25 @@ async function searchVideos(query) {
     try {
         console.log(`🔍 Recherche: "${query}"`);
         
+        // Charger toutes les vidéos d'abord
         const allVideos = await loadVideos(100);
         const normalizedQuery = query.toLowerCase().trim();
         
         if (!normalizedQuery) return allVideos;
         
+        // Filtrer côté client
         const results = allVideos.filter(video => {
+            // Recherche dans le caption
             if (video.caption && video.caption.toLowerCase().includes(normalizedQuery)) {
                 return true;
             }
             
+            // Recherche dans le username
             if (video.username && video.username.toLowerCase().includes(normalizedQuery)) {
                 return true;
             }
             
+            // Recherche dans les hashtags
             if (video.hashtags && Array.isArray(video.hashtags)) {
                 for (const tag of video.hashtags) {
                     if (tag.toLowerCase().includes(normalizedQuery)) {
@@ -312,7 +339,14 @@ async function loadUser(userId) {
     try {
         const userDoc = await db.collection('users').doc(userId).get();
         if (userDoc.exists) {
-            return { id: userDoc.id, ...userDoc.data() };
+            const data = userDoc.data();
+            return { 
+                id: userDoc.id, 
+                ...data,
+                coins: data.coins || 0,
+                followers: data.followers || [],
+                following: data.following || []
+            };
         }
         return {
             id: userId,
@@ -338,6 +372,7 @@ async function initializeDatabase() {
     try {
         const user = await getCurrentUser();
         
+        // Vérifier si des vidéos existent
         const videosCount = await db.collection('videos').get();
         if (videosCount.empty) {
             console.log('📝 Initialisation de la base de données avec des vidéos de démo...');
@@ -366,14 +401,31 @@ async function initializeDatabase() {
                     avatar: user.avatar,
                     videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
                     thumbnail: 'https://images.unsplash.com/photo-1518709268805-4e9042af2176',
-                    caption: 'Découvrez les fonctionnalités de TIKTAK #fun #video',
+                    caption: 'Découvrez les fonctionnalités de TIKTAK #fun #video #creativite',
                     likes: 25,
                     comments: 5,
                     shares: 3,
                     views: 250,
                     gifts: 0,
-                    hashtags: ['#fun', '#video', '#decouverte'],
+                    hashtags: ['#fun', '#video', '#creativite'],
                     duration: '00:20',
+                    privacy: 'public',
+                    isMonetized: true
+                },
+                {
+                    userId: user.id,
+                    username: user.username,
+                    avatar: user.avatar,
+                    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+                    thumbnail: 'https://images.unsplash.com/photo-1517649763962-0c623066013b',
+                    caption: 'Partagez vos moments avec le monde entier #share #moment #tiktak',
+                    likes: 42,
+                    comments: 8,
+                    shares: 5,
+                    views: 420,
+                    gifts: 2,
+                    hashtags: ['#share', '#moment', '#tiktak'],
+                    duration: '00:30',
                     privacy: 'public',
                     isMonetized: false
                 }
@@ -397,7 +449,7 @@ function setupRealtimeListener(callback) {
         console.log('👂 Configuration de l\'écoute en temps réel...');
         
         return db.collection('videos')
-            .where('privacy', '==', 'public')
+            .where('privacy', 'in', ['public', undefined])
             .orderBy('createdAt', 'desc')
             .limit(10)
             .onSnapshot((snapshot) => {
@@ -405,10 +457,18 @@ function setupRealtimeListener(callback) {
                 snapshot.docChanges().forEach((change) => {
                     if (change.type === 'added') {
                         const data = change.doc.data();
+                        let createdAt = new Date();
+                        
+                        if (data.createdAt && data.createdAt.toDate) {
+                            createdAt = data.createdAt.toDate();
+                        } else if (data.createdAt) {
+                            createdAt = new Date(data.createdAt);
+                        }
+                        
                         newVideos.push({
                             id: change.doc.id,
                             ...data,
-                            createdAt: data.createdAt?.toDate?.() || new Date()
+                            createdAt: createdAt
                         });
                     }
                 });
