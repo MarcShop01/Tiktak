@@ -157,9 +157,9 @@ async function initializeGitHubStorage() {
     try {
         // Configuration GitHub - À MODIFIER AVEC VOS INFORMATIONS
         const config = {
-            owner: 'TON_USERNAME_GITHUB', // À remplacer par votre username GitHub
-            repo: 'tiktok-data', // À remplacer par le nom de votre dépôt
-            token: 'TON_TOKEN_GITHUB', // À remplacer par votre token GitHub
+            owner: 'Marcshop01', // À remplacer par votre username GitHub
+            repo: 'TIKTAK Storage Token', // À remplacer par le nom de votre dépôt
+            token: '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', // À remplacer par votre token GitHub
             branch: 'main'
         };
         
@@ -1547,3 +1547,4 @@ window.openFileUpload = openFileUpload;
 window.startCameraForRecording = startCameraForRecording;
 window.stopCameraForRecording = stopCameraForRecording;
 window.closeLiveModal = closeLiveModal;
+
