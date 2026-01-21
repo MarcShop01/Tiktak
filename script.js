@@ -630,3 +630,399 @@ async function postComment(videoId) {
         showNotification('Erreur lors de la publication', 'error');
     }
 }
+// ==================== CRÉATION DE VIDÉO ====================
+function openCreateModal() {
+    document.getElementById('createModal').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    showCreateOptions();
+}
+
+function closeCreateModal() {
+    document.getElementById('createModal').style.display = 'none';
+    document.body.style.overflow = 'auto';
+    resetCreateModal();
+}
+
+function showCreateOptions() {
+    document.getElementById('createOptions').style.display = 'flex';
+    document.getElementById('videoUploadSection').style.display = 'none';
+}
+
+function openFileUpload() {
+    document.getElementById('createOptions').style.display = 'none';
+    document.getElementById('videoUploadSection').style.display = 'block';
+    document.getElementById('fileUploadControls').style.display = 'block';
+    document.getElementById('cameraControls').style.display = 'none';
+}
+
+function openCameraForRecording() {
+    openFileUpload();
+    showNotification('Fonction caméra à venir', 'info');
+}
+
+function openFilePicker() {
+    document.getElementById('videoInput').click();
+}
+
+function setupVideoInput() {
+    const videoInput = document.getElementById('videoInput');
+    if (videoInput) {
+        videoInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                processVideoFile(file);
+            }
+        });
+    }
+}
+
+function processVideoFile(file) {
+    if (file.size > 100 * 1024 * 1024) {
+        showNotification('Vidéo trop volumineuse (max 100MB)', 'error');
+        return;
+    }
+    
+    if (!file.type.startsWith('video/')) {
+        showNotification('Fichier vidéo invalide', 'error');
+        return;
+    }
+    
+    currentVideoFile = file;
+    const reader = new FileReader();
+    
+    document.getElementById('videoProcessing').style.display = 'flex';
+    
+    reader.onload = function(e) {
+        const videoElement = document.getElementById('previewVideo');
+        const placeholder = document.querySelector('.preview-placeholder');
+        
+        videoElement.src = e.target.result;
+        videoElement.style.display = 'block';
+        placeholder.style.display = 'none';
+        
+        setTimeout(() => {
+            document.getElementById('videoProcessing').style.display = 'none';
+            document.getElementById('publishBtn').disabled = false;
+            
+            document.getElementById('videoFileInfo').innerHTML = `
+                <i class="fas fa-file-video"></i>
+                <span>${file.name} (${formatFileSize(file.size)})</span>
+            `;
+        }, 2000);
+    };
+    
+    reader.readAsDataURL(file);
+}
+
+function formatFileSize(bytes) {
+    if (bytes >= 1000000) return (bytes / 1000000).toFixed(1) + ' MB';
+    if (bytes >= 1000) return (bytes / 1000).toFixed(1) + ' KB';
+    return bytes + ' B';
+}
+
+function simulateRecording() {
+    showNotification('Utilisation d\'une vidéo de démo', 'info');
+    
+    const videoElement = document.getElementById('previewVideo');
+    const placeholder = document.querySelector('.preview-placeholder');
+    
+    const demoVideos = [
+        'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+        'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+        'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'
+    ];
+    
+    videoElement.src = demoVideos[Math.floor(Math.random() * demoVideos.length)];
+    videoElement.style.display = 'block';
+    placeholder.style.display = 'none';
+    
+    currentVideoFile = {
+        name: 'demo_video.mp4',
+        size: 15000000,
+        type: 'video/mp4'
+    };
+    
+    document.getElementById('videoFileInfo').innerHTML = `
+        <i class="fas fa-file-video"></i>
+        <span>demo_video.mp4 (15 MB)</span>
+    `;
+    
+    document.getElementById('publishBtn').disabled = false;
+}
+
+async function publishVideo() {
+    if (isUploading) return;
+    
+    const caption = document.getElementById('videoCaption').value.trim();
+    const isMonetized = document.getElementById('monetizeVideo').checked;
+    const privacy = document.getElementById('videoPrivacy').value;
+    
+    if (!caption) {
+        showNotification('Veuillez ajouter une légende', 'error');
+        return;
+    }
+    
+    const publishBtn = document.getElementById('publishBtn');
+    isUploading = true;
+    publishBtn.disabled = true;
+    publishBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Publication...';
+    
+    try {
+        const hashtags = extractHashtags(caption);
+        
+        let videoUrl = '';
+        const videoElement = document.getElementById('previewVideo');
+        
+        if (currentVideoFile && currentVideoFile instanceof File) {
+            showNotification('Téléchargement vers Firebase...', 'info');
+            videoUrl = await uploadVideoToFirebase(currentVideoFile);
+        } else if (videoElement.src && videoElement.src.startsWith('http')) {
+            videoUrl = videoElement.src;
+        } else {
+            showNotification('Aucune vidéo valide', 'error');
+            return;
+        }
+        
+        const videoData = {
+            userId: currentUser.id,
+            username: currentUser.username,
+            avatar: currentUser.avatar,
+            videoUrl: videoUrl,
+            thumbnail: generateThumbnail(),
+            caption: caption,
+            isMonetized: isMonetized,
+            hashtags: hashtags,
+            duration: '00:15',
+            privacy: privacy
+        };
+        
+        const newVideo = await firebaseApp.saveVideo(videoData);
+        videos.unshift(newVideo);
+        
+        closeCreateModal();
+        renderVideoFeed();
+        updateUI();
+        showNotification('Vidéo publiée avec succès ! 🎉', 'success');
+        
+    } catch (error) {
+        console.error('❌ Erreur publication:', error);
+        showNotification('Erreur lors de la publication', 'error');
+    } finally {
+        isUploading = false;
+        publishBtn.disabled = false;
+        publishBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Publier';
+    }
+}
+
+async function uploadVideoToFirebase(file) {
+    return new Promise((resolve, reject) => {
+        const storageRef = firebase.storage().ref();
+        const videoRef = storageRef.child(`videos/${Date.now()}_${file.name}`);
+        
+        const uploadTask = videoRef.put(file);
+        
+        uploadTask.on('state_changed',
+            (snapshot) => {
+                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                console.log('Progression upload:', progress + '%');
+            },
+            (error) => {
+                console.error('Erreur upload:', error);
+                reject(error);
+            },
+            async () => {
+                const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
+                console.log('URL vidéo:', downloadURL);
+                resolve(downloadURL);
+            }
+        );
+    });
+}
+
+function saveAsDraft() {
+    const caption = document.getElementById('videoCaption').value.trim();
+    const isMonetized = document.getElementById('monetizeVideo').checked;
+    
+    if (!currentUser.drafts) currentUser.drafts = [];
+    
+    currentUser.drafts.push({
+        id: 'draft_' + Date.now(),
+        caption: caption || 'Sans titre',
+        date: new Date().toLocaleDateString('fr-FR'),
+        isMonetized: isMonetized,
+        timestamp: Date.now()
+    });
+    
+    firebaseApp.updateUser(currentUser.id, {
+        drafts: currentUser.drafts
+    }).then(() => {
+        showNotification('Brouillon sauvegardé 📁', 'success');
+        closeCreateModal();
+    }).catch(error => {
+        showNotification('Erreur sauvegarde brouillon', 'error');
+    });
+}
+
+function resetCreateModal() {
+    document.getElementById('videoCaption').value = '';
+    document.getElementById('monetizeVideo').checked = false;
+    document.getElementById('videoPrivacy').value = 'public';
+    
+    const videoElement = document.getElementById('previewVideo');
+    videoElement.src = '';
+    videoElement.style.display = 'none';
+    
+    document.querySelector('.preview-placeholder').style.display = 'flex';
+    document.getElementById('videoFileInfo').innerHTML = `
+        <i class="fas fa-file-video"></i>
+        <span>Aucun fichier sélectionné</span>
+    `;
+    
+    document.getElementById('createOptions').style.display = 'flex';
+    document.getElementById('videoUploadSection').style.display = 'none';
+    document.getElementById('publishBtn').disabled = true;
+    
+    currentVideoFile = null;
+}
+
+// ==================== UTILITAIRES ====================
+function formatNumber(num) {
+    if (!num && num !== 0) return '0';
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+    return num.toString();
+}
+
+function getTimeAgo(timestamp) {
+    if (!timestamp) return 'Récemment';
+    
+    const seconds = Math.floor((Date.now() - timestamp) / 1000);
+    if (seconds < 60) return 'À l\'instant';
+    if (seconds < 3600) return Math.floor(seconds / 60) + ' min';
+    if (seconds < 86400) return Math.floor(seconds / 3600) + ' h';
+    if (seconds < 2592000) return Math.floor(seconds / 86400) + ' j';
+    if (seconds < 31536000) return Math.floor(seconds / 2592000) + ' mois';
+    return Math.floor(seconds / 31536000) + ' an';
+}
+
+function extractHashtags(text) {
+    const hashtags = text.match(/#[\wÀ-ÿ]+/g);
+    return hashtags ? hashtags.slice(0, 5) : [];
+}
+
+function generateThumbnail() {
+    const thumbnails = [
+        'https://images.unsplash.com/photo-1611605698335-8b1569810432?ixlib=rb-4.0.3&auto=format&fit=crop&w=1074&q=80',
+        'https://images.unsplash.com/photo-1518709268805-4e9042af2176?ixlib=rb-4.0.3&auto=format&fit=crop&w=1068&q=80',
+        'https://images.unsplash.com/photo-1517649763962-0c623066013b?ixlib=rb-4.0.3&auto=format&fit=crop&w=1170&q=80',
+        'https://images.unsplash.com/photo-1565958011703-44f9829ba187?ixlib=rb-4.0.3&auto=format&fit=crop&w=1065&q=80'
+    ];
+    return thumbnails[Math.floor(Math.random() * thumbnails.length)];
+}
+
+function showHeartAnimation() {
+    const heart = document.createElement('div');
+    heart.innerHTML = '<i class="fas fa-heart"></i>';
+    heart.style.position = 'fixed';
+    heart.style.top = '50%';
+    heart.style.left = '50%';
+    heart.style.transform = 'translate(-50%, -50%)';
+    heart.style.fontSize = '100px';
+    heart.style.color = '#ff4757';
+    heart.style.zIndex = '9999';
+    heart.style.pointerEvents = 'none';
+    heart.style.opacity = '0.8';
+    heart.style.animation = 'heartPulse 1s ease-out forwards';
+    
+    document.body.appendChild(heart);
+    
+    setTimeout(() => heart.remove(), 1000);
+}
+
+function showNotification(message, type = 'info') {
+    let container = document.getElementById('notificationsContainer');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'notificationsContainer';
+        container.className = 'notifications-container';
+        container.style.cssText = `
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            z-index: 1001;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        `;
+        document.body.appendChild(container);
+    }
+    
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.style.cssText = `
+        background: #222;
+        border-radius: 10px;
+        padding: 15px;
+        border-left: 4px solid ${type === 'success' ? '#00ff88' : type === 'error' ? '#ff4757' : '#00f2fe'};
+        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        animation: slideIn 0.3s;
+        max-width: 300px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    `;
+    
+    notification.innerHTML = `
+        <div class="notification-content" style="display: flex; align-items: center; gap: 10px;">
+            <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
+            <span>${message}</span>
+        </div>
+        <button class="close-notification" onclick="this.parentElement.remove()" style="background: none; border: none; color: #888; cursor: pointer; font-size: 18px;">&times;</button>
+    `;
+    
+    container.appendChild(notification);
+    
+    setTimeout(() => {
+        if (notification.parentElement) notification.remove();
+    }, 5000);
+}
+
+function updateUI() {
+    try {
+        const coinCount = document.getElementById('coinCount');
+        if (coinCount && currentUser) {
+            coinCount.textContent = currentUser.coins || 0;
+        }
+        
+        const userAvatar = document.getElementById('userAvatar');
+        if (userAvatar && currentUser.avatar) {
+            userAvatar.src = currentUser.avatar;
+        }
+        
+        console.log('✅ Interface utilisateur mise à jour');
+    } catch (error) {
+        console.error('❌ Erreur mise à jour UI:', error);
+    }
+}
+
+// ==================== NAVIGATION ====================
+function showHome() {
+    document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+    const firstNavItem = document.querySelector('.nav-item:nth-child(1)');
+    if (firstNavItem) firstNavItem.classList.add('active');
+    renderVideoFeed();
+}
+
+function toggleUserMenu() {
+    const menu = document.getElementById('userDropdown');
+    menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+}
+
+function openSearch() {
+    const searchInput = document.getElementById('searchInput');
+    searchInput.style.display = searchInput.style.display === 'none' ? 'block' : 'block';
+    if (searchInput.style.display === 'block') {
+        searchInput.focus();
+        searchInput.select();
+    }
+}
