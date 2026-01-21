@@ -6,6 +6,12 @@
     <title>TIKTAK - Votre application de vidéos</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
 </head>
 <body>
     <!-- Loading Screen -->
@@ -30,7 +36,7 @@
             <div class="nav-right">
                 <div class="coin-balance" id="coinBalance" onclick="openWallet()">
                     <i class="fas fa-coins"></i>
-                    <span id="coinCount">100</span>
+                    <span id="coinCount">0</span>
                 </div>
                 
                 <button class="btn btn-live" onclick="openLiveStream()">
@@ -58,7 +64,7 @@
         <!-- Main Content -->
         <main class="main-content">
             <div class="video-feed" id="videoFeed">
-                <!-- Les vidéos seront chargées ici depuis GitHub -->
+                <!-- Les vidéos seront chargées ici depuis Firebase -->
             </div>
             
             <!-- Sidebar (visible sur desktop) -->
@@ -196,88 +202,6 @@
             </div>
         </div>
 
-        <!-- Modale Live Streaming -->
-        <div id="liveModal" class="modal-overlay" style="display: none;">
-            <div class="modal-content live-modal">
-                <span class="close-btn" onclick="closeLiveModal()">&times;</span>
-                <h2><i class="fas fa-broadcast-tower"></i> Diffusion en Direct</h2>
-                
-                <div class="live-container">
-                    <video id="livePreview" autoplay muted playsinline style="width: 100%; height: 300px; object-fit: cover; background: #000;"></video>
-                    
-                    <div class="live-controls">
-                        <div class="live-info">
-                            <div class="live-status">
-                                <span class="live-indicator" style="display: none;"></span>
-                                <span>Prêt à diffuser</span>
-                            </div>
-                            <div class="live-viewers">
-                                <i class="fas fa-eye"></i> <span id="liveViewers">0</span> spectateurs
-                            </div>
-                        </div>
-                        
-                        <div class="live-actions">
-                            <button class="btn btn-danger" id="startLiveBtn" onclick="startLiveStream()">
-                                <i class="fas fa-broadcast-tower"></i> Démarrer le Live
-                            </button>
-                            <button class="btn btn-secondary" id="stopLiveBtn" onclick="stopLiveStream()" style="display: none;">
-                                <i class="fas fa-stop"></i> Arrêter le Live
-                            </button>
-                            <button class="btn btn-secondary" id="setupLiveBtn" onclick="setupLiveStream()" style="display: inline-block;">
-                                <i class="fas fa-cog"></i> Configurer le Live
-                            </button>
-                        </div>
-                        
-                        <div class="live-settings" id="liveSettings" style="display: none;">
-                            <h4>Paramètres du Live</h4>
-                            <div class="setting-item">
-                                <label>
-                                    <input type="checkbox" id="liveCamera" checked>
-                                    Caméra
-                                </label>
-                            </div>
-                            <div class="setting-item">
-                                <label>
-                                    <input type="checkbox" id="liveMicrophone" checked>
-                                    Microphone
-                                </label>
-                            </div>
-                            <div class="setting-item">
-                                <label>Titre du live</label>
-                                <input type="text" id="liveTitle" placeholder="Titre de votre diffusion">
-                            </div>
-                            <div class="setting-item">
-                                <label>Catégorie</label>
-                                <select id="liveCategory">
-                                    <option value="gaming">🎮 Gaming</option>
-                                    <option value="music">🎵 Musique</option>
-                                    <option value="talk">💬 Talk</option>
-                                    <option value="sport">⚽ Sport</option>
-                                    <option value="education">📚 Éducation</option>
-                                </select>
-                            </div>
-                        </div>
-                        
-                        <div class="live-chat">
-                            <h4>Chat en direct</h4>
-                            <div class="chat-messages" id="liveChat">
-                                <div class="system-message">
-                                    <i class="fas fa-info-circle"></i>
-                                    <span>Le chat s'affichera ici quand vous serez en direct</span>
-                                </div>
-                            </div>
-                            <div class="chat-input">
-                                <input type="text" id="chatMessage" placeholder="Tapez votre message..." disabled>
-                                <button class="btn btn-primary" onclick="sendChatMessage()" disabled>
-                                    <i class="fas fa-paper-plane"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <!-- Modale Profil -->
         <div id="profileModal" class="modal-overlay" style="display: none;">
             <div class="modal-content">
@@ -288,7 +212,7 @@
                     <img id="profileAvatar" src="https://randomuser.me/api/portraits/lego/1.jpg" alt="Avatar">
                     <div class="profile-info">
                         <h3 id="profileUsername">Utilisateur TIKTAK</h3>
-                        <p><i class="fas fa-coins"></i> <span id="profileCoins">100</span> coins</p>
+                        <p><i class="fas fa-coins"></i> <span id="profileCoins">0</span> coins</p>
                         <p id="profileStats">0 vidéos • 0 abonnés • 0 abonnements</p>
                     </div>
                 </div>
@@ -380,14 +304,8 @@
         <div id="notificationsContainer" class="notifications-container"></div>
     </div>
 
-    <!-- Ajout des scripts GitHub Storage -->
-    <script src="githubStorage.js"></script>
-    <script src="localCache.js"></script>
-    
-    <!-- Script principal modifié -->
+    <!-- Scripts -->
+    <script src="firebase-config.js"></script>
     <script src="script.js"></script>
-    
-    <!-- Script d'initialisation -->
-    <script src="init.js"></script>
 </body>
 </html>
