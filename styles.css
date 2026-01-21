@@ -2855,3 +2855,155 @@ html {
 .status-indicator.offline {
     background-color: #888;
 }
+/* ==================== ALGORITHME DE SCORING ==================== */
+.score-badge {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: rgba(0, 242, 254, 0.9);
+    color: #000;
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: bold;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.algorithm-controls {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #111;
+    border-radius: 10px;
+    border: 1px solid #333;
+}
+
+.algorithm-controls select {
+    background: #333;
+    color: #fff;
+    border: 1px solid #444;
+    border-radius: 5px;
+    padding: 8px 15px;
+    cursor: pointer;
+}
+
+.algorithm-controls select:focus {
+    border-color: #00f2fe;
+    outline: none;
+}
+
+.viral-badge {
+    background: linear-gradient(45deg, #ff0050, #ff8800);
+    color: white;
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: bold;
+    margin-left: 5px;
+}
+
+.popular-badge {
+    background: linear-gradient(45deg, #ffd700, #ffaa00);
+    color: #000;
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: bold;
+    margin-left: 5px;
+}
+
+.trending-up {
+    color: #00ff88;
+    font-size: 12px;
+    margin-left: 5px;
+}
+
+/* ==================== LOADING VIDEO ==================== */
+.video-loading-indicator {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.8);
+    padding: 10px 20px;
+    border-radius: 20px;
+    color: #00f2fe;
+    font-size: 14px;
+    z-index: 5;
+}
+
+/* ==================== USER STATS ==================== */
+.user-stats {
+    display: flex;
+    gap: 15px;
+    margin-top: 10px;
+    font-size: 12px;
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: #aaa;
+}
+
+.stat-value {
+    color: #fff;
+    font-weight: bold;
+}
+
+/* ==================== VIDEO SCORE BREAKDOWN ==================== */
+.score-tooltip {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    background: #222;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 12px;
+    min-width: 200px;
+    display: none;
+    z-index: 100;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+}
+
+.score-badge:hover .score-tooltip {
+    display: block;
+}
+
+.score-item {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 5px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #333;
+}
+
+.score-item:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.score-label {
+    color: #aaa;
+}
+
+.score-value {
+    color: #00f2fe;
+    font-weight: bold;
+}
+
+.score-total {
+    color: #ffd700;
+    font-size: 14px;
+    margin-top: 5px;
+    padding-top: 5px;
+    border-top: 1px solid #444;
+}
