@@ -6,14 +6,18 @@ let currentVideoFile = null;
 let currentPlayingVideo = null;
 let realtimeUnsubscribe = null;
 let isUploading = false;
-let uploadTask = null;
 
 // ==================== INITIALISATION ====================
 document.addEventListener('DOMContentLoaded', async function() {
     console.log('🚀 TIKTAK - Démarrage...');
     
-    // Masquer l'écran de chargement après 2 secondes
+    const loadingScreen = document.getElementById('loadingScreen');
+    const appContainer = document.getElementById('appContainer');
+    
     setTimeout(async () => {
+        if (loadingScreen) loadingScreen.style.display = 'none';
+        if (appContainer) appContainer.style.display = 'block';
+        
         try {
             await initializeApp();
         } catch (error) {
@@ -50,10 +54,6 @@ async function initializeApp() {
         // Configurer l'écoute en temps réel
         setupRealtimeListener();
         
-        // Afficher l'appli
-        document.getElementById('loadingScreen').classList.add('hidden');
-        document.getElementById('appContainer').classList.remove('hidden');
-        
         showNotification('Bienvenue sur TIKTAK ! 🎬', 'success');
         console.log('✅ Application initialisée');
         
@@ -62,10 +62,6 @@ async function initializeApp() {
         showNotification('Erreur de connexion à la base de données', 'error');
         
         // Afficher quand même l'appli en mode dégradé
-        document.getElementById('loadingScreen').classList.add('hidden');
-        document.getElementById('appContainer').classList.remove('hidden');
-        
-        // Afficher des vidéos de démo en cas d'erreur
         videos = getDemoVideos();
         renderVideoFeed();
     }
@@ -93,14 +89,12 @@ function setupRealtimeListener() {
         realtimeUnsubscribe = firebaseApp.setupRealtimeListener((newVideos) => {
             console.log('🆕 Nouvelle vidéo en temps réel:', newVideos.length);
             
-            // Ajouter les nouvelles vidéos au début de la liste
             newVideos.forEach(newVideo => {
                 if (!videos.some(v => v.id === newVideo.id)) {
                     videos.unshift(newVideo);
                 }
             });
             
-            // Re-render le flux
             renderVideoFeed();
             
             if (newVideos.length > 0) {
@@ -137,9 +131,9 @@ async function renderVideoFeed(sortingAlgorithm = 'latest') {
     const algorithmControls = document.createElement('div');
     algorithmControls.className = 'algorithm-controls';
     algorithmControls.innerHTML = `
-        <div class="controls-wrapper">
+        <div style="display: flex; align-items: center; gap: 10px;">
             <span>Trier par:</span>
-            <select id="sortingAlgorithm" onchange="changeSortingAlgorithm(this.value)">
+            <select id="sortingAlgorithm" onchange="changeSortingAlgorithm(this.value)" style="background: #333; color: white; border: 1px solid #444; padding: 5px 10px; border-radius: 5px;">
                 <option value="latest" ${sortingAlgorithm === 'latest' ? 'selected' : ''}>Plus récent</option>
                 <option value="popular" ${sortingAlgorithm === 'popular' ? 'selected' : ''}>Plus populaires</option>
                 <option value="trending" ${sortingAlgorithm === 'trending' ? 'selected' : ''}>Tendances</option>
@@ -170,7 +164,7 @@ async function renderVideoFeed(sortingAlgorithm = 'latest') {
     
     // Afficher les vidéos
     videosToDisplay.forEach((video, index) => {
-        const videoElement = createVideoElement(video, index < 1); // Seule la première vidéo en autoplay
+        const videoElement = createVideoElement(video, index < 1);
         videoFeed.appendChild(videoElement);
     });
 }
@@ -206,6 +200,9 @@ function createVideoElement(video, autoPlay = false) {
     container.className = 'video-container';
     container.dataset.videoId = video.id;
     
+    // Vérifier si l'URL de la vidéo est valide
+    const videoUrl = video.videoUrl || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
+    
     container.innerHTML = `
         <div class="video-wrapper">
             <video 
@@ -215,9 +212,10 @@ function createVideoElement(video, autoPlay = false) {
                 preload="metadata"
                 playsinline
                 webkit-playsinline
+                style="width: 100%; height: 600px; object-fit: cover; background: #000;"
             >
-                <source src="${video.videoUrl}" type="video/mp4">
-                <source src="${video.videoUrl}" type="video/webm">
+                <source src="${videoUrl}" type="video/mp4">
+                <source src="${videoUrl}" type="video/webm">
                 Votre navigateur ne supporte pas la vidéo.
             </video>
             
@@ -502,6 +500,7 @@ async function copyToClipboard(text) {
         return false;
     }
 }
+
 // ==================== RECHERCHE ====================
 async function performSearch(query) {
     const searchInput = document.getElementById('searchInput');
@@ -545,7 +544,7 @@ function displaySearchResults(results, query) {
     const searchHeader = document.createElement('div');
     searchHeader.className = 'search-header';
     searchHeader.innerHTML = `
-        <h3>Résultats pour "${query}" (${results.length})</h3>
+        <h3 style="color: #00f2fe; margin-bottom: 20px;">Résultats pour "${query}" (${results.length})</h3>
     `;
     videoFeed.appendChild(searchHeader);
     
@@ -586,31 +585,30 @@ async function openCommentsModal(videoId) {
                 <span class="close-btn" onclick="this.parentElement.parentElement.remove()">&times;</span>
                 <h2>Commentaires (${comments.length})</h2>
                 
-                <div class="comments-container">
+                <div class="comments-container" style="max-height: 400px; overflow-y: auto; margin: 20px 0;">
                     ${comments.length > 0 ? comments.map(comment => `
-                        <div class="comment-item">
-                            <div class="comment-header">
+                        <div class="comment-item" style="background: #222; padding: 10px; margin: 10px 0; border-radius: 10px;">
+                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
                                 <img src="${comment.userAvatar || 'https://i.pravatar.cc/150?img=1'}" 
-                                     alt="${comment.username}">
-                                <div>
-                                    <strong>${comment.username || 'Utilisateur'}</strong>
-                                    <small>${getTimeAgo(comment.createdAt?.toDate?.().getTime() || Date.now())}</small>
-                                </div>
+                                     style="width: 30px; height: 30px; border-radius: 50%;">
+                                <strong>${comment.username || 'Utilisateur'}</strong>
+                                <small style="color: #888; font-size: 12px;">${getTimeAgo(comment.createdAt?.toDate?.().getTime() || Date.now())}</small>
                             </div>
-                            <p class="comment-text">${comment.text}</p>
+                            <p style="margin: 0; color: #ccc;">${comment.text}</p>
                         </div>
                     `).join('') : `
-                        <div class="empty-state">
-                            <i class="fas fa-comment-slash"></i>
+                        <div class="empty-state" style="text-align: center; padding: 40px 20px;">
+                            <i class="fas fa-comment-slash" style="font-size: 50px; color: #444;"></i>
                             <h3>Aucun commentaire</h3>
                             <p>Soyez le premier à commenter !</p>
                         </div>
                     `}
                 </div>
                 
-                <div class="comment-form">
-                    <textarea id="newComment" placeholder="Ajouter un commentaire..."></textarea>
-                    <div class="form-actions">
+                <div class="comment-form" style="margin-top: 20px;">
+                    <textarea id="newComment" placeholder="Ajouter un commentaire..." 
+                              style="width: 100%; padding: 10px; background: #333; border: 1px solid #444; border-radius: 5px; color: white; resize: vertical; min-height: 60px;"></textarea>
+                    <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
                         <button class="btn btn-secondary" onclick="this.parentElement.parentElement.parentElement.remove()">Annuler</button>
                         <button class="btn btn-primary" onclick="postComment('${videoId}')">Commenter</button>
                     </div>
@@ -676,13 +674,13 @@ async function postComment(videoId) {
 
 // ==================== CRÉATION DE VIDÉO ====================
 function openCreateModal() {
-    document.getElementById('createModal').classList.remove('hidden');
+    document.getElementById('createModal').style.display = 'flex';
     document.body.style.overflow = 'hidden';
     showCreateOptions();
 }
 
 function closeCreateModal() {
-    document.getElementById('createModal').classList.add('hidden');
+    document.getElementById('createModal').style.display = 'none';
     document.body.style.overflow = 'auto';
     resetCreateModal();
 }
@@ -738,15 +736,15 @@ function processVideoFile(file) {
     const placeholder = document.querySelector('.preview-placeholder');
     const processing = document.getElementById('videoProcessing');
     
-    processing.classList.remove('hidden');
+    processing.style.display = 'flex';
     
     reader.onload = function(e) {
         videoElement.src = e.target.result;
-        videoElement.classList.remove('hidden');
+        videoElement.style.display = 'block';
         placeholder.style.display = 'none';
         
         setTimeout(() => {
-            processing.classList.add('hidden');
+            processing.style.display = 'none';
             document.getElementById('publishBtn').disabled = false;
             
             document.getElementById('videoFileInfo').innerHTML = `
@@ -778,7 +776,7 @@ function simulateRecording() {
     ];
     
     videoElement.src = demoVideos[Math.floor(Math.random() * demoVideos.length)];
-    videoElement.classList.remove('hidden');
+    videoElement.style.display = 'block';
     placeholder.style.display = 'none';
     
     currentVideoFile = {
@@ -816,12 +814,6 @@ async function publishVideo() {
     publishBtn.disabled = true;
     publishBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Publication...';
     
-    // Afficher la barre de progression
-    const progressBar = document.getElementById('progressBar');
-    const progressBarFill = document.getElementById('progressBarFill');
-    progressBar.classList.remove('hidden');
-    progressBarFill.style.width = '0%';
-    
     try {
         const hashtags = extractHashtags(caption);
         let videoUrl = '';
@@ -833,12 +825,9 @@ async function publishVideo() {
                 const videoElement = document.getElementById('previewVideo');
                 videoUrl = videoElement.src;
             } else if (currentVideoFile instanceof File) {
-                // Uploader vers Firebase Storage
-                videoUrl = await uploadVideoToFirebase(currentVideoFile, (progress) => {
-                    const percent = Math.round((progress.bytesTransferred / progress.totalBytes) * 100);
-                    progressBarFill.style.width = percent + '%';
-                    document.getElementById('uploadProgress').textContent = `${percent}% téléchargé`;
-                });
+                // Pour les vrais fichiers, utiliser l'URL locale
+                const videoElement = document.getElementById('previewVideo');
+                videoUrl = videoElement.src;
             }
         } else {
             const videoElement = document.getElementById('previewVideo');
@@ -887,39 +876,7 @@ async function publishVideo() {
         isUploading = false;
         publishBtn.disabled = false;
         publishBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Publier';
-        progressBar.classList.add('hidden');
     }
-}
-
-async function uploadVideoToFirebase(file, onProgress) {
-    return new Promise((resolve, reject) => {
-        const storageRef = firebase.storage().ref();
-        const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
-        const videoRef = storageRef.child(`videos/${currentUser.id}/${fileName}`);
-        
-        uploadTask = videoRef.put(file);
-        
-        uploadTask.on('state_changed',
-            (snapshot) => {
-                const progress = snapshot;
-                if (onProgress) onProgress(progress);
-            },
-            (error) => {
-                console.error('❌ Erreur upload:', error);
-                reject(new Error('Échec du téléchargement'));
-            },
-            async () => {
-                try {
-                    const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
-                    console.log('✅ URL vidéo:', downloadURL);
-                    resolve(downloadURL);
-                } catch (error) {
-                    console.error('❌ Erreur récupération URL:', error);
-                    reject(new Error('Impossible de récupérer l\'URL de la vidéo'));
-                }
-            }
-        );
-    });
 }
 
 function saveAsDraft() {
@@ -953,7 +910,7 @@ function resetCreateModal() {
     
     const videoElement = document.getElementById('previewVideo');
     videoElement.src = '';
-    videoElement.classList.add('hidden');
+    videoElement.style.display = 'none';
     
     document.querySelector('.preview-placeholder').style.display = 'flex';
     document.getElementById('videoFileInfo').innerHTML = `
@@ -967,12 +924,6 @@ function resetCreateModal() {
     
     currentVideoFile = null;
     isUploading = false;
-    
-    // Annuler l'upload en cours
-    if (uploadTask) {
-        uploadTask.cancel();
-        uploadTask = null;
-    }
 }
 
 // ==================== UTILITAIRES ====================
@@ -1035,17 +986,39 @@ function showNotification(message, type = 'info') {
         container = document.createElement('div');
         container.id = 'notificationsContainer';
         container.className = 'notifications-container';
+        container.style.cssText = `
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            z-index: 1001;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        `;
         document.body.appendChild(container);
     }
     
     const notification = document.createElement('div');
     notification.className = `notification notification-${type}`;
+    notification.style.cssText = `
+        background: #222;
+        border-radius: 10px;
+        padding: 15px;
+        border-left: 4px solid ${type === 'success' ? '#00ff88' : type === 'error' ? '#ff4757' : '#00f2fe'};
+        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        animation: slideIn 0.3s;
+        max-width: 300px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    `;
+    
     notification.innerHTML = `
-        <div class="notification-content">
+        <div class="notification-content" style="display: flex; align-items: center; gap: 10px;">
             <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
             <span>${message}</span>
         </div>
-        <button class="close-notification" onclick="this.parentElement.remove()">&times;</button>
+        <button class="close-notification" onclick="this.parentElement.remove()" style="background: none; border: none; color: #888; cursor: pointer; font-size: 18px;">&times;</button>
     `;
     
     container.appendChild(notification);
@@ -1082,7 +1055,7 @@ function showHome() {
 
 function toggleUserMenu() {
     const menu = document.getElementById('userDropdown');
-    menu.classList.toggle('hidden');
+    menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
 }
 
 function openSearch() {
@@ -1097,12 +1070,12 @@ function openSearch() {
 
 function openProfile() {
     loadProfileData();
-    document.getElementById('profileModal').classList.remove('hidden');
+    document.getElementById('profileModal').style.display = 'flex';
     document.body.style.overflow = 'hidden';
 }
 
 function closeProfile() {
-    document.getElementById('profileModal').classList.add('hidden');
+    document.getElementById('profileModal').style.display = 'none';
     document.body.style.overflow = 'auto';
 }
 
@@ -1121,7 +1094,7 @@ function loadProfileData() {
 function showProfileTab(tabName) {
     // Désactiver tous les onglets
     document.querySelectorAll('.profile-tab').forEach(tab => tab.classList.remove('active'));
-    document.querySelectorAll('.profile-content').forEach(content => content.classList.add('hidden'));
+    document.querySelectorAll('.profile-content').forEach(content => content.style.display = 'none');
     
     // Activer l'onglet sélectionné
     const tabs = document.querySelectorAll('.profile-tab');
@@ -1130,7 +1103,7 @@ function showProfileTab(tabName) {
     
     const contentId = 'profile' + tabName.charAt(0).toUpperCase() + tabName.slice(1);
     const content = document.getElementById(contentId);
-    if (content) content.classList.remove('hidden');
+    if (content) content.style.display = 'block';
     
     // Charger le contenu
     switch(tabName) {
@@ -1252,12 +1225,12 @@ function changeProfilePicture() {
 
 function openSettings() {
     loadSettings();
-    document.getElementById('settingsModal').classList.remove('hidden');
+    document.getElementById('settingsModal').style.display = 'flex';
     document.body.style.overflow = 'hidden';
 }
 
 function closeSettings() {
-    document.getElementById('settingsModal').classList.add('hidden');
+    document.getElementById('settingsModal').style.display = 'none';
     document.body.style.overflow = 'auto';
 }
 
@@ -1307,7 +1280,7 @@ async function saveSettings() {
 
 // ==================== ÉCOUTEURS D'ÉVÉNEMENTS ====================
 function setupEventListeners() {
-    console.log('🔧 Configuration des écouteurs d\'événements...');
+    console.log('🔧 Configuration des écouteurs d'événements...');
     
     // Recherche par Entrée
     const searchInput = document.getElementById('searchInput');
@@ -1345,14 +1318,14 @@ function setupEventListeners() {
     document.addEventListener('click', function(e) {
         const menu = document.getElementById('userDropdown');
         const userMenu = document.querySelector('.user-menu');
-        if (menu && !menu.classList.contains('hidden') && userMenu && !userMenu.contains(e.target) && !menu.contains(e.target)) {
-            menu.classList.add('hidden');
+        if (menu && menu.style.display === 'block' && userMenu && !userMenu.contains(e.target) && !menu.contains(e.target)) {
+            menu.style.display = 'none';
         }
         
         // Fermer les modales
         ['createModal', 'profileModal', 'settingsModal'].forEach(modalId => {
             const modal = document.getElementById(modalId);
-            if (modal && !modal.classList.contains('hidden') && e.target === modal) {
+            if (modal && modal.style.display === 'flex' && e.target === modal) {
                 if (modalId === 'createModal') closeCreateModal();
                 if (modalId === 'profileModal') closeProfile();
                 if (modalId === 'settingsModal') closeSettings();
@@ -1374,14 +1347,9 @@ function setupEventListeners() {
         if (realtimeUnsubscribe) {
             realtimeUnsubscribe();
         }
-        
-        // Annuler l'upload en cours
-        if (uploadTask) {
-            uploadTask.cancel();
-        }
     });
     
-    console.log('✅ Écouteurs d\'événements configurés');
+    console.log('✅ Écouteurs d'événements configurés');
 }
 
 // ==================== FONCTIONS NON IMPLÉMENTÉES ====================
@@ -1413,7 +1381,7 @@ function showFollowing() {
 function showFavorites() {
     const favoriteVideos = videos.filter(v => currentUser.likedVideos?.includes(v.id));
     if (favoriteVideos.length === 0) {
-        showNotification('Vous n\'avez pas de vidéos favorites', 'info');
+        showNotification('Vous n'avez pas de vidéos favorites', 'info');
     } else {
         const videoFeed = document.getElementById('videoFeed');
         videoFeed.innerHTML = '';
@@ -1425,7 +1393,7 @@ function showFavorites() {
 function showMyVideos() {
     const myVideos = videos.filter(v => v.userId === currentUser.id);
     if (myVideos.length === 0) {
-        showNotification('Vous n\'avez pas de vidéos', 'info');
+        showNotification('Vous n'avez pas de vidéos', 'info');
     } else {
         const videoFeed = document.getElementById('videoFeed');
         videoFeed.innerHTML = '';
