@@ -1,4 +1,4 @@
-// Configuration Firebase pour TIKTAK - MODE RÉEL CORRIGÉ
+// Configuration Firebase pour TIKTAK - MODE RÉEL
 const firebaseConfig = {
     apiKey: "AIzaSyD6UBg16fK3WP6ttzzmGMLglruXO4-KEzA",
     authDomain: "tiktak-97036.firebaseapp.com",
@@ -26,7 +26,7 @@ const db = firebase.firestore();
 const auth = firebase.auth();
 const storage = firebase.storage();
 
-// ==================== FONCTIONS FIREBASE CORRIGÉES ====================
+// ==================== FONCTIONS FIREBASE ====================
 
 // Créer un utilisateur anonyme
 async function createAnonymousUser() {
@@ -34,7 +34,6 @@ async function createAnonymousUser() {
         const userCredential = await auth.signInAnonymously();
         const user = userCredential.user;
         
-        // Créer le profil dans Firestore
         const userData = {
             username: `User${Math.floor(Math.random() * 10000)}`,
             avatar: `https://i.pravatar.cc/150?img=${Math.floor(Math.random() * 70)}`,
@@ -164,7 +163,6 @@ async function saveVideo(videoData) {
         
         await videoRef.set(videoWithMetadata);
         
-        // Mettre à jour l'utilisateur
         await db.collection('users').doc(user.uid).update({
             myVideos: firebase.firestore.FieldValue.arrayUnion(videoRef.id),
             coins: firebase.firestore.FieldValue.increment(10),
@@ -180,7 +178,193 @@ async function saveVideo(videoData) {
     }
 }
 
-// Upload vers Firebase Storage - VERSION SIMPLIFIÉE ET CORRIGÉE
+// Mettre à jour une vidéo
+async function updateVideo(videoId, updates) {
+    try {
+        await db.collection('videos').doc(videoId).update({
+            ...updates,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        return true;
+    } catch (error) {
+        console.error('❌ Erreur mise à jour vidéo:', error);
+        throw error;
+    }
+}
+
+// Incrémenter les vues
+async function incrementViews(videoId) {
+    try {
+        await db.collection('videos').doc(videoId).update({
+            views: firebase.firestore.FieldValue.increment(1),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        return true;
+    } catch (error) {
+        console.error('⚠️ Vue non comptabilisée:', error);
+        return false;
+    }
+}
+
+// Mettre à jour les likes
+async function updateLikes(videoId, userId, action = 'like') {
+    try {
+        const increment = action === 'like' ? 1 : -1;
+        await db.collection('videos').doc(videoId).update({
+            likes: firebase.firestore.FieldValue.increment(increment),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        
+        const userRef = db.collection('users').doc(userId);
+        if (action === 'like') {
+            await userRef.update({
+                likedVideos: firebase.firestore.FieldValue.arrayUnion(videoId),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        } else {
+            await userRef.update({
+                likedVideos: firebase.firestore.FieldValue.arrayRemove(videoId),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        }
+        
+        return true;
+    } catch (error) {
+        console.error('❌ Erreur mise à jour likes:', error);
+        throw error;
+    }
+}
+
+// Suivre un utilisateur
+async function followUser(followerId, followingId) {
+    try {
+        await db.collection('users').doc(followerId).update({
+            following: firebase.firestore.FieldValue.arrayUnion(followingId),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        
+        await db.collection('users').doc(followingId).update({
+            followers: firebase.firestore.FieldValue.arrayUnion(followerId),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        
+        return true;
+    } catch (error) {
+        console.error('❌ Erreur follow:', error);
+        throw error;
+    }
+}
+
+// Rechercher des vidéos
+async function searchVideos(query) {
+    try {
+        console.log(`🔍 Recherche: "${query}"`);
+        
+        const snapshot = await db.collection('videos')
+            .where('privacy', '==', 'public')
+            .orderBy('createdAt', 'desc')
+            .limit(20)
+            .get();
+        
+        if (snapshot.empty) return [];
+        
+        const allVideos = [];
+        const normalizedQuery = query.toLowerCase().trim();
+        
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            const createdAt = data.createdAt?.toDate?.() || new Date();
+            
+            allVideos.push({
+                id: doc.id,
+                ...data,
+                createdAt: createdAt
+            });
+        });
+        
+        const results = allVideos.filter(video => {
+            if (video.caption && video.caption.toLowerCase().includes(normalizedQuery)) {
+                return true;
+            }
+            
+            if (video.username && video.username.toLowerCase().includes(normalizedQuery)) {
+                return true;
+            }
+            
+            if (video.hashtags && Array.isArray(video.hashtags)) {
+                for (const tag of video.hashtags) {
+                    if (tag.toLowerCase().includes(normalizedQuery)) {
+                        return true;
+                    }
+                }
+            }
+            
+            return false;
+        });
+        
+        console.log(`✅ ${results.length} résultats trouvés pour "${query}"`);
+        return results;
+        
+    } catch (error) {
+        console.error('❌ Erreur recherche:', error);
+        return [];
+    }
+}
+
+// Mettre à jour l'utilisateur
+async function updateUser(userId, updates) {
+    try {
+        await db.collection('users').doc(userId).update({
+            ...updates,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        return true;
+    } catch (error) {
+        console.error('❌ Erreur mise à jour utilisateur:', error);
+        throw error;
+    }
+}
+
+// Charger un utilisateur
+async function loadUser(userId) {
+    try {
+        const userDoc = await db.collection('users').doc(userId).get();
+        if (userDoc.exists) {
+            const data = userDoc.data();
+            return { 
+                id: userDoc.id, 
+                username: data.username || 'Utilisateur',
+                avatar: data.avatar || 'https://i.pravatar.cc/150?img=1',
+                followers: data.followers || [],
+                following: data.following || [],
+                coins: data.coins || 0,
+                likedVideos: data.likedVideos || []
+            };
+        }
+        return {
+            id: userId,
+            username: 'Utilisateur',
+            avatar: 'https://i.pravatar.cc/150?img=1',
+            followers: [],
+            following: [],
+            coins: 0,
+            likedVideos: []
+        };
+    } catch (error) {
+        console.error('❌ Erreur chargement utilisateur:', error);
+        return {
+            id: userId,
+            username: 'Utilisateur',
+            avatar: 'https://i.pravatar.cc/150?img=1',
+            followers: [],
+            following: [],
+            coins: 0,
+            likedVideos: []
+        };
+    }
+}
+
+// Upload vers Firebase Storage
 async function uploadToFirebaseStorage(file) {
     return new Promise((resolve, reject) => {
         console.log('📤 Début upload vers Firebase Storage...');
@@ -190,27 +374,23 @@ async function uploadToFirebaseStorage(file) {
             return;
         }
 
-        // Vérifier la taille du fichier
         if (file.size > 500 * 1024 * 1024) {
             reject(new Error('Fichier trop volumineux (max 500MB)'));
             return;
         }
 
-        // Créer une référence unique pour le fichier
         const timestamp = Date.now();
         const randomId = Math.random().toString(36).substring(2, 15);
         const fileExtension = file.name.split('.').pop().toLowerCase();
         const fileName = `videos/${timestamp}_${randomId}.${fileExtension}`;
         
         console.log('📁 Nom du fichier:', fileName);
-        console.log('📏 Taille du fichier:', (file.size / 1024 / 1024).toFixed(2), 'MB');
-        console.log('📄 Type MIME:', file.type);
+        console.log('📏 Taille:', (file.size / 1024 / 1024).toFixed(2), 'MB');
+        console.log('📄 Type:', file.type);
 
-        // Créer la référence dans Firebase Storage
         const storageRef = storage.ref();
         const fileRef = storageRef.child(fileName);
 
-        // Métadonnées
         const metadata = {
             contentType: file.type || 'video/*',
             customMetadata: {
@@ -220,16 +400,13 @@ async function uploadToFirebaseStorage(file) {
             }
         };
 
-        // Upload avec gestion de progression
         const uploadTask = fileRef.put(file, metadata);
 
         uploadTask.on('state_changed',
             (snapshot) => {
-                // Progression
                 const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
                 console.log(`📊 Progression: ${progress.toFixed(2)}%`);
                 
-                // Mettre à jour la barre de progression dans l'interface
                 const progressBar = document.getElementById('uploadProgressBar');
                 const progressText = document.getElementById('uploadProgressText');
                 
@@ -262,11 +439,9 @@ async function uploadToFirebaseStorage(file) {
                 try {
                     console.log('✅ Upload terminé, récupération URL...');
                     
-                    // Récupérer l'URL de téléchargement
                     const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
                     console.log('🔗 URL générée:', downloadURL);
                     
-                    // Ajouter des métadonnées supplémentaires
                     await uploadTask.snapshot.ref.updateMetadata({
                         cacheControl: 'public, max-age=31536000',
                         contentDisposition: `inline; filename="${file.name}"`
@@ -276,7 +451,6 @@ async function uploadToFirebaseStorage(file) {
                 } catch (urlError) {
                     console.error('❌ Erreur génération URL:', urlError);
                     
-                    // Fallback: créer une URL manuellement
                     try {
                         const token = await uploadTask.snapshot.ref.getMetadata()
                             .then(metadata => metadata.downloadTokens || 'no-token');
@@ -298,24 +472,47 @@ async function uploadToFirebaseStorage(file) {
     });
 }
 
-// Test de connexion Firebase
-async function testFirebaseConnection() {
+// Ajouter un commentaire
+async function addComment(videoId, commentData) {
     try {
-        console.log('🔍 Test de connexion Firebase Storage...');
+        const commentRef = await db.collection('videos').doc(videoId).collection('comments').add({
+            ...commentData,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
         
-        // Test simple de connexion
-        const testRef = storage.ref().child('_test_connection.txt');
-        const testBlob = new Blob(['test'], { type: 'text/plain' });
+        await db.collection('videos').doc(videoId).update({
+            comments: firebase.firestore.FieldValue.increment(1)
+        });
         
-        await testRef.put(testBlob);
-        const url = await testRef.getDownloadURL();
-        await testRef.delete();
-        
-        console.log('✅ Firebase Storage: Connecté et fonctionnel');
-        return true;
+        return commentRef.id;
     } catch (error) {
-        console.warn('⚠️ Firebase Storage: Problème de connexion', error);
-        return false;
+        console.error('❌ Erreur ajout commentaire:', error);
+        throw error;
+    }
+}
+
+// Charger les commentaires
+async function loadComments(videoId, limit = 50) {
+    try {
+        const snapshot = await db.collection('videos').doc(videoId).collection('comments')
+            .orderBy('createdAt', 'desc')
+            .limit(limit)
+            .get();
+        
+        const comments = [];
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            comments.push({
+                id: doc.id,
+                ...data,
+                createdAt: data.createdAt?.toDate?.() || new Date()
+            });
+        });
+        
+        return comments;
+    } catch (error) {
+        console.error('❌ Erreur chargement commentaires:', error);
+        return [];
     }
 }
 
@@ -356,6 +553,60 @@ async function initializeDatabase() {
     }
 }
 
+// Test de connexion Firebase
+async function testFirebaseConnection() {
+    try {
+        console.log('🔍 Test de connexion Firebase Storage...');
+        
+        const testRef = storage.ref().child('_test_connection.txt');
+        const testBlob = new Blob(['test'], { type: 'text/plain' });
+        
+        await testRef.put(testBlob);
+        const url = await testRef.getDownloadURL();
+        await testRef.delete();
+        
+        console.log('✅ Firebase Storage: Connecté et fonctionnel');
+        return true;
+    } catch (error) {
+        console.warn('⚠️ Firebase Storage: Problème de connexion', error);
+        return false;
+    }
+}
+
+// Écoute en temps réel
+function setupRealtimeListener(callback) {
+    try {
+        console.log('👂 Configuration de l\'écoute en temps réel...');
+        
+        return db.collection('videos')
+            .where('privacy', '==', 'public')
+            .orderBy('createdAt', 'desc')
+            .limit(10)
+            .onSnapshot((snapshot) => {
+                const newVideos = [];
+                snapshot.docChanges().forEach((change) => {
+                    if (change.type === 'added') {
+                        const data = change.doc.data();
+                        newVideos.push({
+                            id: change.doc.id,
+                            ...data,
+                            createdAt: data.createdAt?.toDate?.() || new Date()
+                        });
+                    }
+                });
+                
+                if (newVideos.length > 0 && callback) {
+                    callback(newVideos);
+                }
+            }, (error) => {
+                console.warn('⚠️ Écoute temps réel désactivée:', error);
+            });
+    } catch (error) {
+        console.warn('⚠️ Impossible de configurer l\'écoute temps réel:', error);
+        return null;
+    }
+}
+
 // Exporter les fonctions
 window.firebaseApp = {
     db,
@@ -364,9 +615,19 @@ window.firebaseApp = {
     getCurrentUser,
     saveVideo,
     loadVideos,
+    updateVideo,
+    incrementViews,
+    updateLikes,
+    followUser,
+    searchVideos,
+    updateUser,
+    loadUser,
     uploadToFirebaseStorage,
+    addComment,
+    loadComments,
+    initializeDatabase,
     testFirebaseConnection,
-    initializeDatabase
+    setupRealtimeListener
 };
 
 // Initialiser au chargement
@@ -381,4 +642,4 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-console.log('🔥 Firebase configuré pour TIKTAK - UPLOAD CORRIGÉ');
+console.log('🔥 Firebase configuré pour TIKTAK - COMPLET');
