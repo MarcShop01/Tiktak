@@ -12,12 +12,6 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
-    
-    <style>
-        /* Styles temporaires pour éviter le flash blanc */
-        body { background: #000; color: #fff; }
-        .hidden { display: none !important; }
-    </style>
 </head>
 <body>
     <!-- Loading Screen -->
@@ -27,7 +21,7 @@
     </div>
 
     <!-- Main App -->
-    <div class="app-container hidden" id="appContainer">
+    <div class="app-container" id="appContainer" style="display: none;">
         <!-- Navigation -->
         <nav class="navbar">
             <div class="logo">
@@ -58,7 +52,7 @@
                 </div>
             </div>
             
-            <div class="dropdown-menu hidden" id="userDropdown">
+            <div class="dropdown-menu" id="userDropdown" style="display: none;">
                 <a href="#" onclick="openProfile()"><i class="fas fa-user"></i> Mon profil</a>
                 <a href="#" onclick="openWallet()"><i class="fas fa-wallet"></i> Mon portefeuille</a>
                 <a href="#" onclick="openSettings()"><i class="fas fa-cog"></i> Paramètres</a>
@@ -70,7 +64,7 @@
         <!-- Main Content -->
         <main class="main-content">
             <div class="video-feed" id="videoFeed">
-                <!-- Les vidéos seront chargées ici -->
+                <!-- Les vidéos seront chargées ici depuis Firebase -->
             </div>
             
             <!-- Sidebar (visible sur desktop) -->
@@ -82,15 +76,6 @@
                     <a href="#" onclick="showFollowing()"><i class="fas fa-users"></i> Abonnements</a>
                     <a href="#" onclick="showFavorites()"><i class="fas fa-heart"></i> Favoris</a>
                     <a href="#" onclick="showMyVideos()"><i class="fas fa-video"></i> Mes vidéos</a>
-                </div>
-                
-                <div class="sidebar-section">
-                    <h3>Catégories</h3>
-                    <a href="#"><i class="fas fa-gamepad"></i> Gaming</a>
-                    <a href="#"><i class="fas fa-music"></i> Musique</a>
-                    <a href="#"><i class="fas fa-dumbbell"></i> Sport</a>
-                    <a href="#"><i class="fas fa-utensils"></i> Cuisine</a>
-                    <a href="#"><i class="fas fa-laugh"></i> Humour</a>
                 </div>
             </aside>
         </main>
@@ -105,11 +90,12 @@
         </div>
 
         <!-- Modale de création -->
-        <div id="createModal" class="modal-overlay hidden">
+        <div id="createModal" class="modal-overlay" style="display: none;">
             <div class="modal-content">
                 <span class="close-btn" onclick="closeCreateModal()">&times;</span>
                 <h2>Créer une vidéo</h2>
                 
+                <!-- Options de création -->
                 <div id="createOptions" class="create-options">
                     <h3>Comment voulez-vous créer votre contenu ?</h3>
                     
@@ -135,37 +121,36 @@
                 </div>
                 
                 <!-- Section d'upload -->
-                <div id="videoUploadSection" class="hidden">
+                <div id="videoUploadSection" style="display: none;">
                     <!-- Section caméra -->
-                    <div id="cameraControls" class="hidden">
-                        <video id="cameraPreview"></video>
+                    <div id="cameraControls" style="display: none;">
+                        <video id="cameraPreview" style="width: 100%; height: 300px; object-fit: cover; border-radius: 10px;"></video>
                         <div class="camera-buttons">
                             <button id="startCameraBtn" class="btn btn-secondary">
                                 <i class="fas fa-camera"></i> Démarrer la caméra
                             </button>
-                            <button id="recordBtn" class="btn btn-danger hidden">
+                            <button id="recordBtn" class="btn btn-danger" style="display: none;">
                                 <i class="fas fa-video"></i> Enregistrer
                             </button>
-                            <button id="stopRecordBtn" class="btn btn-secondary hidden">
+                            <button id="stopRecordBtn" class="btn btn-secondary" style="display: none;">
                                 <i class="fas fa-stop"></i> Arrêter
                             </button>
                         </div>
                     </div>
                     
                     <!-- Section fichier -->
-                    <div id="fileUploadControls" class="hidden">
+                    <div id="fileUploadControls" style="display: none;">
                         <div class="video-preview" id="videoPreview">
-                            <video id="previewVideo" class="hidden" controls></video>
+                            <video id="previewVideo" style="display: none; width: 100%; height: 100%; object-fit: contain;" controls></video>
                             <div class="preview-placeholder">
                                 <i class="fas fa-cloud-upload-alt"></i>
                                 <p>Sélectionnez ou déposez une vidéo</p>
                                 <small>MP4, WebM, OGG (max 100MB)</small>
                             </div>
                             <!-- Indicateur de chargement -->
-                            <div id="videoProcessing" class="video-processing hidden">
+                            <div id="videoProcessing" class="video-processing" style="display: none;">
                                 <div class="processing-spinner"></div>
                                 <p>Traitement de la vidéo...</p>
-                                <p id="uploadProgress" class="upload-progress-text"></p>
                             </div>
                         </div>
                         
@@ -179,12 +164,12 @@
                         </div>
                         
                         <!-- Barre de progression -->
-                        <div id="progressBar" class="upload-progress hidden">
+                        <div id="progressBar" class="upload-progress" style="display: none;">
                             <div class="upload-progress-bar" id="progressBarFill"></div>
                         </div>
                     </div>
                     
-                    <input type="file" id="videoInput" accept="video/*" class="hidden">
+                    <input type="file" id="videoInput" accept="video/*" style="display: none;">
                 </div>
                 
                 <!-- Formulaire de publication -->
@@ -224,7 +209,7 @@
         </div>
 
         <!-- Modale Profil -->
-        <div id="profileModal" class="modal-overlay hidden">
+        <div id="profileModal" class="modal-overlay" style="display: none;">
             <div class="modal-content">
                 <span class="close-btn" onclick="closeProfile()">&times;</span>
                 <h2>Mon Profil</h2>
@@ -241,7 +226,7 @@
                 <button class="btn btn-small btn-secondary" onclick="changeProfilePicture()">
                     <i class="fas fa-camera"></i> Changer la photo
                 </button>
-                <input type="file" id="profilePictureInput" accept="image/*" class="hidden">
+                <input type="file" id="profilePictureInput" accept="image/*" style="display: none;">
                 
                 <div class="profile-tabs">
                     <button class="profile-tab active" onclick="showProfileTab('videos')">Mes vidéos</button>
@@ -260,7 +245,7 @@
                     </div>
                 </div>
                 
-                <div id="profileLikes" class="profile-content hidden">
+                <div id="profileLikes" class="profile-content" style="display: none;">
                     <div class="empty-state">
                         <i class="fas fa-heart"></i>
                         <h3>Aucun like</h3>
@@ -268,7 +253,7 @@
                     </div>
                 </div>
                 
-                <div id="profileDrafts" class="profile-content hidden">
+                <div id="profileDrafts" class="profile-content" style="display: none;">
                     <div class="empty-state">
                         <i class="fas fa-file-alt"></i>
                         <h3>Aucun brouillon</h3>
@@ -279,7 +264,7 @@
         </div>
 
         <!-- Modale Paramètres -->
-        <div id="settingsModal" class="modal-overlay hidden">
+        <div id="settingsModal" class="modal-overlay" style="display: none;">
             <div class="modal-content">
                 <span class="close-btn" onclick="closeSettings()">&times;</span>
                 <h2>Paramètres</h2>
