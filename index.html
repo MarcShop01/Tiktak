@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>TIKTAK - Votre application de vidéos</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -22,7 +22,7 @@
 
     <!-- Main App -->
     <div class="app-container" id="appContainer" style="display: none;">
-        <!-- Navigation -->
+        <!-- Navigation simplifiée -->
         <nav class="navbar">
             <div class="logo">
                 <i class="fas fa-video"></i> <span class="logo-text">TIKTAK</span>
@@ -30,34 +30,13 @@
             
             <div class="search-bar">
                 <input type="text" id="searchInput" placeholder="Rechercher...">
-                <button class="search-btn"><i class="fas fa-search"></i></button>
+                <button class="search-btn" onclick="performSearch()"><i class="fas fa-search"></i></button>
             </div>
             
             <div class="nav-right">
-                <div class="coin-balance" id="coinBalance" onclick="openWallet()">
-                    <i class="fas fa-coins"></i>
-                    <span id="coinCount">0</span>
-                </div>
-                
-                <button class="btn btn-live" onclick="openLiveStream()">
-                    <i class="fas fa-broadcast-tower"></i> <span class="live-text">Live</span>
-                </button>
-                
                 <button class="btn btn-upload" onclick="openCreateModal()">
                     <i class="fas fa-plus"></i>
                 </button>
-                
-                <div class="user-menu" onclick="toggleUserMenu()">
-                    <img id="userAvatar" src="https://randomuser.me/api/portraits/lego/1.jpg" alt="Profil">
-                </div>
-            </div>
-            
-            <div class="dropdown-menu" id="userDropdown" style="display: none;">
-                <a href="#" onclick="openProfile()"><i class="fas fa-user"></i> Mon profil</a>
-                <a href="#" onclick="openWallet()"><i class="fas fa-wallet"></i> Mon portefeuille</a>
-                <a href="#" onclick="openSettings()"><i class="fas fa-cog"></i> Paramètres</a>
-                <div class="divider"></div>
-                <a href="#" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Déconnexion</a>
             </div>
         </nav>
 
@@ -66,27 +45,26 @@
             <div class="video-feed" id="videoFeed">
                 <!-- Les vidéos seront chargées ici depuis Firebase -->
             </div>
-            
-            <!-- Sidebar (visible sur desktop) -->
-            <aside class="sidebar">
-                <div class="sidebar-section">
-                    <h3>Découvrir</h3>
-                    <a href="#" onclick="showHome()"><i class="fas fa-home"></i> Accueil</a>
-                    <a href="#" onclick="showTrending()"><i class="fas fa-fire"></i> Tendances</a>
-                    <a href="#" onclick="showFollowing()"><i class="fas fa-users"></i> Abonnements</a>
-                    <a href="#" onclick="showFavorites()"><i class="fas fa-heart"></i> Favoris</a>
-                    <a href="#" onclick="showMyVideos()"><i class="fas fa-video"></i> Mes vidéos</a>
-                </div>
-            </aside>
         </main>
 
-        <!-- Bottom Navigation (Mobile) -->
+        <!-- Bottom Navigation (Mobile) - SEULEMENT LES BOUTONS EN BAS -->
         <div class="bottom-nav">
-            <a href="#" class="nav-item active" onclick="showHome()"><i class="fas fa-home"></i></a>
-            <a href="#" class="nav-item" onclick="openSearch()"><i class="fas fa-search"></i></a>
-            <a href="#" class="nav-item" onclick="openCreateModal()"><i class="fas fa-plus-square"></i></a>
-            <a href="#" class="nav-item" onclick="openNotifications()"><i class="fas fa-bell"></i></a>
-            <a href="#" class="nav-item" onclick="openProfile()"><i class="fas fa-user"></i></a>
+            <a href="#" class="nav-item active" onclick="showHome(); return false;">
+                <i class="fas fa-home"></i>
+                <span>Accueil</span>
+            </a>
+            <a href="#" class="nav-item" onclick="openCreateModal(); return false;">
+                <i class="fas fa-plus-square"></i>
+                <span>Créer</span>
+            </a>
+            <a href="#" class="nav-item" onclick="openNotifications(); return false;">
+                <i class="fas fa-bell"></i>
+                <span>Notifications</span>
+            </a>
+            <a href="#" class="nav-item" onclick="openProfile(); return false;">
+                <i class="fas fa-user"></i>
+                <span>Profil</span>
+            </a>
         </div>
 
         <!-- Modale de création -->
@@ -96,55 +74,40 @@
                 <h2>Créer une vidéo</h2>
                 
                 <!-- Options de création -->
-                <div id="createOptions" class="create-options" style="display: flex; flex-direction: column; gap: 15px; margin: 20px 0;">
+                <div id="createOptions" class="create-options">
                     <h3>Comment voulez-vous créer votre contenu ?</h3>
-                    
-                    <div class="option" onclick="openCameraForRecording()">
-                        <div class="option-icon">
-                            <i class="fas fa-camera"></i>
-                        </div>
-                        <div class="option-content">
-                            <h4>Utiliser la caméra</h4>
-                            <p>Enregistrez une vidéo avec votre caméra</p>
-                        </div>
-                    </div>
                     
                     <div class="option" onclick="openFileUpload()">
                         <div class="option-icon">
                             <i class="fas fa-upload"></i>
                         </div>
                         <div class="option-content">
-                            <h4>Télécharger un fichier</h4>
+                            <h4>Télécharger une vidéo</h4>
                             <p>Choisissez une vidéo depuis votre appareil</p>
+                        </div>
+                    </div>
+                    
+                    <div class="option" onclick="simulateRecording()">
+                        <div class="option-icon">
+                            <i class="fas fa-magic"></i>
+                        </div>
+                        <div class="option-content">
+                            <h4>Utiliser une vidéo de démo</h4>
+                            <p>Testez avec une vidéo exemple</p>
                         </div>
                     </div>
                 </div>
                 
                 <!-- Section d'upload -->
                 <div id="videoUploadSection" style="display: none;">
-                    <!-- Section caméra -->
-                    <div id="cameraControls" style="display: none;">
-                        <video id="cameraPreview" style="width: 100%; height: 300px; object-fit: cover; border-radius: 10px;"></video>
-                        <div class="camera-buttons" style="display: flex; gap: 10px; justify-content: center; margin-top: 15px;">
-                            <button id="startCameraBtn" class="btn btn-secondary" style="display: inline-block;">
-                                <i class="fas fa-camera"></i> Démarrer la caméra
-                            </button>
-                            <button id="recordBtn" class="btn btn-danger" style="display: none;">
-                                <i class="fas fa-video"></i> Enregistrer
-                            </button>
-                            <button id="stopRecordBtn" class="btn btn-secondary" style="display: none;">
-                                <i class="fas fa-stop"></i> Arrêter
-                            </button>
-                        </div>
-                    </div>
-                    
                     <!-- Section fichier -->
-                    <div id="fileUploadControls" style="display: none;">
+                    <div id="fileUploadControls">
                         <div class="video-preview" id="videoPreview">
                             <video id="previewVideo" style="display: none; width: 100%; height: 100%; object-fit: contain;" controls></video>
                             <div class="preview-placeholder">
                                 <i class="fas fa-cloud-upload-alt"></i>
                                 <p>Sélectionnez ou déposez une vidéo</p>
+                                <small>Formats supportés: MP4, WebM, OGG</small>
                             </div>
                             <!-- Indicateur de chargement -->
                             <div id="videoProcessing" class="video-processing" style="display: none;">
@@ -153,13 +116,20 @@
                             </div>
                         </div>
                         
-                        <div class="upload-buttons" style="display: flex; gap: 10px; justify-content: center; margin-top: 15px;">
+                        <div class="upload-buttons">
                             <button onclick="openFilePicker()" class="btn btn-primary">
                                 <i class="fas fa-folder-open"></i> Choisir un fichier
                             </button>
-                            <button onclick="simulateRecording()" class="btn btn-secondary">
-                                <i class="fas fa-magic"></i> Utiliser une démo
-                            </button>
+                        </div>
+                        
+                        <!-- Aide format -->
+                        <div class="format-help">
+                            <h4><i class="fas fa-info-circle"></i> Conseils pour une meilleure compatibilité</h4>
+                            <ul>
+                                <li><i class="fas fa-check-circle"></i> Format recommandé: MP4 (H.264)</li>
+                                <li><i class="fas fa-check-circle"></i> Taille max: 100MB</li>
+                                <li><i class="fas fa-check-circle"></i> Résolution: 720p ou 1080p</li>
+                            </ul>
                         </div>
                     </div>
                     
@@ -172,18 +142,10 @@
                     <textarea id="videoCaption" placeholder="Ajoutez une légende... #hashtag" rows="3"></textarea>
                     
                     <div class="form-group">
-                        <label>
-                            <input type="checkbox" id="monetizeVideo">
-                            Monétiser cette vidéo (démo)
-                        </label>
-                    </div>
-                    
-                    <div class="form-group">
                         <label>Visibilité</label>
                         <select id="videoPrivacy">
-                            <option value="public">Public</option>
-                            <option value="private">Privé</option>
-                            <option value="draft">Brouillon</option>
+                            <option value="public">Public (visible par tous)</option>
+                            <option value="private">Privé (uniquement moi)</option>
                         </select>
                     </div>
                     
@@ -191,10 +153,16 @@
                         <i class="fas fa-file-video"></i>
                         <span>Aucun fichier sélectionné</span>
                     </div>
+                    
+                    <!-- Indicateur de compatibilité -->
+                    <div id="compatibilityIndicator" class="compatibility-indicator compatible" style="display: none;">
+                        <div class="compatibility-dot compatible"></div>
+                        <span>Format compatible avec tous les appareils</span>
+                    </div>
                 </div>
                 
                 <div class="modal-footer">
-                    <button class="btn btn-secondary" onclick="saveAsDraft()">Sauvegarder brouillon</button>
+                    <button class="btn btn-secondary" onclick="closeCreateModal()">Annuler</button>
                     <button class="btn btn-primary" onclick="publishVideo()" id="publishBtn" disabled>
                         <i class="fas fa-paper-plane"></i> Publier
                     </button>
@@ -217,9 +185,14 @@
                     </div>
                 </div>
                 
-                <button class="btn btn-small btn-secondary" onclick="changeProfilePicture()" style="margin-bottom: 20px;">
-                    <i class="fas fa-camera"></i> Changer la photo
-                </button>
+                <div class="profile-actions">
+                    <button class="btn btn-small btn-secondary" onclick="changeProfilePicture()">
+                        <i class="fas fa-camera"></i> Changer la photo
+                    </button>
+                    <button class="btn btn-small btn-secondary" onclick="openSettings()">
+                        <i class="fas fa-cog"></i> Paramètres
+                    </button>
+                </div>
                 <input type="file" id="profilePictureInput" accept="image/*" style="display: none;">
                 
                 <div class="profile-tabs">
@@ -230,32 +203,14 @@
                 
                 <div id="profileVideos" class="profile-content">
                     <!-- Vidéos de l'utilisateur -->
-                    <div class="empty-state">
-                        <i class="fas fa-video-slash"></i>
-                        <h3>Aucune vidéo</h3>
-                        <p>Commencez à créer du contenu !</p>
-                        <button class="btn btn-primary" onclick="openCreateModal(); closeProfile();">
-                            Créer une vidéo
-                        </button>
-                    </div>
                 </div>
                 
                 <div id="profileLikes" class="profile-content" style="display: none;">
                     <!-- Vidéos aimées -->
-                    <div class="empty-state">
-                        <i class="fas fa-heart"></i>
-                        <h3>Aucun like</h3>
-                        <p>Les vidéos que vous aimez apparaîtront ici</p>
-                    </div>
                 </div>
                 
                 <div id="profileDrafts" class="profile-content" style="display: none;">
                     <!-- Brouillons -->
-                    <div class="empty-state">
-                        <i class="fas fa-file-alt"></i>
-                        <h3>Aucun brouillon</h3>
-                        <p>Vos vidéos non publiées apparaîtront ici</p>
-                    </div>
                 </div>
             </div>
         </div>
@@ -271,10 +226,6 @@
                     <div class="setting-item">
                         <label>Nom d'utilisateur</label>
                         <input type="text" id="settingsUsername" value="Utilisateur TIKTAK">
-                    </div>
-                    <div class="setting-item">
-                        <label>Email</label>
-                        <input type="email" id="settingsEmail" value="user@tiktak.demo">
                     </div>
                     <button class="btn btn-secondary" onclick="saveSettings()">Enregistrer</button>
                 </div>
@@ -293,8 +244,15 @@
                             Lecture automatique
                         </label>
                     </div>
+                </div>
+                
+                <div class="settings-section">
+                    <h3>Données</h3>
                     <button class="btn btn-danger" onclick="clearLocalStorage()">
-                        <i class="fas fa-trash"></i> Réinitialiser les données locales
+                        <i class="fas fa-trash"></i> Réinitialiser le cache
+                    </button>
+                    <button class="btn btn-secondary" onclick="logout()">
+                        <i class="fas fa-sign-out-alt"></i> Déconnexion
                     </button>
                 </div>
             </div>
