@@ -22,7 +22,7 @@
 
     <!-- Main App -->
     <div class="app-container" id="appContainer" style="display: none;">
-        <!-- Navigation simplifiée -->
+        <!-- Navigation -->
         <nav class="navbar">
             <div class="logo">
                 <i class="fas fa-video"></i> <span class="logo-text">TIKTAK</span>
@@ -34,9 +34,30 @@
             </div>
             
             <div class="nav-right">
+                <div class="coin-balance" onclick="openWallet()">
+                    <i class="fas fa-coins"></i>
+                    <span id="coinCount">0</span>
+                </div>
+                
+                <button class="btn btn-live" onclick="openLiveStream()">
+                    <i class="fas fa-broadcast-tower"></i> <span class="live-text">Live</span>
+                </button>
+                
                 <button class="btn btn-upload" onclick="openCreateModal()">
                     <i class="fas fa-plus"></i>
                 </button>
+                
+                <div class="user-menu" onclick="toggleUserMenu()">
+                    <img id="userAvatar" src="https://randomuser.me/api/portraits/lego/1.jpg" alt="Profil">
+                </div>
+            </div>
+            
+            <div class="dropdown-menu" id="userDropdown" style="display: none;">
+                <a href="#" onclick="openProfile()"><i class="fas fa-user"></i> Mon profil</a>
+                <a href="#" onclick="openWallet()"><i class="fas fa-wallet"></i> Mon portefeuille</a>
+                <a href="#" onclick="openSettings()"><i class="fas fa-cog"></i> Paramètres</a>
+                <div class="divider"></div>
+                <a href="#" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Déconnexion</a>
             </div>
         </nav>
 
@@ -45,13 +66,29 @@
             <div class="video-feed" id="videoFeed">
                 <!-- Les vidéos seront chargées ici depuis Firebase -->
             </div>
+            
+            <!-- Sidebar (visible sur desktop) -->
+            <aside class="sidebar">
+                <div class="sidebar-section">
+                    <h3>Découvrir</h3>
+                    <a href="#" onclick="showHome()"><i class="fas fa-home"></i> Accueil</a>
+                    <a href="#" onclick="showTrending()"><i class="fas fa-fire"></i> Tendances</a>
+                    <a href="#" onclick="showFollowing()"><i class="fas fa-users"></i> Abonnements</a>
+                    <a href="#" onclick="showFavorites()"><i class="fas fa-heart"></i> Favoris</a>
+                    <a href="#" onclick="showMyVideos()"><i class="fas fa-video"></i> Mes vidéos</a>
+                </div>
+            </aside>
         </main>
 
-        <!-- Bottom Navigation (Mobile) - SEULEMENT LES BOUTONS EN BAS -->
+        <!-- Bottom Navigation (Mobile) -->
         <div class="bottom-nav">
             <a href="#" class="nav-item active" onclick="showHome(); return false;">
                 <i class="fas fa-home"></i>
                 <span>Accueil</span>
+            </a>
+            <a href="#" class="nav-item" onclick="openSearch(); return false;">
+                <i class="fas fa-search"></i>
+                <span>Recherche</span>
             </a>
             <a href="#" class="nav-item" onclick="openCreateModal(); return false;">
                 <i class="fas fa-plus-square"></i>
@@ -59,7 +96,7 @@
             </a>
             <a href="#" class="nav-item" onclick="openNotifications(); return false;">
                 <i class="fas fa-bell"></i>
-                <span>Notifications</span>
+                <span>Notifs</span>
             </a>
             <a href="#" class="nav-item" onclick="openProfile(); return false;">
                 <i class="fas fa-user"></i>
@@ -74,79 +111,86 @@
                 <h2>Créer une vidéo</h2>
                 
                 <!-- Options de création -->
-                <div id="createOptions" class="create-options">
+                <div id="createOptions" class="create-options" style="display: flex; flex-direction: column; gap: 15px; margin: 20px 0;">
                     <h3>Comment voulez-vous créer votre contenu ?</h3>
+                    
+                    <div class="option" onclick="openCameraForRecording()">
+                        <div class="option-icon">
+                            <i class="fas fa-camera"></i>
+                        </div>
+                        <div class="option-content">
+                            <h4>Utiliser la caméra</h4>
+                            <p>Enregistrez une vidéo avec votre caméra</p>
+                        </div>
+                    </div>
                     
                     <div class="option" onclick="openFileUpload()">
                         <div class="option-icon">
                             <i class="fas fa-upload"></i>
                         </div>
                         <div class="option-content">
-                            <h4>Télécharger une vidéo</h4>
+                            <h4>Télécharger un fichier</h4>
                             <p>Choisissez une vidéo depuis votre appareil</p>
-                            <small style="color: #00f2fe; font-size: 12px;">Tous formats acceptés</small>
-                        </div>
-                    </div>
-                    
-                    <div class="option" onclick="simulateRecording()">
-                        <div class="option-icon">
-                            <i class="fas fa-magic"></i>
-                        </div>
-                        <div class="option-content">
-                            <h4>Utiliser une vidéo de démo</h4>
-                            <p>Testez avec une vidéo exemple</p>
-                            <small style="color: #00f2fe; font-size: 12px;">Pour tester sans upload</small>
+                            <small style="color: #00f2fe;">Tous formats acceptés (MP4, MOV, AVI, etc.)</small>
                         </div>
                     </div>
                 </div>
                 
                 <!-- Section d'upload -->
                 <div id="videoUploadSection" style="display: none;">
+                    <!-- Section caméra -->
+                    <div id="cameraControls" style="display: none;">
+                        <video id="cameraPreview" style="width: 100%; height: 300px; object-fit: cover; border-radius: 10px;"></video>
+                        <div class="camera-buttons" style="display: flex; gap: 10px; justify-content: center; margin-top: 15px;">
+                            <button id="startCameraBtn" class="btn btn-secondary" style="display: inline-block;">
+                                <i class="fas fa-camera"></i> Démarrer la caméra
+                            </button>
+                            <button id="recordBtn" class="btn btn-danger" style="display: none;">
+                                <i class="fas fa-video"></i> Enregistrer
+                            </button>
+                            <button id="stopRecordBtn" class="btn btn-secondary" style="display: none;">
+                                <i class="fas fa-stop"></i> Arrêter
+                            </button>
+                        </div>
+                    </div>
+                    
                     <!-- Section fichier -->
-                    <div id="fileUploadControls">
+                    <div id="fileUploadControls" style="display: block;">
                         <div class="video-preview" id="videoPreview">
                             <video id="previewVideo" style="display: none; width: 100%; height: 100%; object-fit: contain;" controls></video>
                             <div class="preview-placeholder">
                                 <i class="fas fa-cloud-upload-alt"></i>
                                 <p>Sélectionnez ou déposez une vidéo</p>
-                                <small>Formats acceptés: MP4, WebM, OGG, MOV, AVI, WMV, FLV, MKV, 3GP, MPEG (max 500MB)</small>
+                                <small>Formats supportés: MP4, WebM, OGG, MOV, AVI, WMV, FLV, MKV, 3GP, MPEG</small>
                             </div>
                             <!-- Indicateur de chargement -->
                             <div id="videoProcessing" class="video-processing" style="display: none;">
                                 <div class="processing-spinner"></div>
-                                <p>Conversion de la vidéo en cours...</p>
+                                <p>Préparation de la vidéo...</p>
                             </div>
                         </div>
                         
-                        <div class="upload-buttons">
+                        <div class="upload-buttons" style="display: flex; gap: 10px; justify-content: center; margin-top: 15px;">
                             <button onclick="openFilePicker()" class="btn btn-primary">
                                 <i class="fas fa-folder-open"></i> Choisir un fichier
                             </button>
-                        </div>
-                        
-                        <!-- Barre de progression pour l'upload -->
-                        <div id="uploadProgressContainer" style="display: none; margin-top: 15px;">
-                            <div class="upload-progress">
-                                <div class="upload-progress-bar" id="uploadProgressBar" style="width: 0%"></div>
-                            </div>
-                            <div class="upload-progress-text" id="uploadProgressText" style="text-align: center; color: #aaa; font-size: 12px; margin-top: 5px;">
-                                0%
-                            </div>
-                        </div>
-                        
-                        <!-- Aide format -->
-                        <div class="format-help">
-                            <h4><i class="fas fa-info-circle"></i> Tous formats vidéo acceptés !</h4>
-                            <ul>
-                                <li><i class="fas fa-check-circle"></i> Formats courants: MP4, WebM, OGG</li>
-                                <li><i class="fas fa-check-circle"></i> Formats mobiles: MOV, 3GP, MPEG</li>
-                                <li><i class="fas fa-check-circle"></i> Formats PC: AVI, WMV, FLV, MKV</li>
-                                <li><i class="fas fa-check-circle"></i> Taille max: 500MB</li>
-                            </ul>
+                            <button onclick="simulateRecording()" class="btn btn-secondary">
+                                <i class="fas fa-magic"></i> Utiliser une démo
+                            </button>
                         </div>
                     </div>
                     
-                    <input type="file" id="videoInput" accept="video/*,.mp4,.webm,.ogg,.mov,.avi,.wmv,.flv,.mkv,.3gp,.mpeg,.mpg" style="display: none;">
+                    <input type="file" id="videoInput" accept="video/*,.mp4,.webm,.ogg,.mov,.avi,.wmv,.flv,.mkv,.3gp,.mpeg,.mpg,.m4v" style="display: none;">
+                </div>
+                
+                <!-- Barre de progression d'upload -->
+                <div id="uploadProgressContainer" style="display: none; margin: 20px 0;">
+                    <div class="upload-progress">
+                        <div class="upload-progress-bar" id="uploadProgressBar" style="width: 0%"></div>
+                    </div>
+                    <div class="upload-progress-text" id="uploadProgressText" style="text-align: center; color: #aaa; font-size: 12px; margin-top: 5px;">
+                        0%
+                    </div>
                 </div>
                 
                 <!-- Formulaire de publication -->
@@ -155,10 +199,18 @@
                     <textarea id="videoCaption" placeholder="Ajoutez une légende... #hashtag" rows="3"></textarea>
                     
                     <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="monetizeVideo">
+                            Monétiser cette vidéo (démo)
+                        </label>
+                    </div>
+                    
+                    <div class="form-group">
                         <label>Visibilité</label>
                         <select id="videoPrivacy">
-                            <option value="public">Public (visible par tous)</option>
-                            <option value="private">Privé (uniquement moi)</option>
+                            <option value="public">Public</option>
+                            <option value="private">Privé</option>
+                            <option value="draft">Brouillon</option>
                         </select>
                     </div>
                     
@@ -166,16 +218,10 @@
                         <i class="fas fa-file-video"></i>
                         <span>Aucun fichier sélectionné</span>
                     </div>
-                    
-                    <!-- Indicateur de compatibilité -->
-                    <div id="compatibilityIndicator" class="compatibility-indicator compatible" style="display: none;">
-                        <div class="compatibility-dot compatible"></div>
-                        <span>Format compatible avec tous les appareils</span>
-                    </div>
                 </div>
                 
                 <div class="modal-footer">
-                    <button class="btn btn-secondary" onclick="closeCreateModal()">Annuler</button>
+                    <button class="btn btn-secondary" onclick="saveAsDraft()">Sauvegarder brouillon</button>
                     <button class="btn btn-primary" onclick="publishVideo()" id="publishBtn" disabled>
                         <i class="fas fa-paper-plane"></i> Publier
                     </button>
@@ -198,14 +244,9 @@
                     </div>
                 </div>
                 
-                <div class="profile-actions">
-                    <button class="btn btn-small btn-secondary" onclick="changeProfilePicture()">
-                        <i class="fas fa-camera"></i> Changer la photo
-                    </button>
-                    <button class="btn btn-small btn-secondary" onclick="openSettings()">
-                        <i class="fas fa-cog"></i> Paramètres
-                    </button>
-                </div>
+                <button class="btn btn-small btn-secondary" onclick="changeProfilePicture()" style="margin-bottom: 20px;">
+                    <i class="fas fa-camera"></i> Changer la photo
+                </button>
                 <input type="file" id="profilePictureInput" accept="image/*" style="display: none;">
                 
                 <div class="profile-tabs">
@@ -216,14 +257,32 @@
                 
                 <div id="profileVideos" class="profile-content">
                     <!-- Vidéos de l'utilisateur -->
+                    <div class="empty-state">
+                        <i class="fas fa-video-slash"></i>
+                        <h3>Aucune vidéo</h3>
+                        <p>Commencez à créer du contenu !</p>
+                        <button class="btn btn-primary" onclick="openCreateModal(); closeProfile();">
+                            Créer une vidéo
+                        </button>
+                    </div>
                 </div>
                 
                 <div id="profileLikes" class="profile-content" style="display: none;">
                     <!-- Vidéos aimées -->
+                    <div class="empty-state">
+                        <i class="fas fa-heart"></i>
+                        <h3>Aucun like</h3>
+                        <p>Les vidéos que vous aimez apparaîtront ici</p>
+                    </div>
                 </div>
                 
                 <div id="profileDrafts" class="profile-content" style="display: none;">
                     <!-- Brouillons -->
+                    <div class="empty-state">
+                        <i class="fas fa-file-alt"></i>
+                        <h3>Aucun brouillon</h3>
+                        <p>Vos vidéos non publiées apparaîtront ici</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -239,6 +298,10 @@
                     <div class="setting-item">
                         <label>Nom d'utilisateur</label>
                         <input type="text" id="settingsUsername" value="Utilisateur TIKTAK">
+                    </div>
+                    <div class="setting-item">
+                        <label>Email</label>
+                        <input type="email" id="settingsEmail" value="user@tiktak.demo">
                     </div>
                     <button class="btn btn-secondary" onclick="saveSettings()">Enregistrer</button>
                 </div>
@@ -257,15 +320,27 @@
                             Lecture automatique
                         </label>
                     </div>
+                    <button class="btn btn-danger" onclick="clearLocalStorage()">
+                        <i class="fas fa-trash"></i> Réinitialiser les données locales
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modale Commentaires -->
+        <div id="commentsModal" class="modal-overlay" style="display: none;">
+            <div class="modal-content">
+                <span class="close-btn" onclick="closeCommentsModal()">&times;</span>
+                <h2>Commentaires</h2>
+                
+                <div id="commentsList" style="max-height: 400px; overflow-y: auto; margin: 20px 0;">
+                    <!-- Les commentaires seront chargés ici -->
                 </div>
                 
-                <div class="settings-section">
-                    <h3>Données</h3>
-                    <button class="btn btn-danger" onclick="clearLocalStorage()">
-                        <i class="fas fa-trash"></i> Réinitialiser le cache
-                    </button>
-                    <button class="btn btn-secondary" onclick="logout()">
-                        <i class="fas fa-sign-out-alt"></i> Déconnexion
+                <div class="comment-form">
+                    <textarea id="newCommentText" placeholder="Ajouter un commentaire..." rows="3"></textarea>
+                    <button class="btn btn-primary" onclick="postComment()" style="margin-top: 10px;">
+                        <i class="fas fa-paper-plane"></i> Publier
                     </button>
                 </div>
             </div>
