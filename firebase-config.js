@@ -1,4 +1,4 @@
-// Configuration Firebase pour TIKTAK - MODE RÉEL
+// Configuration Firebase pour TIKTAK
 const firebaseConfig = {
     apiKey: "AIzaSyD6UBg16fK3WP6ttzzmGMLglruXO4-KEzA",
     authDomain: "tiktak-97036.firebaseapp.com",
@@ -26,7 +26,7 @@ const db = firebase.firestore();
 const auth = firebase.auth();
 const storage = firebase.storage();
 
-// ==================== FONCTIONS FIREBASE CORRIGÉES ====================
+// ==================== FONCTIONS FIREBASE ====================
 
 // Créer un utilisateur anonyme
 async function createAnonymousUser() {
@@ -34,7 +34,6 @@ async function createAnonymousUser() {
         const userCredential = await auth.signInAnonymously();
         const user = userCredential.user;
         
-        // Créer le profil dans Firestore
         const userData = {
             username: `User${Math.floor(Math.random() * 10000)}`,
             avatar: `https://i.pravatar.cc/150?img=${Math.floor(Math.random() * 70)}`,
@@ -149,7 +148,6 @@ async function loadVideos(limit = 50) {
         
     } catch (error) {
         console.error('❌ Erreur chargement vidéos:', error);
-        // Retourner un tableau vide au lieu de démo
         return [];
     }
 }
@@ -446,7 +444,7 @@ async function initializeDatabase() {
 // Écoute en temps réel des nouvelles vidéos
 function setupRealtimeListener(callback) {
     try {
-        console.log('👂 Configuration de l\'écoute en temps réel...');
+        console.log('👂 Configuration de l'écoute en temps réel...');
         
         return db.collection('videos')
             .where('privacy', 'in', ['public', undefined])
@@ -480,7 +478,7 @@ function setupRealtimeListener(callback) {
                 console.warn('⚠️ Écoute temps réel désactivée:', error);
             });
     } catch (error) {
-        console.warn('⚠️ Impossible de configurer l\'écoute temps réel:', error);
+        console.warn('⚠️ Impossible de configurer l'écoute temps réel:', error);
         return null;
     }
 }
