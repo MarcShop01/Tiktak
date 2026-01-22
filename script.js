@@ -8,7 +8,6 @@ let currentPlayingVideo = null;
 // ==================== FONCTION OPEN GIFTSHOP (AJOUTÉE) ====================
 function openGiftShop() {
     showNotification('Boutique de cadeaux à venir ! 🎁', 'info');
-    // window.location.href = "giftshop.html"; // Décommenter si vous avez une page boutique
 }
 
 // ==================== INITIALISATION ====================
@@ -34,6 +33,13 @@ async function initializeApp() {
     try {
         // Charger l'utilisateur depuis Firebase
         currentUser = await firebaseApp.getCurrentUser();
+        
+        if (!currentUser) {
+            showNotification('Erreur de connexion utilisateur', 'error');
+            return;
+        }
+        
+        console.log('👤 Utilisateur connecté:', currentUser.id);
         
         // Charger les vidéos
         videos = await firebaseApp.loadVideos(50);
@@ -70,7 +76,6 @@ async function cacheVideoUsers() {
 
 function setupRealtimeListener() {
     try {
-        // Écouter les nouvelles vidéos sans filtre complexe
         firebaseApp.db.collection('videos')
             .orderBy('createdAt', 'desc')
             .limit(10)
@@ -79,9 +84,7 @@ function setupRealtimeListener() {
                     if (change.type === 'added') {
                         const newVideo = { id: change.doc.id, ...change.doc.data() };
                         
-                        // Filtrer côté client
                         if (newVideo.privacy === 'public' || !newVideo.privacy) {
-                            // Vérifier si la vidéo n'est pas déjà dans la liste
                             if (!videos.find(v => v.id === newVideo.id)) {
                                 videos.unshift(newVideo);
                                 renderVideoFeed();
@@ -260,7 +263,6 @@ async function toggleVideoPlay(videoElement) {
     const playBtn = container.querySelector('.manual-play-btn');
     
     if (videoElement.paused) {
-        // Arrêter la vidéo en cours
         if (currentPlayingVideo && currentPlayingVideo !== videoElement) {
             currentPlayingVideo.pause();
             const prevBtn = currentPlayingVideo.closest('.video-container')?.querySelector('.manual-play-btn');
@@ -272,11 +274,9 @@ async function toggleVideoPlay(videoElement) {
             playBtn.innerHTML = '<i class="fas fa-pause"></i>';
             currentPlayingVideo = videoElement;
             
-            // Incrémenter les vues
             const videoId = container.dataset.videoId;
             await firebaseApp.incrementViews(videoId);
             
-            // Mettre à jour localement
             const video = videos.find(v => v.id === videoId);
             if (video) {
                 video.views = (video.views || 0) + 1;
@@ -306,7 +306,6 @@ async function toggleLike(videoId) {
         const isLiked = currentUser?.likedVideos?.includes(videoId);
         
         if (!isLiked) {
-            // Ajouter le like
             video.likes = (video.likes || 0) + 1;
             currentUser.likedVideos = currentUser.likedVideos || [];
             currentUser.likedVideos.push(videoId);
@@ -319,14 +318,12 @@ async function toggleLike(videoId) {
             showHeartAnimation();
             showNotification('Vidéo aimée ! ❤️', 'success');
             
-            // Récompense
             currentUser.coins = (currentUser.coins || 0) + 1;
             await firebaseApp.updateUser(currentUser.id, {
                 coins: currentUser.coins
             });
             
         } else {
-            // Retirer le like
             video.likes = Math.max(0, (video.likes || 1) - 1);
             currentUser.likedVideos = (currentUser.likedVideos || []).filter(id => id !== videoId);
             
@@ -338,7 +335,6 @@ async function toggleLike(videoId) {
             showNotification('Like retiré', 'info');
         }
         
-        // Mettre à jour l'interface
         const container = document.querySelector(`.video-container[data-video-id="${videoId}"]`);
         if (container) {
             const likeElement = container.querySelector('.action:nth-child(1)');
@@ -360,20 +356,17 @@ async function toggleFollow(userId, buttonElement) {
         const isFollowing = currentUser.following.includes(userId);
         
         if (!isFollowing) {
-            // Suivre
             currentUser.following.push(userId);
             await firebaseApp.followUser(currentUser.id, userId);
             buttonElement.classList.add('following');
             buttonElement.innerHTML = '<i class="fas fa-check"></i>';
             showNotification('Utilisateur suivi !', 'success');
             
-            // Récompense
             currentUser.coins = (currentUser.coins || 0) + 5;
             await firebaseApp.updateUser(currentUser.id, {
                 coins: currentUser.coins
             });
         } else {
-            // Se désabonner
             currentUser.following = currentUser.following.filter(id => id !== userId);
             
             await firebaseApp.updateUser(currentUser.id, {
@@ -401,15 +394,12 @@ async function shareVideo(videoId) {
             return;
         }
         
-        // Incrémenter les partages
         video.shares = (video.shares || 0) + 1;
         await firebaseApp.updateVideo(videoId, { shares: video.shares });
         
-        // URL de partage
         const shareUrl = `${window.location.origin}${window.location.pathname}?video=${videoId}`;
         const shareText = `Regarde cette vidéo sur TIKTAK: ${video.caption}`;
         
-        // Essayer Web Share API
         if (navigator.share) {
             try {
                 await navigator.share({
@@ -419,22 +409,17 @@ async function shareVideo(videoId) {
                 });
                 console.log('✅ Partage réussi');
             } catch (shareError) {
-                // L'utilisateur a annulé le partage
-                console.log('Partage annulé');
                 await copyToClipboard(`${shareText}\n${shareUrl}`);
             }
         } else {
-            // Fallback
             await copyToClipboard(`${shareText}\n${shareUrl}`);
         }
         
-        // Récompense
         currentUser.coins = (currentUser.coins || 0) + 3;
         await firebaseApp.updateUser(currentUser.id, {
             coins: currentUser.coins
         });
         
-        // Mettre à jour l'interface
         const container = document.querySelector(`.video-container[data-video-id="${videoId}"]`);
         if (container) {
             const shareElement = container.querySelector('.action:nth-child(3) span');
@@ -509,9 +494,13 @@ function openFilePicker() {
     document.getElementById('videoInput').click();
 }
 
-// CORRECTION DU PROBLÈME DE TÉLÉCHARGEMENT DE VIDÉO
 function setupVideoInput() {
     const videoInput = document.getElementById('videoInput');
+    if (!videoInput) {
+        console.error('❌ Élément videoInput non trouvé');
+        return;
+    }
+    
     videoInput.addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (file) {
@@ -520,7 +509,6 @@ function setupVideoInput() {
     });
 }
 
-// FONCTION CORRIGÉE POUR TRAITER LA VIDÉO
 function processVideoFile(file) {
     if (file.size > 100 * 1024 * 1024) {
         showNotification('Vidéo trop volumineuse (max 100MB)', 'error');
@@ -534,8 +522,10 @@ function processVideoFile(file) {
     
     currentVideoFile = file;
     
-    // Montrer l'indicateur de traitement
-    document.getElementById('videoProcessing').style.display = 'flex';
+    const videoProcessing = document.getElementById('videoProcessing');
+    if (videoProcessing) {
+        videoProcessing.style.display = 'flex';
+    }
     
     const reader = new FileReader();
     
@@ -543,33 +533,53 @@ function processVideoFile(file) {
         const videoElement = document.getElementById('previewVideo');
         const placeholder = document.querySelector('.preview-placeholder');
         
+        if (!videoElement) {
+            console.error('❌ Élément previewVideo non trouvé');
+            return;
+        }
+        
         videoElement.src = e.target.result;
         videoElement.style.display = 'block';
-        placeholder.style.display = 'none';
         
-        // Attendre que la vidéo soit chargée
+        if (placeholder) {
+            placeholder.style.display = 'none';
+        }
+        
         videoElement.onloadeddata = function() {
             setTimeout(() => {
-                document.getElementById('videoProcessing').style.display = 'none';
-                document.getElementById('publishBtn').disabled = false;
+                if (videoProcessing) {
+                    videoProcessing.style.display = 'none';
+                }
                 
-                document.getElementById('videoFileInfo').innerHTML = `
-                    <i class="fas fa-file-video"></i>
-                    <span>${file.name} (${formatFileSize(file.size)})</span>
-                `;
+                const publishBtn = document.getElementById('publishBtn');
+                if (publishBtn) {
+                    publishBtn.disabled = false;
+                }
+                
+                const videoFileInfo = document.getElementById('videoFileInfo');
+                if (videoFileInfo) {
+                    videoFileInfo.innerHTML = `
+                        <i class="fas fa-file-video"></i>
+                        <span>${file.name} (${formatFileSize(file.size)})</span>
+                    `;
+                }
                 
                 showNotification('Vidéo chargée avec succès !', 'success');
             }, 1000);
         };
         
         videoElement.onerror = function() {
-            document.getElementById('videoProcessing').style.display = 'none';
+            if (videoProcessing) {
+                videoProcessing.style.display = 'none';
+            }
             showNotification('Erreur de chargement de la vidéo', 'error');
         };
     };
     
     reader.onerror = function() {
-        document.getElementById('videoProcessing').style.display = 'none';
+        if (videoProcessing) {
+            videoProcessing.style.display = 'none';
+        }
         showNotification('Erreur de lecture du fichier', 'error');
     };
     
@@ -588,6 +598,11 @@ function simulateRecording() {
     const videoElement = document.getElementById('previewVideo');
     const placeholder = document.querySelector('.preview-placeholder');
     
+    if (!videoElement) {
+        console.error('❌ Élément previewVideo non trouvé');
+        return;
+    }
+    
     const demoVideos = [
         'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
         'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
@@ -597,9 +612,11 @@ function simulateRecording() {
     const randomVideo = demoVideos[Math.floor(Math.random() * demoVideos.length)];
     videoElement.src = randomVideo;
     videoElement.style.display = 'block';
-    placeholder.style.display = 'none';
     
-    // Simuler un fichier
+    if (placeholder) {
+        placeholder.style.display = 'none';
+    }
+    
     currentVideoFile = {
         name: 'demo_video.mp4',
         size: 15000000,
@@ -607,50 +624,98 @@ function simulateRecording() {
         url: randomVideo
     };
     
-    document.getElementById('videoFileInfo').innerHTML = `
-        <i class="fas fa-file-video"></i>
-        <span>demo_video.mp4 (15 MB)</span>
-    `;
+    const videoFileInfo = document.getElementById('videoFileInfo');
+    if (videoFileInfo) {
+        videoFileInfo.innerHTML = `
+            <i class="fas fa-file-video"></i>
+            <span>demo_video.mp4 (15 MB)</span>
+        `;
+    }
     
-    document.getElementById('publishBtn').disabled = false;
+    const publishBtn = document.getElementById('publishBtn');
+    if (publishBtn) {
+        publishBtn.disabled = false;
+    }
 }
 
+// ==================== PUBLICATION DE VIDÉO (FONCTION CORRIGÉE) ====================
+
 async function publishVideo() {
-    const caption = document.getElementById('videoCaption').value.trim();
-    const isMonetized = document.getElementById('monetizeVideo').checked;
-    const privacy = document.getElementById('videoPrivacy').value;
+    console.log('🚀 Début de la publication...');
+    
+    // VÉRIFICATION CRITIQUE : currentUser doit exister
+    if (!currentUser || !currentUser.id) {
+        console.error('❌ currentUser est null ou n\'a pas d\'ID');
+        showNotification('Erreur : Utilisateur non connecté. Veuillez recharger la page.', 'error');
+        
+        // Tentative de réinitialisation
+        try {
+            currentUser = await firebaseApp.getCurrentUser();
+            if (!currentUser) {
+                showNotification('Impossible de se connecter. Veuillez vérifier votre connexion.', 'error');
+                return;
+            }
+        } catch (error) {
+            showNotification('Erreur de connexion à Firebase', 'error');
+            return;
+        }
+    }
+    
+    const captionInput = document.getElementById('videoCaption');
+    const monetizeCheckbox = document.getElementById('monetizeVideo');
+    const privacySelect = document.getElementById('videoPrivacy');
+    const publishBtn = document.getElementById('publishBtn');
+    
+    if (!captionInput || !monetizeCheckbox || !privacySelect || !publishBtn) {
+        console.error('❌ Un des éléments du formulaire est manquant');
+        showNotification('Erreur du formulaire', 'error');
+        return;
+    }
+    
+    const caption = captionInput.value.trim();
+    const isMonetized = monetizeCheckbox.checked;
+    const privacy = privacySelect.value;
     
     if (!caption) {
         showNotification('Veuillez ajouter une légende', 'error');
         return;
     }
     
-    const publishBtn = document.getElementById('publishBtn');
+    const previewVideo = document.getElementById('previewVideo');
+    if (!previewVideo || !previewVideo.src) {
+        showNotification('Veuillez sélectionner une vidéo', 'error');
+        return;
+    }
+    
+    // Désactiver le bouton pendant la publication
     publishBtn.disabled = true;
     publishBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Publication...';
     
     try {
+        console.log('📝 Préparation des données vidéo...');
         const hashtags = extractHashtags(caption);
         let videoUrl;
         
-        // Si c'est un fichier réel
+        // Détection du type de vidéo
         if (currentVideoFile && currentVideoFile instanceof File) {
-            // Dans une vraie app, il faudrait uploader vers Firebase Storage
-            // Pour la démo, on utilise une URL de démo
+            console.log('📁 Fichier vidéo local détecté');
             videoUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
         } else if (currentVideoFile && currentVideoFile.url) {
-            // Si c'est une vidéo de démo
+            console.log('🎥 Vidéo de démo détectée');
             videoUrl = currentVideoFile.url;
         } else {
-            // Si aucune vidéo n'est sélectionnée
-            videoUrl = document.getElementById('previewVideo').src || 
-                       'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
+            console.log('🔗 URL vidéo par défaut');
+            videoUrl = previewVideo.src || 
+                      'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
         }
+        
+        console.log('👤 Utilisateur ID:', currentUser.id);
+        console.log('👤 Username:', currentUser.username);
         
         const videoData = {
             userId: currentUser.id,
-            username: currentUser.username,
-            avatar: currentUser.avatar,
+            username: currentUser.username || `User${Math.floor(Math.random() * 10000)}`,
+            avatar: currentUser.avatar || 'https://i.pravatar.cc/150?img=1',
             videoUrl: videoUrl,
             thumbnail: generateThumbnail(),
             caption: caption,
@@ -664,7 +729,11 @@ async function publishVideo() {
             shares: 0
         };
         
+        console.log('💾 Sauvegarde dans Firebase...', videoData);
+        
         const newVideo = await firebaseApp.saveVideo(videoData);
+        console.log('✅ Vidéo sauvegardée avec ID:', newVideo.id);
+        
         videos.unshift(newVideo);
         
         closeCreateModal();
@@ -673,17 +742,43 @@ async function publishVideo() {
         showNotification('Vidéo publiée avec succès ! 🎉', 'success');
         
     } catch (error) {
-        console.error('❌ Erreur publication:', error);
-        showNotification('Erreur lors de la publication', 'error');
+        console.error('❌ Erreur détaillée publication:', error);
+        console.error('Stack trace:', error.stack);
+        
+        let errorMessage = 'Erreur lors de la publication';
+        if (error.message.includes('permission')) {
+            errorMessage = 'Erreur de permission Firebase. Vérifiez les règles de sécurité.';
+        } else if (error.message.includes('network')) {
+            errorMessage = 'Erreur réseau. Vérifiez votre connexion Internet.';
+        } else if (error.message.includes('auth')) {
+            errorMessage = 'Erreur d\'authentification. Veuillez vous reconnecter.';
+        }
+        
+        showNotification(`${errorMessage}: ${error.message}`, 'error');
+        
     } finally {
+        // Réactiver le bouton
         publishBtn.disabled = false;
         publishBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Publier';
     }
 }
 
 function saveAsDraft() {
-    const caption = document.getElementById('videoCaption').value.trim();
-    const isMonetized = document.getElementById('monetizeVideo').checked;
+    const captionInput = document.getElementById('videoCaption');
+    const monetizeCheckbox = document.getElementById('monetizeVideo');
+    
+    if (!captionInput || !monetizeCheckbox) {
+        showNotification('Erreur du formulaire', 'error');
+        return;
+    }
+    
+    const caption = captionInput.value.trim();
+    const isMonetized = monetizeCheckbox.checked;
+    
+    if (!currentUser) {
+        showNotification('Utilisateur non connecté', 'error');
+        return;
+    }
     
     if (!currentUser.drafts) currentUser.drafts = [];
     
@@ -701,28 +796,46 @@ function saveAsDraft() {
         showNotification('Brouillon sauvegardé 📁', 'success');
         closeCreateModal();
     }).catch(error => {
+        console.error('❌ Erreur sauvegarde brouillon:', error);
         showNotification('Erreur sauvegarde brouillon', 'error');
     });
 }
 
 function resetCreateModal() {
-    document.getElementById('videoCaption').value = '';
-    document.getElementById('monetizeVideo').checked = false;
-    document.getElementById('videoPrivacy').value = 'public';
-    
+    const captionInput = document.getElementById('videoCaption');
+    const monetizeCheckbox = document.getElementById('monetizeVideo');
+    const privacySelect = document.getElementById('videoPrivacy');
     const videoElement = document.getElementById('previewVideo');
-    videoElement.src = '';
-    videoElement.style.display = 'none';
+    const videoFileInfo = document.getElementById('videoFileInfo');
+    const publishBtn = document.getElementById('publishBtn');
     
-    document.querySelector('.preview-placeholder').style.display = 'flex';
-    document.getElementById('videoFileInfo').innerHTML = `
-        <i class="fas fa-file-video"></i>
-        <span>Aucun fichier sélectionné</span>
-    `;
+    if (captionInput) captionInput.value = '';
+    if (monetizeCheckbox) monetizeCheckbox.checked = false;
+    if (privacySelect) privacySelect.value = 'public';
+    
+    if (videoElement) {
+        videoElement.src = '';
+        videoElement.style.display = 'none';
+    }
+    
+    const placeholder = document.querySelector('.preview-placeholder');
+    if (placeholder) {
+        placeholder.style.display = 'flex';
+    }
+    
+    if (videoFileInfo) {
+        videoFileInfo.innerHTML = `
+            <i class="fas fa-file-video"></i>
+            <span>Aucun fichier sélectionné</span>
+        `;
+    }
     
     document.getElementById('createOptions').style.display = 'flex';
     document.getElementById('videoUploadSection').style.display = 'none';
-    document.getElementById('publishBtn').disabled = true;
+    
+    if (publishBtn) {
+        publishBtn.disabled = true;
+    }
     
     currentVideoFile = null;
 }
@@ -748,6 +861,8 @@ async function performSearch(query) {
 
 function displaySearchResults(results, query) {
     const videoFeed = document.getElementById('videoFeed');
+    if (!videoFeed) return;
+    
     videoFeed.innerHTML = '';
     
     if (results.length === 0) {
@@ -792,28 +907,38 @@ function closeProfile() {
 }
 
 function loadProfileData() {
-    document.getElementById('profileUsername').textContent = currentUser.username || 'Utilisateur';
-    document.getElementById('profileCoins').textContent = currentUser.coins || 0;
-    document.getElementById('profileAvatar').src = currentUser.avatar || 'https://i.pravatar.cc/150?img=1';
+    const profileUsername = document.getElementById('profileUsername');
+    const profileCoins = document.getElementById('profileCoins');
+    const profileAvatar = document.getElementById('profileAvatar');
+    const profileStats = document.getElementById('profileStats');
+    
+    if (!currentUser) {
+        showNotification('Utilisateur non connecté', 'error');
+        return;
+    }
+    
+    if (profileUsername) profileUsername.textContent = currentUser.username || 'Utilisateur';
+    if (profileCoins) profileCoins.textContent = currentUser.coins || 0;
+    if (profileAvatar) profileAvatar.src = currentUser.avatar || 'https://i.pravatar.cc/150?img=1';
     
     const userVideos = videos.filter(v => v.userId === currentUser.id);
     const stats = `${userVideos.length} vidéos • ${currentUser.followers?.length || 0} abonnés • ${currentUser.following?.length || 0} abonnements`;
-    document.getElementById('profileStats').textContent = stats;
+    if (profileStats) profileStats.textContent = stats;
     
     showProfileTab('videos');
 }
 
 function showProfileTab(tabName) {
-    // Désactiver tous les onglets
+    if (!event || !event.target) return;
+    
     document.querySelectorAll('.profile-tab').forEach(tab => tab.classList.remove('active'));
     document.querySelectorAll('.profile-content').forEach(content => content.style.display = 'none');
     
-    // Activer l'onglet sélectionné
     event.target.classList.add('active');
     const contentId = 'profile' + tabName.charAt(0).toUpperCase() + tabName.slice(1);
-    document.getElementById(contentId).style.display = 'block';
+    const content = document.getElementById(contentId);
+    if (content) content.style.display = 'block';
     
-    // Charger le contenu
     switch(tabName) {
         case 'videos':
             loadProfileVideos();
@@ -829,6 +954,8 @@ function showProfileTab(tabName) {
 
 function loadProfileVideos() {
     const container = document.getElementById('profileVideos');
+    if (!container) return;
+    
     const userVideos = videos.filter(v => v.userId === currentUser.id);
     
     if (userVideos.length === 0) {
@@ -862,6 +989,8 @@ function loadProfileVideos() {
 
 function loadProfileLikes() {
     const container = document.getElementById('profileLikes');
+    if (!container) return;
+    
     const likedVideos = videos.filter(v => currentUser.likedVideos?.includes(v.id));
     
     if (likedVideos.length === 0) {
@@ -892,6 +1021,7 @@ function loadProfileLikes() {
 
 function loadProfileDrafts() {
     const container = document.getElementById('profileDrafts');
+    if (!container) return;
     
     if (!currentUser.drafts || currentUser.drafts.length === 0) {
         container.innerHTML = `
@@ -1009,7 +1139,7 @@ function showNotification(message, type = 'info') {
 
 function updateUI() {
     try {
-        // Plus besoin de mettre à jour coinCount car supprimé
+        // Interface simplifiée, pas besoin de mise à jour spécifique
     } catch (error) {
         console.error('❌ Erreur mise à jour UI:', error);
     }
@@ -1019,54 +1149,69 @@ function updateUI() {
 
 function showHome() {
     document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
-    document.querySelector('.nav-item:nth-child(1)').classList.add('active');
+    const firstNavItem = document.querySelector('.nav-item:nth-child(1)');
+    if (firstNavItem) firstNavItem.classList.add('active');
     renderVideoFeed();
 }
 
 function openSearch() {
     const searchInput = document.getElementById('searchInput');
-    searchInput.style.display = 'block';
-    searchInput.focus();
+    if (searchInput) {
+        searchInput.style.display = 'block';
+        searchInput.focus();
+    }
 }
 
 // ==================== ÉCOUTEURS D'ÉVÉNEMENTS ====================
 
 function setupEventListeners() {
     // Recherche
-    document.getElementById('searchInput').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            performSearch(this.value);
-            this.value = '';
-        }
-    });
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                performSearch(this.value);
+                this.value = '';
+            }
+        });
+    }
     
-    document.querySelector('.search-btn').addEventListener('click', function() {
-        const searchInput = document.getElementById('searchInput');
-        performSearch(searchInput.value);
-        searchInput.value = '';
-    });
+    const searchBtn = document.querySelector('.search-btn');
+    if (searchBtn) {
+        searchBtn.addEventListener('click', function() {
+            const searchInput = document.getElementById('searchInput');
+            if (searchInput) {
+                performSearch(searchInput.value);
+                searchInput.value = '';
+            }
+        });
+    }
     
     // Input vidéo
     setupVideoInput();
     
     // Input photo de profil
-    document.getElementById('profilePictureInput').addEventListener('change', async function(e) {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                currentUser.avatar = e.target.result;
-                updateUI();
-                firebaseApp.updateUser(currentUser.id, { avatar: currentUser.avatar });
-                showNotification('Photo de profil mise à jour ✅', 'success');
-            };
-            reader.readAsDataURL(file);
-        }
-    });
+    const profilePictureInput = document.getElementById('profilePictureInput');
+    if (profilePictureInput) {
+        profilePictureInput.addEventListener('change', async function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    if (currentUser) {
+                        currentUser.avatar = e.target.result;
+                        updateUI();
+                        firebaseApp.updateUser(currentUser.id, { avatar: currentUser.avatar });
+                        showNotification('Photo de profil mise à jour ✅', 'success');
+                    }
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
     
     // Fermer les modales en cliquant à l'extérieur
     document.addEventListener('click', function(e) {
-        // Fermer les modales
         ['createModal', 'profileModal', 'settingsModal'].forEach(modalId => {
             const modal = document.getElementById(modalId);
             if (modal && modal.style.display === 'flex' && e.target === modal) {
@@ -1090,7 +1235,7 @@ function setupEventListeners() {
 // ==================== FONCTIONS NON IMPLÉMENTÉES ====================
 
 function openWallet() {
-    showNotification('Portefeuille - Solde: ' + (currentUser.coins || 0) + ' coins', 'info');
+    showNotification('Portefeuille - Solde: ' + (currentUser?.coins || 0) + ' coins', 'info');
 }
 
 function openNotifications() {
@@ -1103,14 +1248,16 @@ function showTrending() {
 }
 
 function showFollowing() {
-    const followingVideos = videos.filter(v => currentUser.following?.includes(v.userId));
+    const followingVideos = videos.filter(v => currentUser?.following?.includes(v.userId));
     if (followingVideos.length === 0) {
         showNotification('Vous ne suivez personne', 'info');
     } else {
         const videoFeed = document.getElementById('videoFeed');
-        videoFeed.innerHTML = '';
-        followingVideos.forEach(video => videoFeed.appendChild(createVideoElement(video)));
-        showNotification('Affichage des abonnements', 'info');
+        if (videoFeed) {
+            videoFeed.innerHTML = '';
+            followingVideos.forEach(video => videoFeed.appendChild(createVideoElement(video)));
+            showNotification('Affichage des abonnements', 'info');
+        }
     }
 }
 
@@ -1119,14 +1266,21 @@ function showFavorites() {
 }
 
 function showMyVideos() {
+    if (!currentUser) {
+        showNotification('Utilisateur non connecté', 'info');
+        return;
+    }
+    
     const myVideos = videos.filter(v => v.userId === currentUser.id);
     if (myVideos.length === 0) {
         showNotification('Vous n\'avez pas de vidéos', 'info');
     } else {
         const videoFeed = document.getElementById('videoFeed');
-        videoFeed.innerHTML = '';
-        myVideos.forEach(video => videoFeed.appendChild(createVideoElement(video)));
-        showNotification('Affichage de vos vidéos', 'info');
+        if (videoFeed) {
+            videoFeed.innerHTML = '';
+            myVideos.forEach(video => videoFeed.appendChild(createVideoElement(video)));
+            showNotification('Affichage de vos vidéos', 'info');
+        }
     }
 }
 
@@ -1168,10 +1322,12 @@ function editDraft(draftId) {
 
 function deleteDraft(draftId) {
     if (confirm('Supprimer ce brouillon ?')) {
-        currentUser.drafts = currentUser.drafts.filter(d => d.id !== draftId);
-        firebaseApp.updateUser(currentUser.id, { drafts: currentUser.drafts });
-        loadProfileDrafts();
-        showNotification('Brouillon supprimé', 'success');
+        if (currentUser && currentUser.drafts) {
+            currentUser.drafts = currentUser.drafts.filter(d => d.id !== draftId);
+            firebaseApp.updateUser(currentUser.id, { drafts: currentUser.drafts });
+            loadProfileDrafts();
+            showNotification('Brouillon supprimé', 'success');
+        }
     }
 }
 
@@ -1187,22 +1343,43 @@ function closeSettings() {
 }
 
 function loadSettings() {
-    document.getElementById('settingsUsername').value = currentUser.username || 'Utilisateur';
-    document.getElementById('settingsEmail').value = currentUser.email || '';
-    document.getElementById('settingsNotifications').checked = currentUser.settings?.notifications || true;
-    document.getElementById('settingsAutoplay').checked = currentUser.settings?.autoplay || true;
+    if (!currentUser) return;
+    
+    const settingsUsername = document.getElementById('settingsUsername');
+    const settingsEmail = document.getElementById('settingsEmail');
+    const settingsNotifications = document.getElementById('settingsNotifications');
+    const settingsAutoplay = document.getElementById('settingsAutoplay');
+    
+    if (settingsUsername) settingsUsername.value = currentUser.username || 'Utilisateur';
+    if (settingsEmail) settingsEmail.value = currentUser.email || '';
+    if (settingsNotifications) settingsNotifications.checked = currentUser.settings?.notifications || true;
+    if (settingsAutoplay) settingsAutoplay.checked = currentUser.settings?.autoplay || true;
 }
 
 async function saveSettings() {
-    const username = document.getElementById('settingsUsername').value.trim();
-    const email = document.getElementById('settingsEmail').value.trim();
-    const notifications = document.getElementById('settingsNotifications').checked;
-    const autoplay = document.getElementById('settingsAutoplay').checked;
+    const settingsUsername = document.getElementById('settingsUsername');
+    const settingsEmail = document.getElementById('settingsEmail');
+    const settingsNotifications = document.getElementById('settingsNotifications');
+    const settingsAutoplay = document.getElementById('settingsAutoplay');
+    
+    if (!settingsUsername || !settingsEmail || !settingsNotifications || !settingsAutoplay) {
+        showNotification('Erreur du formulaire', 'error');
+        return;
+    }
+    
+    const username = settingsUsername.value.trim();
+    const email = settingsEmail.value.trim();
+    const notifications = settingsNotifications.checked;
+    const autoplay = settingsAutoplay.checked;
+    
+    if (!currentUser) {
+        showNotification('Utilisateur non connecté', 'error');
+        return;
+    }
     
     if (username && username !== currentUser.username) {
         currentUser.username = username;
         
-        // Mettre à jour les vidéos de l'utilisateur
         for (const video of videos) {
             if (video.userId === currentUser.id) {
                 video.username = username;
