@@ -13,10 +13,6 @@ body {
     line-height: 1.6;
 }
 
-.hidden {
-    display: none !important;
-}
-
 /* ==================== LOADING SCREEN ==================== */
 .loading-screen {
     position: fixed;
@@ -1391,32 +1387,4 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
     background: #444;
-}
-
-/* ==================== ACCESSIBILITY ==================== */
-@media (prefers-reduced-motion: reduce) {
-    * {
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important;
-    }
-}
-
-/* ==================== FALLBACKS ==================== */
-@supports not (backdrop-filter: blur(10px)) {
-    .navbar, .bottom-nav {
-        background: rgba(0, 0, 0, 0.98);
-    }
-}
-
-/* ==================== PRINT STYLES ==================== */
-@media print {
-    .navbar, .bottom-nav, .modal-overlay, .notifications-container {
-        display: none !important;
-    }
-    
-    body {
-        background: #fff;
-        color: #000;
-    }
 }
