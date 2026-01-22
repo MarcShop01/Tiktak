@@ -30,7 +30,7 @@
             
             <div class="search-bar">
                 <input type="text" id="searchInput" placeholder="Rechercher...">
-                <button class="search-btn"><i class="fas fa-search"></i></button>
+                <button class="search-btn" onclick="performSearch()"><i class="fas fa-search"></i></button>
             </div>
             
             <div class="nav-right">
@@ -48,7 +48,7 @@
                 </button>
                 
                 <div class="user-menu" onclick="toggleUserMenu()">
-                    <img id="userAvatar" src="https://randomuser.me/api/portraits/lego/1.jpg" alt="Profil">
+                    <img id="userAvatar" src="https://i.pravatar.cc/150?img=1" alt="Profil">
                 </div>
             </div>
             
@@ -96,7 +96,7 @@
                 <h2>Créer une vidéo</h2>
                 
                 <!-- Options de création -->
-                <div id="createOptions" class="create-options" style="display: flex; flex-direction: column; gap: 15px; margin: 20px 0;">
+                <div id="createOptions" class="create-options">
                     <h3>Comment voulez-vous créer votre contenu ?</h3>
                     
                     <div class="option" onclick="openCameraForRecording()">
@@ -125,8 +125,8 @@
                     <!-- Section caméra -->
                     <div id="cameraControls" style="display: none;">
                         <video id="cameraPreview" style="width: 100%; height: 300px; object-fit: cover; border-radius: 10px;"></video>
-                        <div class="camera-buttons" style="display: flex; gap: 10px; justify-content: center; margin-top: 15px;">
-                            <button id="startCameraBtn" class="btn btn-secondary" style="display: inline-block;">
+                        <div class="camera-buttons">
+                            <button id="startCameraBtn" class="btn btn-secondary">
                                 <i class="fas fa-camera"></i> Démarrer la caméra
                             </button>
                             <button id="recordBtn" class="btn btn-danger" style="display: none;">
@@ -145,21 +145,27 @@
                             <div class="preview-placeholder">
                                 <i class="fas fa-cloud-upload-alt"></i>
                                 <p>Sélectionnez ou déposez une vidéo</p>
+                                <small>MP4, WebM, OGG (max 100MB)</small>
                             </div>
                             <!-- Indicateur de chargement -->
                             <div id="videoProcessing" class="video-processing" style="display: none;">
                                 <div class="processing-spinner"></div>
-                                <p>Conversion de la vidéo en cours...</p>
+                                <p>Traitement de la vidéo...</p>
                             </div>
                         </div>
                         
-                        <div class="upload-buttons" style="display: flex; gap: 10px; justify-content: center; margin-top: 15px;">
+                        <div class="upload-buttons">
                             <button onclick="openFilePicker()" class="btn btn-primary">
                                 <i class="fas fa-folder-open"></i> Choisir un fichier
                             </button>
                             <button onclick="simulateRecording()" class="btn btn-secondary">
-                                <i class="fas fa-magic"></i> Utiliser une démo
+                                <i class="fas fa-magic"></i> Vidéo de démo
                             </button>
+                        </div>
+                        
+                        <!-- Barre de progression -->
+                        <div id="progressBar" class="upload-progress" style="display: none;">
+                            <div class="upload-progress-bar" id="progressBarFill"></div>
                         </div>
                     </div>
                     
@@ -167,14 +173,14 @@
                 </div>
                 
                 <!-- Formulaire de publication -->
-                <div class="form-section" style="margin-top: 20px;">
+                <div class="form-section">
                     <label>Légende</label>
                     <textarea id="videoCaption" placeholder="Ajoutez une légende... #hashtag" rows="3"></textarea>
                     
                     <div class="form-group">
                         <label>
                             <input type="checkbox" id="monetizeVideo">
-                            Monétiser cette vidéo (démo)
+                            <span>Monétiser cette vidéo</span>
                         </label>
                     </div>
                     
@@ -209,7 +215,7 @@
                 <h2>Mon Profil</h2>
                 
                 <div class="profile-header">
-                    <img id="profileAvatar" src="https://randomuser.me/api/portraits/lego/1.jpg" alt="Avatar">
+                    <img id="profileAvatar" src="https://i.pravatar.cc/150?img=1" alt="Avatar">
                     <div class="profile-info">
                         <h3 id="profileUsername">Utilisateur TIKTAK</h3>
                         <p><i class="fas fa-coins"></i> <span id="profileCoins">0</span> coins</p>
@@ -217,7 +223,7 @@
                     </div>
                 </div>
                 
-                <button class="btn btn-small btn-secondary" onclick="changeProfilePicture()" style="margin-bottom: 20px;">
+                <button class="btn btn-small btn-secondary" onclick="changeProfilePicture()">
                     <i class="fas fa-camera"></i> Changer la photo
                 </button>
                 <input type="file" id="profilePictureInput" accept="image/*" style="display: none;">
@@ -229,7 +235,6 @@
                 </div>
                 
                 <div id="profileVideos" class="profile-content">
-                    <!-- Vidéos de l'utilisateur -->
                     <div class="empty-state">
                         <i class="fas fa-video-slash"></i>
                         <h3>Aucune vidéo</h3>
@@ -241,7 +246,6 @@
                 </div>
                 
                 <div id="profileLikes" class="profile-content" style="display: none;">
-                    <!-- Vidéos aimées -->
                     <div class="empty-state">
                         <i class="fas fa-heart"></i>
                         <h3>Aucun like</h3>
@@ -250,7 +254,6 @@
                 </div>
                 
                 <div id="profileDrafts" class="profile-content" style="display: none;">
-                    <!-- Brouillons -->
                     <div class="empty-state">
                         <i class="fas fa-file-alt"></i>
                         <h3>Aucun brouillon</h3>
@@ -284,13 +287,13 @@
                     <div class="setting-item">
                         <label>
                             <input type="checkbox" id="settingsNotifications" checked>
-                            Notifications
+                            <span>Notifications</span>
                         </label>
                     </div>
                     <div class="setting-item">
                         <label>
                             <input type="checkbox" id="settingsAutoplay" checked>
-                            Lecture automatique
+                            <span>Lecture automatique</span>
                         </label>
                     </div>
                     <button class="btn btn-danger" onclick="clearLocalStorage()">
