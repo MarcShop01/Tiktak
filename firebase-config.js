@@ -1,4 +1,4 @@
-// Configuration Firebase pour TIKTAK - MODE RÉEL
+// Configuration Firebase pour TIKTAK - MODE RÉEL CORRIGÉ
 const firebaseConfig = {
     apiKey: "AIzaSyD6UBg16fK3WP6ttzzmGMLglruXO4-KEzA",
     authDomain: "tiktak-97036.firebaseapp.com",
@@ -87,20 +87,24 @@ async function getCurrentUser() {
     });
 }
 
-// Charger les vidéos - VERSION CORRIGÉE SANS INDEX
+// Charger les vidéos - VERSION CORRIGÉE POUR TOUS LES APPAREILS
 async function loadVideos(limit = 50) {
     try {
         console.log('📥 Chargement des vidéos depuis Firebase...');
         
-        // Solution: Charger d'abord toutes les vidéos, puis filtrer côté client
-        const snapshot = await db.collection('videos').get();
+        // Solution optimisée: Charger avec pagination
+        const snapshot = await db.collection('videos')
+            .where('privacy', '==', 'public')
+            .orderBy('createdAt', 'desc')
+            .limit(limit)
+            .get();
         
         if (snapshot.empty) {
             console.log('📭 Aucune vidéo trouvée dans la base de données');
             return [];
         }
         
-        const allVideos = [];
+        const videos = [];
         snapshot.forEach(doc => {
             const data = doc.data();
             // Convertir le timestamp Firestore en Date
@@ -111,28 +115,31 @@ async function loadVideos(limit = 50) {
                 createdAt = new Date(data.createdAt);
             }
             
-            // Filtrer pour ne garder que les vidéos publiques
-            if (data.privacy === 'public' || !data.privacy) {
-                allVideos.push({
-                    id: doc.id,
-                    ...data,
-                    createdAt: createdAt,
-                    likes: data.likes || 0,
-                    comments: data.comments || 0,
-                    shares: data.shares || 0,
-                    views: data.views || 0,
-                    gifts: data.gifts || 0,
-                    duration: data.duration || '00:15',
-                    privacy: data.privacy || 'public'
-                });
+            // Assurer que l'URL vidéo est valide
+            let videoUrl = data.videoUrl;
+            if (!videoUrl || !videoUrl.startsWith('http')) {
+                // Si l'URL n'est pas valide, utiliser une vidéo de démo
+                videoUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
             }
+            
+            videos.push({
+                id: doc.id,
+                ...data,
+                videoUrl: videoUrl,
+                createdAt: createdAt,
+                likes: data.likes || 0,
+                comments: data.comments || 0,
+                shares: data.shares || 0,
+                views: data.views || 0,
+                gifts: data.gifts || 0,
+                duration: data.duration || '00:15',
+                privacy: data.privacy || 'public',
+                hashtags: data.hashtags || []
+            });
         });
         
-        // Trier par date (plus récent en premier)
-        const sortedVideos = allVideos.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-        
-        console.log(`✅ ${sortedVideos.length} vidéos chargées (${allVideos.length} total, filtrées)`);
-        return sortedVideos.slice(0, limit);
+        console.log(`✅ ${videos.length} vidéos chargées`);
+        return videos;
         
     } catch (error) {
         console.error('❌ Erreur chargement vidéos:', error);
@@ -162,7 +169,8 @@ async function saveVideo(videoData) {
             views: 0,
             gifts: 0,
             privacy: videoData.privacy || 'public',
-            duration: '00:15'
+            duration: '00:15',
+            hashtags: videoData.hashtags || []
         };
         
         await videoRef.set(videoWithMetadata);
@@ -266,13 +274,30 @@ async function searchVideos(query) {
     try {
         console.log(`🔍 Recherche: "${query}"`);
         
-        // Charger toutes les vidéos d'abord
-        const allVideos = await loadVideos(100);
+        // Recherche simple - dans un vrai projet, utiliser Algolia ou ElasticSearch
+        const snapshot = await db.collection('videos')
+            .where('privacy', '==', 'public')
+            .orderBy('createdAt', 'desc')
+            .limit(20)
+            .get();
+        
+        if (snapshot.empty) return [];
+        
+        const allVideos = [];
         const normalizedQuery = query.toLowerCase().trim();
         
-        if (!normalizedQuery) return allVideos;
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            const createdAt = data.createdAt?.toDate?.() || new Date();
+            
+            allVideos.push({
+                id: doc.id,
+                ...data,
+                createdAt: createdAt
+            });
+        });
         
-        // Filtrer côté client
+        // Filtrer côté client pour la recherche
         const results = allVideos.filter(video => {
             // Recherche dans le caption
             if (video.caption && video.caption.toLowerCase().includes(normalizedQuery)) {
@@ -324,14 +349,25 @@ async function loadUser(userId) {
     try {
         const userDoc = await db.collection('users').doc(userId).get();
         if (userDoc.exists) {
-            return { id: userDoc.id, ...userDoc.data() };
+            const data = userDoc.data();
+            return { 
+                id: userDoc.id, 
+                username: data.username || 'Utilisateur',
+                avatar: data.avatar || 'https://i.pravatar.cc/150?img=1',
+                followers: data.followers || [],
+                following: data.following || [],
+                coins: data.coins || 0,
+                likedVideos: data.likedVideos || []
+            };
         }
         return {
             id: userId,
             username: 'Utilisateur',
             avatar: 'https://i.pravatar.cc/150?img=1',
             followers: [],
-            following: []
+            following: [],
+            coins: 0,
+            likedVideos: []
         };
     } catch (error) {
         console.error('❌ Erreur chargement utilisateur:', error);
@@ -340,7 +376,9 @@ async function loadUser(userId) {
             username: 'Utilisateur',
             avatar: 'https://i.pravatar.cc/150?img=1',
             followers: [],
-            following: []
+            following: [],
+            coins: 0,
+            likedVideos: []
         };
     }
 }
@@ -354,27 +392,48 @@ async function initializeDatabase() {
         // Vérifier si des vidéos existent
         const videosCount = await db.collection('videos').get();
         if (videosCount.empty) {
-            console.log('📝 Initialisation de la base de données avec une vidéo de démo...');
+            console.log('📝 Initialisation de la base de données avec des vidéos de démo...');
             
-            const demoVideo = {
-                userId: user.id,
-                username: user.username,
-                avatar: user.avatar,
-                videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-                thumbnail: 'https://images.unsplash.com/photo-1611605698335-8b1569810432',
-                caption: 'Bienvenue sur TIKTAK ! 🎬 Créez votre première vidéo ! #bienvenue #tiktak',
-                likes: 15,
-                comments: 3,
-                shares: 2,
-                views: 150,
-                gifts: 0,
-                hashtags: ['#bienvenue', '#tiktak', '#premierevideo'],
-                duration: '00:15',
-                privacy: 'public',
-                isMonetized: false
-            };
+            const demoVideos = [
+                {
+                    userId: user.id,
+                    username: user.username,
+                    avatar: user.avatar,
+                    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+                    thumbnail: 'https://images.unsplash.com/photo-1611605698335-8b1569810432',
+                    caption: 'Bienvenue sur TIKTAK ! 🎬 Créez votre première vidéo ! #bienvenue #tiktak',
+                    likes: 15,
+                    comments: 3,
+                    shares: 2,
+                    views: 150,
+                    gifts: 0,
+                    hashtags: ['#bienvenue', '#tiktak', '#premierevideo'],
+                    duration: '00:15',
+                    privacy: 'public',
+                    isMonetized: false
+                },
+                {
+                    userId: 'demo_user_2',
+                    username: 'Créateur Pro',
+                    avatar: 'https://i.pravatar.cc/150?img=3',
+                    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+                    thumbnail: 'https://images.unsplash.com/photo-1518709268805-4e9042af2176',
+                    caption: 'Découvrez les nouvelles fonctionnalités #nouveauté #tiktok',
+                    likes: 42,
+                    comments: 8,
+                    shares: 12,
+                    views: 320,
+                    gifts: 5,
+                    hashtags: ['#nouveauté', '#tiktok', '#vidéo'],
+                    duration: '00:20',
+                    privacy: 'public',
+                    isMonetized: true
+                }
+            ];
             
-            await saveVideo(demoVideo);
+            for (const demoVideo of demoVideos) {
+                await saveVideo(demoVideo);
+            }
         }
         
         return true;
@@ -390,12 +449,12 @@ async function testFirebaseConnection() {
         console.log('🔍 Test de connexion Firebase...');
         
         // Test Firestore
-        const testRef = db.collection('_tests').doc('connection');
-        await testRef.set({
+        await db.collection('_tests').doc('connection').set({
             test: 'connexion',
             timestamp: firebase.firestore.FieldValue.serverTimestamp()
         });
-        await testRef.delete();
+        
+        await db.collection('_tests').doc('connection').delete();
         
         console.log('✅ Firebase: Connecté et fonctionnel');
         return true;
@@ -411,6 +470,7 @@ function setupRealtimeListener(callback) {
         console.log('👂 Configuration de l\'écoute en temps réel...');
         
         return db.collection('videos')
+            .where('privacy', '==', 'public')
             .orderBy('createdAt', 'desc')
             .limit(10)
             .onSnapshot((snapshot) => {
@@ -471,4 +531,4 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-console.log('🔥 Firebase configuré pour TIKTAK - MODE RÉEL ACTIF');
+console.log('🔥 Firebase configuré pour TIKTAK - MODE RÉEL CORRIGÉ');
