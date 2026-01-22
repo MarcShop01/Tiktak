@@ -87,12 +87,11 @@ async function getCurrentUser() {
     });
 }
 
-// Charger les vidéos - VERSION CORRIGÉE POUR TOUS LES APPAREILS
+// Charger les vidéos
 async function loadVideos(limit = 50) {
     try {
         console.log('📥 Chargement des vidéos depuis Firebase...');
         
-        // Solution optimisée: Charger avec pagination
         const snapshot = await db.collection('videos')
             .where('privacy', '==', 'public')
             .orderBy('createdAt', 'desc')
@@ -107,7 +106,6 @@ async function loadVideos(limit = 50) {
         const videos = [];
         snapshot.forEach(doc => {
             const data = doc.data();
-            // Convertir le timestamp Firestore en Date
             let createdAt = new Date();
             if (data.createdAt && data.createdAt.toDate) {
                 createdAt = data.createdAt.toDate();
@@ -115,17 +113,9 @@ async function loadVideos(limit = 50) {
                 createdAt = new Date(data.createdAt);
             }
             
-            // Assurer que l'URL vidéo est valide
-            let videoUrl = data.videoUrl;
-            if (!videoUrl || !videoUrl.startsWith('http')) {
-                // Si l'URL n'est pas valide, utiliser une vidéo de démo
-                videoUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
-            }
-            
             videos.push({
                 id: doc.id,
                 ...data,
-                videoUrl: videoUrl,
                 createdAt: createdAt,
                 likes: data.likes || 0,
                 comments: data.comments || 0,
@@ -190,254 +180,93 @@ async function saveVideo(videoData) {
     }
 }
 
-// Mettre à jour une vidéo
-async function updateVideo(videoId, updates) {
-    try {
-        await db.collection('videos').doc(videoId).update({
-            ...updates,
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        return true;
-    } catch (error) {
-        console.error('❌ Erreur mise à jour vidéo:', error);
-        throw error;
-    }
-}
-
-// Incrémenter les vues
-async function incrementViews(videoId) {
-    try {
-        await db.collection('videos').doc(videoId).update({
-            views: firebase.firestore.FieldValue.increment(1),
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        return true;
-    } catch (error) {
-        console.error('⚠️ Vue non comptabilisée:', error);
-        return false;
-    }
-}
-
-// Mettre à jour les likes
-async function updateLikes(videoId, userId, action = 'like') {
-    try {
-        const increment = action === 'like' ? 1 : -1;
-        await db.collection('videos').doc(videoId).update({
-            likes: firebase.firestore.FieldValue.increment(increment),
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        
-        // Mettre à jour l'utilisateur
-        const userRef = db.collection('users').doc(userId);
-        if (action === 'like') {
-            await userRef.update({
-                likedVideos: firebase.firestore.FieldValue.arrayUnion(videoId),
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-        } else {
-            await userRef.update({
-                likedVideos: firebase.firestore.FieldValue.arrayRemove(videoId),
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-        }
-        
-        return true;
-    } catch (error) {
-        console.error('❌ Erreur mise à jour likes:', error);
-        throw error;
-    }
-}
-
-// Suivre un utilisateur
-async function followUser(followerId, followingId) {
-    try {
-        await db.collection('users').doc(followerId).update({
-            following: firebase.firestore.FieldValue.arrayUnion(followingId),
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        
-        await db.collection('users').doc(followingId).update({
-            followers: firebase.firestore.FieldValue.arrayUnion(followerId),
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        
-        return true;
-    } catch (error) {
-        console.error('❌ Erreur follow:', error);
-        throw error;
-    }
-}
-
-// Rechercher des vidéos
-async function searchVideos(query) {
-    try {
-        console.log(`🔍 Recherche: "${query}"`);
-        
-        const snapshot = await db.collection('videos')
-            .where('privacy', '==', 'public')
-            .orderBy('createdAt', 'desc')
-            .limit(20)
-            .get();
-        
-        if (snapshot.empty) return [];
-        
-        const allVideos = [];
-        const normalizedQuery = query.toLowerCase().trim();
-        
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            const createdAt = data.createdAt?.toDate?.() || new Date();
-            
-            allVideos.push({
-                id: doc.id,
-                ...data,
-                createdAt: createdAt
-            });
-        });
-        
-        // Filtrer côté client
-        const results = allVideos.filter(video => {
-            if (video.caption && video.caption.toLowerCase().includes(normalizedQuery)) {
-                return true;
-            }
-            
-            if (video.username && video.username.toLowerCase().includes(normalizedQuery)) {
-                return true;
-            }
-            
-            if (video.hashtags && Array.isArray(video.hashtags)) {
-                for (const tag of video.hashtags) {
-                    if (tag.toLowerCase().includes(normalizedQuery)) {
-                        return true;
-                    }
-                }
-            }
-            
-            return false;
-        });
-        
-        console.log(`✅ ${results.length} résultats trouvés pour "${query}"`);
-        return results;
-        
-    } catch (error) {
-        console.error('❌ Erreur recherche:', error);
-        return [];
-    }
-}
-
-// Mettre à jour l'utilisateur
-async function updateUser(userId, updates) {
-    try {
-        await db.collection('users').doc(userId).update({
-            ...updates,
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        return true;
-    } catch (error) {
-        console.error('❌ Erreur mise à jour utilisateur:', error);
-        throw error;
-    }
-}
-
-// Charger un utilisateur
-async function loadUser(userId) {
-    try {
-        const userDoc = await db.collection('users').doc(userId).get();
-        if (userDoc.exists) {
-            const data = userDoc.data();
-            return { 
-                id: userDoc.id, 
-                username: data.username || 'Utilisateur',
-                avatar: data.avatar || 'https://i.pravatar.cc/150?img=1',
-                followers: data.followers || [],
-                following: data.following || [],
-                coins: data.coins || 0,
-                likedVideos: data.likedVideos || []
-            };
-        }
-        return {
-            id: userId,
-            username: 'Utilisateur',
-            avatar: 'https://i.pravatar.cc/150?img=1',
-            followers: [],
-            following: [],
-            coins: 0,
-            likedVideos: []
-        };
-    } catch (error) {
-        console.error('❌ Erreur chargement utilisateur:', error);
-        return {
-            id: userId,
-            username: 'Utilisateur',
-            avatar: 'https://i.pravatar.cc/150?img=1',
-            followers: [],
-            following: [],
-            coins: 0,
-            likedVideos: []
-        };
-    }
-}
-
-// Upload vers Firebase Storage (FONCTION CRITIQUE)
+// Upload vers Firebase Storage - VERSION SIMPLIFIÉE ET CORRIGÉE
 async function uploadToFirebaseStorage(file) {
     return new Promise((resolve, reject) => {
+        console.log('📤 Début upload vers Firebase Storage...');
+        
         if (!file) {
-            reject(new Error('Aucun fichier sélectionné.'));
+            reject(new Error('Aucun fichier sélectionné'));
             return;
         }
 
-        // Créer une référence avec un nom unique
-        const storageRef = firebase.storage().ref();
-        const fileExtension = file.name.split('.').pop();
-        const fileName = `videos/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExtension}`;
-        const videoRef = storageRef.child(fileName);
+        // Vérifier la taille du fichier
+        if (file.size > 500 * 1024 * 1024) {
+            reject(new Error('Fichier trop volumineux (max 500MB)'));
+            return;
+        }
 
-        // Métadonnées pour accepter tous les formats
+        // Créer une référence unique pour le fichier
+        const timestamp = Date.now();
+        const randomId = Math.random().toString(36).substring(2, 15);
+        const fileExtension = file.name.split('.').pop().toLowerCase();
+        const fileName = `videos/${timestamp}_${randomId}.${fileExtension}`;
+        
+        console.log('📁 Nom du fichier:', fileName);
+        console.log('📏 Taille du fichier:', (file.size / 1024 / 1024).toFixed(2), 'MB');
+        console.log('📄 Type MIME:', file.type);
+
+        // Créer la référence dans Firebase Storage
+        const storageRef = storage.ref();
+        const fileRef = storageRef.child(fileName);
+
+        // Métadonnées
         const metadata = {
             contentType: file.type || 'video/*',
             customMetadata: {
                 originalName: file.name,
-                uploadedBy: auth.currentUser?.uid || 'anonymous',
-                timestamp: Date.now().toString()
+                uploadedAt: timestamp.toString(),
+                userId: auth.currentUser?.uid || 'anonymous'
             }
         };
 
-        const uploadTask = videoRef.put(file, metadata);
+        // Upload avec gestion de progression
+        const uploadTask = fileRef.put(file, metadata);
 
         uploadTask.on('state_changed',
             (snapshot) => {
+                // Progression
                 const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                console.log(`Upload: ${progress.toFixed(2)}%`);
+                console.log(`📊 Progression: ${progress.toFixed(2)}%`);
                 
-                // Mettre à jour l'interface utilisateur si besoin
-                const progressElement = document.getElementById('uploadProgress');
-                if (progressElement) {
-                    progressElement.style.width = `${progress}%`;
+                // Mettre à jour la barre de progression dans l'interface
+                const progressBar = document.getElementById('uploadProgressBar');
+                const progressText = document.getElementById('uploadProgressText');
+                
+                if (progressBar) {
+                    progressBar.style.width = `${progress}%`;
+                }
+                if (progressText) {
+                    progressText.textContent = `Upload: ${progress.toFixed(0)}%`;
                 }
             },
             (error) => {
                 console.error('❌ Erreur upload:', error);
                 
-                // Messages d'erreur plus détaillés
                 let errorMessage = 'Échec de l\'upload';
-                if (error.code === 'storage/unauthorized') {
-                    errorMessage = 'Non autorisé à uploader des fichiers';
-                } else if (error.code === 'storage/canceled') {
-                    errorMessage = 'Upload annulé';
-                } else if (error.code === 'storage/unknown') {
-                    errorMessage = 'Erreur inconnue';
+                switch (error.code) {
+                    case 'storage/unauthorized':
+                        errorMessage = 'Non autorisé. Vérifiez les règles Firebase.';
+                        break;
+                    case 'storage/canceled':
+                        errorMessage = 'Upload annulé';
+                        break;
+                    case 'storage/unknown':
+                        errorMessage = 'Erreur inconnue';
+                        break;
                 }
                 
-                showNotification(errorMessage + ': ' + error.message, 'error');
-                reject(error);
+                reject(new Error(`${errorMessage}: ${error.message}`));
             },
             async () => {
                 try {
+                    console.log('✅ Upload terminé, récupération URL...');
+                    
                     // Récupérer l'URL de téléchargement
                     const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
-                    console.log('✅ Fichier disponible à l\'URL:', downloadURL);
+                    console.log('🔗 URL générée:', downloadURL);
                     
-                    // Rendre le fichier public (optionnel)
+                    // Ajouter des métadonnées supplémentaires
                     await uploadTask.snapshot.ref.updateMetadata({
                         cacheControl: 'public, max-age=31536000',
                         contentDisposition: `inline; filename="${file.name}"`
@@ -447,14 +276,15 @@ async function uploadToFirebaseStorage(file) {
                 } catch (urlError) {
                     console.error('❌ Erreur génération URL:', urlError);
                     
-                    // Fallback: créer une URL signée manuellement si getDownloadURL échoue
+                    // Fallback: créer une URL manuellement
                     try {
                         const token = await uploadTask.snapshot.ref.getMetadata()
-                            .then(metadata => metadata.downloadTokens);
+                            .then(metadata => metadata.downloadTokens || 'no-token');
                         
-                        if (token) {
-                            const fallbackURL = `https://firebasestorage.googleapis.com/v0/b/${storageRef.bucket}/o/${encodeURIComponent(fileName)}?alt=media&token=${token}`;
-                            console.log('✅ URL fallback générée:', fallbackURL);
+                        if (token !== 'no-token') {
+                            const encodedPath = encodeURIComponent(fileName);
+                            const fallbackURL = `https://firebasestorage.googleapis.com/v0/b/tiktak-97036.appspot.com/o/${encodedPath}?alt=media&token=${token}`;
+                            console.log('🔗 URL fallback:', fallbackURL);
                             resolve(fallbackURL);
                         } else {
                             reject(urlError);
@@ -468,56 +298,17 @@ async function uploadToFirebaseStorage(file) {
     });
 }
 
-// Initialiser la base de données
-async function initializeDatabase() {
-    try {
-        const user = await getCurrentUser();
-        
-        const videosCount = await db.collection('videos').get();
-        if (videosCount.empty) {
-            console.log('📝 Initialisation avec des vidéos de démo...');
-            
-            const demoVideos = [
-                {
-                    userId: user.id,
-                    username: user.username,
-                    avatar: user.avatar,
-                    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-                    thumbnail: 'https://images.unsplash.com/photo-1611605698335-8b1569810432',
-                    caption: 'Bienvenue sur TIKTAK ! 🎬 Créez votre première vidéo ! #bienvenue #tiktak',
-                    likes: 15,
-                    comments: 3,
-                    shares: 2,
-                    views: 150,
-                    gifts: 0,
-                    hashtags: ['#bienvenue', '#tiktak', '#premierevideo'],
-                    duration: '00:15',
-                    privacy: 'public',
-                    isMonetized: false
-                }
-            ];
-            
-            for (const demoVideo of demoVideos) {
-                await saveVideo(demoVideo);
-            }
-        }
-        
-        return true;
-    } catch (error) {
-        console.error('❌ Erreur initialisation base:', error);
-        return false;
-    }
-}
-
 // Test de connexion Firebase
 async function testFirebaseConnection() {
     try {
-        console.log('🔍 Test de connexion Firebase...');
+        console.log('🔍 Test de connexion Firebase Storage...');
         
-        // Test Storage
-        const testFile = new Blob(['test'], { type: 'text/plain' });
+        // Test simple de connexion
         const testRef = storage.ref().child('_test_connection.txt');
-        await testRef.put(testFile);
+        const testBlob = new Blob(['test'], { type: 'text/plain' });
+        
+        await testRef.put(testBlob);
+        const url = await testRef.getDownloadURL();
         await testRef.delete();
         
         console.log('✅ Firebase Storage: Connecté et fonctionnel');
@@ -528,37 +319,40 @@ async function testFirebaseConnection() {
     }
 }
 
-// Écoute en temps réel
-function setupRealtimeListener(callback) {
+// Initialiser la base de données
+async function initializeDatabase() {
     try {
-        console.log('👂 Configuration de l\'écoute en temps réel...');
+        const user = await getCurrentUser();
         
-        return db.collection('videos')
-            .where('privacy', '==', 'public')
-            .orderBy('createdAt', 'desc')
-            .limit(10)
-            .onSnapshot((snapshot) => {
-                const newVideos = [];
-                snapshot.docChanges().forEach((change) => {
-                    if (change.type === 'added') {
-                        const data = change.doc.data();
-                        newVideos.push({
-                            id: change.doc.id,
-                            ...data,
-                            createdAt: data.createdAt?.toDate?.() || new Date()
-                        });
-                    }
-                });
-                
-                if (newVideos.length > 0 && callback) {
-                    callback(newVideos);
-                }
-            }, (error) => {
-                console.warn('⚠️ Écoute temps réel désactivée:', error);
-            });
+        const videosCount = await db.collection('videos').get();
+        if (videosCount.empty) {
+            console.log('📝 Initialisation avec une vidéo de démo...');
+            
+            const demoVideo = {
+                userId: user.id,
+                username: user.username,
+                avatar: user.avatar,
+                videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+                thumbnail: 'https://images.unsplash.com/photo-1611605698335-8b1569810432',
+                caption: 'Bienvenue sur TIKTAK ! 🎬 Créez votre première vidéo ! #bienvenue #tiktak',
+                likes: 15,
+                comments: 3,
+                shares: 2,
+                views: 150,
+                gifts: 0,
+                hashtags: ['#bienvenue', '#tiktak', '#premierevideo'],
+                duration: '00:15',
+                privacy: 'public',
+                isMonetized: false
+            };
+            
+            await saveVideo(demoVideo);
+        }
+        
+        return true;
     } catch (error) {
-        console.warn('⚠️ Impossible de configurer l\'écoute temps réel:', error);
-        return null;
+        console.error('❌ Erreur initialisation base:', error);
+        return false;
     }
 }
 
@@ -567,21 +361,12 @@ window.firebaseApp = {
     db,
     auth,
     storage,
-    createAnonymousUser,
     getCurrentUser,
     saveVideo,
     loadVideos,
-    updateVideo,
-    incrementViews,
-    updateLikes,
-    followUser,
-    searchVideos,
-    updateUser,
-    loadUser,
-    uploadToFirebaseStorage, // AJOUTÉ
-    initializeDatabase,
+    uploadToFirebaseStorage,
     testFirebaseConnection,
-    setupRealtimeListener
+    initializeDatabase
 };
 
 // Initialiser au chargement
@@ -596,4 +381,4 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-console.log('🔥 Firebase configuré pour TIKTAK - MODE RÉEL CORRIGÉ');
+console.log('🔥 Firebase configuré pour TIKTAK - UPLOAD CORRIGÉ');
