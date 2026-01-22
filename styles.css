@@ -54,7 +54,7 @@ body {
     background: #000;
 }
 
-/* ==================== NAVIGATION ==================== */
+/* ==================== NAVIGATION SIMPLIFIÉE ==================== */
 .navbar {
     position: fixed;
     top: 0;
@@ -68,6 +68,7 @@ body {
     backdrop-filter: blur(10px);
     z-index: 1000;
     border-bottom: 1px solid #222;
+    height: 60px;
 }
 
 .logo {
@@ -121,146 +122,11 @@ body {
     color: #888;
     cursor: pointer;
     transition: color 0.3s;
+    padding: 5px;
 }
 
 .search-btn:hover {
     color: #00f2fe;
-}
-
-.nav-right {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-}
-
-.coin-balance {
-    background: linear-gradient(45deg, #ffd700, #ffaa00);
-    color: #000;
-    padding: 8px 15px;
-    border-radius: 20px;
-    font-weight: bold;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    cursor: pointer;
-    transition: transform 0.2s;
-}
-
-.coin-balance:hover {
-    transform: scale(1.05);
-}
-
-.btn {
-    padding: 10px 20px;
-    border: none;
-    border-radius: 8px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s;
-    font-size: 14px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-}
-
-.btn-primary {
-    background: linear-gradient(45deg, #00f2fe, #4facfe);
-    color: white;
-}
-
-.btn-primary:hover {
-    background: linear-gradient(45deg, #4facfe, #00f2fe);
-    transform: translateY(-2px);
-}
-
-.btn-primary:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    transform: none !important;
-}
-
-.btn-secondary {
-    background: #333;
-    color: white;
-}
-
-.btn-secondary:hover {
-    background: #444;
-}
-
-.btn-danger {
-    background: #ff4757;
-    color: white;
-}
-
-.btn-danger:hover {
-    background: #ff3742;
-}
-
-.btn-live {
-    background: linear-gradient(45deg, #ff0050, #ff8800);
-    color: white;
-}
-
-.btn-upload {
-    background: #00f2fe;
-    color: #000;
-    border-radius: 50%;
-    width: 40px;
-    height: 40px;
-    padding: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-}
-
-.user-menu img {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    border: 2px solid #00f2fe;
-    cursor: pointer;
-    transition: transform 0.3s;
-}
-
-.user-menu img:hover {
-    transform: scale(1.1);
-}
-
-.dropdown-menu {
-    position: absolute;
-    top: 60px;
-    right: 20px;
-    background: #222;
-    border-radius: 10px;
-    padding: 10px 0;
-    min-width: 200px;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.3);
-    z-index: 1001;
-    border: 1px solid #333;
-}
-
-.dropdown-menu a {
-    display: block;
-    padding: 10px 20px;
-    color: #fff;
-    text-decoration: none;
-    transition: background 0.2s;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.dropdown-menu a:hover {
-    background: #333;
-}
-
-.dropdown-menu .divider {
-    height: 1px;
-    background: #444;
-    margin: 10px 0;
 }
 
 /* ==================== MAIN CONTENT ==================== */
@@ -1276,16 +1142,9 @@ body {
         padding: 10px;
     }
     
-    .logo-text {
-        display: none;
-    }
-    
     .search-bar {
-        display: none;
-    }
-    
-    .btn-live .live-text {
-        display: none;
+        display: flex;
+        margin: 0 10px;
     }
     
     .modal-content {
@@ -1334,20 +1193,6 @@ body {
     
     .videos-grid {
         grid-template-columns: 1fr;
-    }
-    
-    .nav-right {
-        gap: 10px;
-    }
-    
-    .coin-balance {
-        padding: 6px 12px;
-        font-size: 12px;
-    }
-    
-    .btn {
-        padding: 8px 15px;
-        font-size: 12px;
     }
     
     .video-actions {
