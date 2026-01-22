@@ -3,7 +3,7 @@ const firebaseConfig = {
     apiKey: "AIzaSyD6UBg16fK3WP6ttzzmGMLglruXO4-KEzA",
     authDomain: "tiktak-97036.firebaseapp.com",
     projectId: "tiktak-97036",
-    storageBucket: "tiktak-97036.firebasestorage.app",
+    storageBucket: "tiktak-97036.appspot.com",
     messagingSenderId: "329130229096",
     appId: "1:329130229096:web:2dabf7f2a39de191b62add",
     measurementId: "G-8HN67F2F2R"
@@ -26,11 +26,6 @@ const db = firebase.firestore();
 const auth = firebase.auth();
 const storage = firebase.storage();
 
-// Activer la persistance des données
-db.enablePersistence()
-    .then(() => console.log('✅ Persistance Firestore activée'))
-    .catch(err => console.warn('⚠️ Persistance non supportée:', err));
-
 // ==================== FONCTIONS FIREBASE ====================
 
 // Créer un utilisateur anonyme
@@ -42,8 +37,8 @@ async function createAnonymousUser() {
         // Créer le profil dans Firestore
         const userData = {
             username: `Utilisateur_${Math.floor(Math.random() * 10000)}`,
-            avatar: `https://randomuser.me/api/portraits/lego/${Math.floor(Math.random() * 8) + 1}.jpg`,
-            coins: 100,
+            avatar: `https://i.pravatar.cc/150?img=${Math.floor(Math.random() * 70)}`,
+            coins: 1000,
             likedVideos: [],
             myVideos: [],
             drafts: [],
@@ -57,10 +52,11 @@ async function createAnonymousUser() {
             },
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-            isAnonymous: true
+            isAnonymous: true,
+            lastLogin: firebase.firestore.FieldValue.serverTimestamp()
         };
         
-        await db.collection('users').doc(user.uid).set(userData);
+        await db.collection('users').doc(user.uid).set(userData, { merge: true });
         console.log('👤 Utilisateur anonyme créé:', user.uid);
         
         return { id: user.uid, ...userData };
@@ -79,7 +75,7 @@ async function getCurrentUser() {
                 // Charger l'utilisateur depuis Firestore
                 const userDoc = await db.collection('users').doc(user.uid).get();
                 if (userDoc.exists) {
-                    resolve({ id: user.uid, ...userDoc.data() });
+                    resolve({ id: userDoc.id, ...userDoc.data() });
                 } else {
                     // Créer un nouvel utilisateur
                     const newUser = await createAnonymousUser();
@@ -92,6 +88,45 @@ async function getCurrentUser() {
             }
         }, reject);
     });
+}
+
+// Charger toutes les vidéos (version sans index composite)
+async function loadVideos(limit = 50) {
+    try {
+        // Nous chargeons sans le where pour éviter l'index composite, puis nous filtrons
+        const snapshot = await db.collection('videos')
+            .orderBy('createdAt', 'desc')
+            .limit(limit * 2) // Nous en chargeons plus pour compenser le filtrage
+            .get();
+
+        if (snapshot.empty) {
+            console.log('📭 Aucune vidéo trouvée');
+            return [];
+        }
+
+        const videos = [];
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            // Ne prendre que les vidéos publiques
+            if (data.privacy === 'public' || !data.privacy) {
+                videos.push({
+                    id: doc.id,
+                    ...data,
+                    // Conversion des timestamps Firebase en Date
+                    createdAt: data.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt)) : new Date()
+                });
+            }
+        });
+
+        // Tronquer à la limite demandée
+        const result = videos.slice(0, limit);
+        console.log(`✅ ${result.length} vidéos chargées`);
+        return result;
+
+    } catch (error) {
+        console.error('❌ Erreur chargement vidéos:', error);
+        return [];
+    }
 }
 
 // Sauvegarder une vidéo
@@ -127,31 +162,6 @@ async function saveVideo(videoData) {
     } catch (error) {
         console.error('❌ Erreur sauvegarde vidéo:', error);
         throw error;
-    }
-}
-
-// Charger toutes les vidéos
-async function loadVideos(limit = 50) {
-    try {
-        const snapshot = await db.collection('videos')
-            .where('privacy', '==', 'public')
-            .orderBy('createdAt', 'desc')
-            .limit(limit)
-            .get();
-        
-        const videos = [];
-        snapshot.forEach(doc => {
-            videos.push({
-                id: doc.id,
-                ...doc.data()
-            });
-        });
-        
-        console.log(`✅ ${videos.length} vidéos chargées`);
-        return videos;
-    } catch (error) {
-        console.error('❌ Erreur chargement vidéos:', error);
-        return [];
     }
 }
 
@@ -248,7 +258,6 @@ async function searchVideos(query) {
         const hashtagQuery = query.startsWith('#') ? query.slice(1) : query;
         
         const snapshot = await db.collection('videos')
-            .where('privacy', '==', 'public')
             .where('hashtags', 'array-contains', `#${hashtagQuery}`)
             .limit(20)
             .get();
@@ -260,7 +269,7 @@ async function searchVideos(query) {
         
         // Si pas de résultats, recherche dans les légendes
         if (videos.length === 0) {
-            const allVideos = await loadVideos(50);
+            const allVideos = await loadVideos(100);
             const filteredVideos = allVideos.filter(video => 
                 video.caption?.toLowerCase().includes(query.toLowerCase()) ||
                 video.username?.toLowerCase().includes(query.toLowerCase())
@@ -303,31 +312,6 @@ async function loadUser(userId) {
     }
 }
 
-// Test de connexion Firebase
-async function testFirebaseConnection() {
-    try {
-        console.log('🔍 Test de connexion Firebase...');
-        
-        // Test Firestore
-        const testRef = db.collection('_tests').doc('connection');
-        await testRef.set({
-            test: 'connexion',
-            timestamp: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        await testRef.delete();
-        console.log('✅ Firestore: Connecté');
-        
-        // Test Auth
-        const user = auth.currentUser;
-        console.log(user ? '✅ Auth: Connecté' : '✅ Auth: Prêt (anonyme)');
-        
-        return true;
-    } catch (error) {
-        console.error('❌ Erreur connexion Firebase:', error);
-        return false;
-    }
-}
-
 // Exporter les fonctions
 window.firebaseApp = {
     db,
@@ -343,15 +327,7 @@ window.firebaseApp = {
     followUser,
     searchVideos,
     updateUser,
-    loadUser,
-    testFirebaseConnection
+    loadUser
 };
-
-// Tester la connexion au chargement
-window.addEventListener('load', () => {
-    setTimeout(() => {
-        testFirebaseConnection();
-    }, 1000);
-});
 
 console.log('🔥 Firebase configuré pour TIKTAK');
