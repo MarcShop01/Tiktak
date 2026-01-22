@@ -1,9 +1,9 @@
-// Configuration Firebase pour TIKTAK - MODE RÉEL
+// Configuration Firebase pour TIKTAK
 const firebaseConfig = {
     apiKey: "AIzaSyD6UBg16fK3WP6ttzzmGMLglruXO4-KEzA",
     authDomain: "tiktak-97036.firebaseapp.com",
     projectId: "tiktak-97036",
-    storageBucket: "tiktak-97036.appspot.com",
+    storageBucket: "tiktak-97036.firebasestorage.app",
     messagingSenderId: "329130229096",
     appId: "1:329130229096:web:2dabf7f2a39de191b62add",
     measurementId: "G-8HN67F2F2R"
@@ -26,6 +26,11 @@ const db = firebase.firestore();
 const auth = firebase.auth();
 const storage = firebase.storage();
 
+// Activer la persistance des données
+db.enablePersistence()
+    .then(() => console.log('✅ Persistance Firestore activée'))
+    .catch(err => console.warn('⚠️ Persistance non supportée:', err));
+
 // ==================== FONCTIONS FIREBASE ====================
 
 // Créer un utilisateur anonyme
@@ -34,10 +39,11 @@ async function createAnonymousUser() {
         const userCredential = await auth.signInAnonymously();
         const user = userCredential.user;
         
+        // Créer le profil dans Firestore
         const userData = {
-            username: `User${Math.floor(Math.random() * 10000)}`,
-            avatar: `https://i.pravatar.cc/150?img=${Math.floor(Math.random() * 70)}`,
-            coins: 1000,
+            username: `Utilisateur_${Math.floor(Math.random() * 10000)}`,
+            avatar: `https://randomuser.me/api/portraits/lego/${Math.floor(Math.random() * 8) + 1}.jpg`,
+            coins: 100,
             likedVideos: [],
             myVideos: [],
             drafts: [],
@@ -51,12 +57,11 @@ async function createAnonymousUser() {
             },
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-            isAnonymous: true,
-            lastLogin: firebase.firestore.FieldValue.serverTimestamp()
+            isAnonymous: true
         };
         
         await db.collection('users').doc(user.uid).set(userData);
-        console.log('👤 Utilisateur créé:', user.uid);
+        console.log('👤 Utilisateur anonyme créé:', user.uid);
         
         return { id: user.uid, ...userData };
     } catch (error) {
@@ -71,69 +76,22 @@ async function getCurrentUser() {
         const unsubscribe = auth.onAuthStateChanged(async (user) => {
             unsubscribe();
             if (user) {
+                // Charger l'utilisateur depuis Firestore
                 const userDoc = await db.collection('users').doc(user.uid).get();
                 if (userDoc.exists) {
-                    resolve({ id: userDoc.id, ...userDoc.data() });
+                    resolve({ id: user.uid, ...userDoc.data() });
                 } else {
+                    // Créer un nouvel utilisateur
                     const newUser = await createAnonymousUser();
                     resolve(newUser);
                 }
             } else {
+                // Créer un utilisateur anonyme
                 const newUser = await createAnonymousUser();
                 resolve(newUser);
             }
         }, reject);
     });
-}
-
-// Charger les vidéos
-async function loadVideos(limit = 50) {
-    try {
-        console.log('📥 Chargement des vidéos depuis Firebase...');
-        
-        const snapshot = await db.collection('videos')
-            .where('privacy', '==', 'public')
-            .orderBy('createdAt', 'desc')
-            .limit(limit)
-            .get();
-        
-        if (snapshot.empty) {
-            console.log('📭 Aucune vidéo trouvée dans la base de données');
-            return [];
-        }
-        
-        const videos = [];
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            let createdAt = new Date();
-            if (data.createdAt && data.createdAt.toDate) {
-                createdAt = data.createdAt.toDate();
-            } else if (data.createdAt) {
-                createdAt = new Date(data.createdAt);
-            }
-            
-            videos.push({
-                id: doc.id,
-                ...data,
-                createdAt: createdAt,
-                likes: data.likes || 0,
-                comments: data.comments || 0,
-                shares: data.shares || 0,
-                views: data.views || 0,
-                gifts: data.gifts || 0,
-                duration: data.duration || '00:15',
-                privacy: data.privacy || 'public',
-                hashtags: data.hashtags || []
-            });
-        });
-        
-        console.log(`✅ ${videos.length} vidéos chargées`);
-        return videos;
-        
-    } catch (error) {
-        console.error('❌ Erreur chargement vidéos:', error);
-        return [];
-    }
 }
 
 // Sauvegarder une vidéo
@@ -147,34 +105,53 @@ async function saveVideo(videoData) {
             ...videoData,
             id: videoRef.id,
             userId: user.uid,
-            username: videoData.username || 'Utilisateur',
-            avatar: videoData.avatar || 'https://i.pravatar.cc/150?img=1',
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
             likes: 0,
             comments: 0,
             shares: 0,
             views: 0,
-            gifts: 0,
-            privacy: videoData.privacy || 'public',
-            duration: '00:15',
-            hashtags: videoData.hashtags || []
+            gifts: 0
         };
         
         await videoRef.set(videoWithMetadata);
         
+        // Ajouter la vidéo à l'utilisateur
         await db.collection('users').doc(user.uid).update({
             myVideos: firebase.firestore.FieldValue.arrayUnion(videoRef.id),
-            coins: firebase.firestore.FieldValue.increment(10),
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         
         console.log('✅ Vidéo sauvegardée:', videoRef.id);
-        return { ...videoWithMetadata, createdAt: new Date() };
-        
+        return { id: videoRef.id, ...videoWithMetadata };
     } catch (error) {
         console.error('❌ Erreur sauvegarde vidéo:', error);
         throw error;
+    }
+}
+
+// Charger toutes les vidéos
+async function loadVideos(limit = 50) {
+    try {
+        const snapshot = await db.collection('videos')
+            .where('privacy', '==', 'public')
+            .orderBy('createdAt', 'desc')
+            .limit(limit)
+            .get();
+        
+        const videos = [];
+        snapshot.forEach(doc => {
+            videos.push({
+                id: doc.id,
+                ...doc.data()
+            });
+        });
+        
+        console.log(`✅ ${videos.length} vidéos chargées`);
+        return videos;
+    } catch (error) {
+        console.error('❌ Erreur chargement vidéos:', error);
+        return [];
     }
 }
 
@@ -185,6 +162,7 @@ async function updateVideo(videoId, updates) {
             ...updates,
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
+        console.log('✅ Vidéo mise à jour:', videoId);
         return true;
     } catch (error) {
         console.error('❌ Erreur mise à jour vidéo:', error);
@@ -201,27 +179,35 @@ async function incrementViews(videoId) {
         });
         return true;
     } catch (error) {
-        console.error('⚠️ Vue non comptabilisée:', error);
-        return false;
+        console.error('❌ Erreur incrément vues:', error);
+        throw error;
     }
 }
 
 // Mettre à jour les likes
 async function updateLikes(videoId, userId, action = 'like') {
     try {
-        const increment = action === 'like' ? 1 : -1;
-        await db.collection('videos').doc(videoId).update({
-            likes: firebase.firestore.FieldValue.increment(increment),
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        
+        const videoRef = db.collection('videos').doc(videoId);
         const userRef = db.collection('users').doc(userId);
+        
         if (action === 'like') {
+            // Ajouter le like
+            await videoRef.update({
+                likes: firebase.firestore.FieldValue.increment(1),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            
             await userRef.update({
                 likedVideos: firebase.firestore.FieldValue.arrayUnion(videoId),
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
             });
         } else {
+            // Retirer le like
+            await videoRef.update({
+                likes: firebase.firestore.FieldValue.increment(-1),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            
             await userRef.update({
                 likedVideos: firebase.firestore.FieldValue.arrayRemove(videoId),
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -258,53 +244,31 @@ async function followUser(followerId, followingId) {
 // Rechercher des vidéos
 async function searchVideos(query) {
     try {
-        console.log(`🔍 Recherche: "${query}"`);
+        // Recherche par hashtags
+        const hashtagQuery = query.startsWith('#') ? query.slice(1) : query;
         
         const snapshot = await db.collection('videos')
             .where('privacy', '==', 'public')
-            .orderBy('createdAt', 'desc')
+            .where('hashtags', 'array-contains', `#${hashtagQuery}`)
             .limit(20)
             .get();
         
-        if (snapshot.empty) return [];
-        
-        const allVideos = [];
-        const normalizedQuery = query.toLowerCase().trim();
-        
+        const videos = [];
         snapshot.forEach(doc => {
-            const data = doc.data();
-            const createdAt = data.createdAt?.toDate?.() || new Date();
-            
-            allVideos.push({
-                id: doc.id,
-                ...data,
-                createdAt: createdAt
-            });
+            videos.push({ id: doc.id, ...doc.data() });
         });
         
-        const results = allVideos.filter(video => {
-            if (video.caption && video.caption.toLowerCase().includes(normalizedQuery)) {
-                return true;
-            }
-            
-            if (video.username && video.username.toLowerCase().includes(normalizedQuery)) {
-                return true;
-            }
-            
-            if (video.hashtags && Array.isArray(video.hashtags)) {
-                for (const tag of video.hashtags) {
-                    if (tag.toLowerCase().includes(normalizedQuery)) {
-                        return true;
-                    }
-                }
-            }
-            
-            return false;
-        });
+        // Si pas de résultats, recherche dans les légendes
+        if (videos.length === 0) {
+            const allVideos = await loadVideos(50);
+            const filteredVideos = allVideos.filter(video => 
+                video.caption?.toLowerCase().includes(query.toLowerCase()) ||
+                video.username?.toLowerCase().includes(query.toLowerCase())
+            );
+            return filteredVideos;
+        }
         
-        console.log(`✅ ${results.length} résultats trouvés pour "${query}"`);
-        return results;
-        
+        return videos;
     } catch (error) {
         console.error('❌ Erreur recherche:', error);
         return [];
@@ -330,280 +294,37 @@ async function loadUser(userId) {
     try {
         const userDoc = await db.collection('users').doc(userId).get();
         if (userDoc.exists) {
-            const data = userDoc.data();
-            return { 
-                id: userDoc.id, 
-                username: data.username || 'Utilisateur',
-                avatar: data.avatar || 'https://i.pravatar.cc/150?img=1',
-                followers: data.followers || [],
-                following: data.following || [],
-                coins: data.coins || 0,
-                likedVideos: data.likedVideos || []
-            };
+            return { id: userDoc.id, ...userDoc.data() };
         }
-        return {
-            id: userId,
-            username: 'Utilisateur',
-            avatar: 'https://i.pravatar.cc/150?img=1',
-            followers: [],
-            following: [],
-            coins: 0,
-            likedVideos: []
-        };
+        return null;
     } catch (error) {
         console.error('❌ Erreur chargement utilisateur:', error);
-        return {
-            id: userId,
-            username: 'Utilisateur',
-            avatar: 'https://i.pravatar.cc/150?img=1',
-            followers: [],
-            following: [],
-            coins: 0,
-            likedVideos: []
-        };
-    }
-}
-
-// Upload vers Firebase Storage
-async function uploadToFirebaseStorage(file) {
-    return new Promise((resolve, reject) => {
-        console.log('📤 Début upload vers Firebase Storage...');
-        
-        if (!file) {
-            reject(new Error('Aucun fichier sélectionné'));
-            return;
-        }
-
-        if (file.size > 500 * 1024 * 1024) {
-            reject(new Error('Fichier trop volumineux (max 500MB)'));
-            return;
-        }
-
-        const timestamp = Date.now();
-        const randomId = Math.random().toString(36).substring(2, 15);
-        const fileExtension = file.name.split('.').pop().toLowerCase();
-        const fileName = `videos/${timestamp}_${randomId}.${fileExtension}`;
-        
-        console.log('📁 Nom du fichier:', fileName);
-        console.log('📏 Taille:', (file.size / 1024 / 1024).toFixed(2), 'MB');
-        console.log('📄 Type:', file.type);
-
-        const storageRef = storage.ref();
-        const fileRef = storageRef.child(fileName);
-
-        const metadata = {
-            contentType: file.type || 'video/*',
-            customMetadata: {
-                originalName: file.name,
-                uploadedAt: timestamp.toString(),
-                userId: auth.currentUser?.uid || 'anonymous'
-            }
-        };
-
-        const uploadTask = fileRef.put(file, metadata);
-
-        uploadTask.on('state_changed',
-            (snapshot) => {
-                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                console.log(`📊 Progression: ${progress.toFixed(2)}%`);
-                
-                const progressBar = document.getElementById('uploadProgressBar');
-                const progressText = document.getElementById('uploadProgressText');
-                
-                if (progressBar) {
-                    progressBar.style.width = `${progress}%`;
-                }
-                if (progressText) {
-                    progressText.textContent = `Upload: ${progress.toFixed(0)}%`;
-                }
-            },
-            (error) => {
-                console.error('❌ Erreur upload:', error);
-                
-                let errorMessage = 'Échec de l\'upload';
-                switch (error.code) {
-                    case 'storage/unauthorized':
-                        errorMessage = 'Non autorisé. Vérifiez les règles Firebase.';
-                        break;
-                    case 'storage/canceled':
-                        errorMessage = 'Upload annulé';
-                        break;
-                    case 'storage/unknown':
-                        errorMessage = 'Erreur inconnue';
-                        break;
-                }
-                
-                reject(new Error(`${errorMessage}: ${error.message}`));
-            },
-            async () => {
-                try {
-                    console.log('✅ Upload terminé, récupération URL...');
-                    
-                    const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
-                    console.log('🔗 URL générée:', downloadURL);
-                    
-                    await uploadTask.snapshot.ref.updateMetadata({
-                        cacheControl: 'public, max-age=31536000',
-                        contentDisposition: `inline; filename="${file.name}"`
-                    });
-                    
-                    resolve(downloadURL);
-                } catch (urlError) {
-                    console.error('❌ Erreur génération URL:', urlError);
-                    
-                    try {
-                        const token = await uploadTask.snapshot.ref.getMetadata()
-                            .then(metadata => metadata.downloadTokens || 'no-token');
-                        
-                        if (token !== 'no-token') {
-                            const encodedPath = encodeURIComponent(fileName);
-                            const fallbackURL = `https://firebasestorage.googleapis.com/v0/b/tiktak-97036.appspot.com/o/${encodedPath}?alt=media&token=${token}`;
-                            console.log('🔗 URL fallback:', fallbackURL);
-                            resolve(fallbackURL);
-                        } else {
-                            reject(urlError);
-                        }
-                    } catch (fallbackError) {
-                        reject(fallbackError);
-                    }
-                }
-            }
-        );
-    });
-}
-
-// Ajouter un commentaire
-async function addComment(videoId, commentData) {
-    try {
-        const commentRef = await db.collection('videos').doc(videoId).collection('comments').add({
-            ...commentData,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        
-        await db.collection('videos').doc(videoId).update({
-            comments: firebase.firestore.FieldValue.increment(1)
-        });
-        
-        return commentRef.id;
-    } catch (error) {
-        console.error('❌ Erreur ajout commentaire:', error);
         throw error;
-    }
-}
-
-// Charger les commentaires
-async function loadComments(videoId, limit = 50) {
-    try {
-        const snapshot = await db.collection('videos').doc(videoId).collection('comments')
-            .orderBy('createdAt', 'desc')
-            .limit(limit)
-            .get();
-        
-        const comments = [];
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            comments.push({
-                id: doc.id,
-                ...data,
-                createdAt: data.createdAt?.toDate?.() || new Date()
-            });
-        });
-        
-        return comments;
-    } catch (error) {
-        console.error('❌ Erreur chargement commentaires:', error);
-        return [];
-    }
-}
-
-// Initialiser la base de données
-async function initializeDatabase() {
-    try {
-        const user = await getCurrentUser();
-        
-        const videosCount = await db.collection('videos').get();
-        if (videosCount.empty) {
-            console.log('📝 Initialisation avec une vidéo de démo...');
-            
-            const demoVideo = {
-                userId: user.id,
-                username: user.username,
-                avatar: user.avatar,
-                videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-                thumbnail: 'https://images.unsplash.com/photo-1611605698335-8b1569810432',
-                caption: 'Bienvenue sur TIKTAK ! 🎬 Créez votre première vidéo ! #bienvenue #tiktak',
-                likes: 15,
-                comments: 3,
-                shares: 2,
-                views: 150,
-                gifts: 0,
-                hashtags: ['#bienvenue', '#tiktak', '#premierevideo'],
-                duration: '00:15',
-                privacy: 'public',
-                isMonetized: false
-            };
-            
-            await saveVideo(demoVideo);
-        }
-        
-        return true;
-    } catch (error) {
-        console.error('❌ Erreur initialisation base:', error);
-        return false;
     }
 }
 
 // Test de connexion Firebase
 async function testFirebaseConnection() {
     try {
-        console.log('🔍 Test de connexion Firebase Storage...');
+        console.log('🔍 Test de connexion Firebase...');
         
-        const testRef = storage.ref().child('_test_connection.txt');
-        const testBlob = new Blob(['test'], { type: 'text/plain' });
-        
-        await testRef.put(testBlob);
-        const url = await testRef.getDownloadURL();
+        // Test Firestore
+        const testRef = db.collection('_tests').doc('connection');
+        await testRef.set({
+            test: 'connexion',
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
         await testRef.delete();
+        console.log('✅ Firestore: Connecté');
         
-        console.log('✅ Firebase Storage: Connecté et fonctionnel');
+        // Test Auth
+        const user = auth.currentUser;
+        console.log(user ? '✅ Auth: Connecté' : '✅ Auth: Prêt (anonyme)');
+        
         return true;
     } catch (error) {
-        console.warn('⚠️ Firebase Storage: Problème de connexion', error);
+        console.error('❌ Erreur connexion Firebase:', error);
         return false;
-    }
-}
-
-// Écoute en temps réel
-function setupRealtimeListener(callback) {
-    try {
-        console.log('👂 Configuration de l\'écoute en temps réel...');
-        
-        return db.collection('videos')
-            .where('privacy', '==', 'public')
-            .orderBy('createdAt', 'desc')
-            .limit(10)
-            .onSnapshot((snapshot) => {
-                const newVideos = [];
-                snapshot.docChanges().forEach((change) => {
-                    if (change.type === 'added') {
-                        const data = change.doc.data();
-                        newVideos.push({
-                            id: change.doc.id,
-                            ...data,
-                            createdAt: data.createdAt?.toDate?.() || new Date()
-                        });
-                    }
-                });
-                
-                if (newVideos.length > 0 && callback) {
-                    callback(newVideos);
-                }
-            }, (error) => {
-                console.warn('⚠️ Écoute temps réel désactivée:', error);
-            });
-    } catch (error) {
-        console.warn('⚠️ Impossible de configurer l\'écoute temps réel:', error);
-        return null;
     }
 }
 
@@ -612,6 +333,7 @@ window.firebaseApp = {
     db,
     auth,
     storage,
+    createAnonymousUser,
     getCurrentUser,
     saveVideo,
     loadVideos,
@@ -622,24 +344,14 @@ window.firebaseApp = {
     searchVideos,
     updateUser,
     loadUser,
-    uploadToFirebaseStorage,
-    addComment,
-    loadComments,
-    initializeDatabase,
-    testFirebaseConnection,
-    setupRealtimeListener
+    testFirebaseConnection
 };
 
-// Initialiser au chargement
-window.addEventListener('DOMContentLoaded', async () => {
-    try {
-        console.log('🚀 Initialisation Firebase...');
-        await testFirebaseConnection();
-        await initializeDatabase();
-        console.log('✅ Base de données prête');
-    } catch (error) {
-        console.error('❌ Erreur initialisation:', error);
-    }
+// Tester la connexion au chargement
+window.addEventListener('load', () => {
+    setTimeout(() => {
+        testFirebaseConnection();
+    }, 1000);
 });
 
-console.log('🔥 Firebase configuré pour TIKTAK - COMPLET');
+console.log('🔥 Firebase configuré pour TIKTAK');
