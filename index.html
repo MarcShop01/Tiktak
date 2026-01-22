@@ -84,6 +84,7 @@
                         <div class="option-content">
                             <h4>Télécharger une vidéo</h4>
                             <p>Choisissez une vidéo depuis votre appareil</p>
+                            <small style="color: #00f2fe; font-size: 12px;">Tous formats acceptés</small>
                         </div>
                     </div>
                     
@@ -94,6 +95,7 @@
                         <div class="option-content">
                             <h4>Utiliser une vidéo de démo</h4>
                             <p>Testez avec une vidéo exemple</p>
+                            <small style="color: #00f2fe; font-size: 12px;">Pour tester sans upload</small>
                         </div>
                     </div>
                 </div>
@@ -107,7 +109,7 @@
                             <div class="preview-placeholder">
                                 <i class="fas fa-cloud-upload-alt"></i>
                                 <p>Sélectionnez ou déposez une vidéo</p>
-                                <small>Formats supportés: MP4, WebM, OGG</small>
+                                <small>Formats acceptés: MP4, WebM, OGG, MOV, AVI, WMV, FLV, MKV, 3GP, MPEG (max 500MB)</small>
                             </div>
                             <!-- Indicateur de chargement -->
                             <div id="videoProcessing" class="video-processing" style="display: none;">
@@ -122,18 +124,29 @@
                             </button>
                         </div>
                         
+                        <!-- Barre de progression pour l'upload -->
+                        <div id="uploadProgressContainer" style="display: none; margin-top: 15px;">
+                            <div class="upload-progress">
+                                <div class="upload-progress-bar" id="uploadProgressBar" style="width: 0%"></div>
+                            </div>
+                            <div class="upload-progress-text" id="uploadProgressText" style="text-align: center; color: #aaa; font-size: 12px; margin-top: 5px;">
+                                0%
+                            </div>
+                        </div>
+                        
                         <!-- Aide format -->
                         <div class="format-help">
-                            <h4><i class="fas fa-info-circle"></i> Conseils pour une meilleure compatibilité</h4>
+                            <h4><i class="fas fa-info-circle"></i> Tous formats vidéo acceptés !</h4>
                             <ul>
-                                <li><i class="fas fa-check-circle"></i> Format recommandé: MP4 (H.264)</li>
-                                <li><i class="fas fa-check-circle"></i> Taille max: 100MB</li>
-                                <li><i class="fas fa-check-circle"></i> Résolution: 720p ou 1080p</li>
+                                <li><i class="fas fa-check-circle"></i> Formats courants: MP4, WebM, OGG</li>
+                                <li><i class="fas fa-check-circle"></i> Formats mobiles: MOV, 3GP, MPEG</li>
+                                <li><i class="fas fa-check-circle"></i> Formats PC: AVI, WMV, FLV, MKV</li>
+                                <li><i class="fas fa-check-circle"></i> Taille max: 500MB</li>
                             </ul>
                         </div>
                     </div>
                     
-                    <input type="file" id="videoInput" accept="video/mp4,video/webm,video/ogg" style="display: none;">
+                    <input type="file" id="videoInput" accept="video/*,.mp4,.webm,.ogg,.mov,.avi,.wmv,.flv,.mkv,.3gp,.mpeg,.mpg" style="display: none;">
                 </div>
                 
                 <!-- Formulaire de publication -->
