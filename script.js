@@ -5,6 +5,12 @@ let usersCache = {};
 let currentVideoFile = null;
 let currentPlayingVideo = null;
 
+// ==================== FONCTION OPEN GIFTSHOP (AJOUTÉE) ====================
+function openGiftShop() {
+    showNotification('Boutique de cadeaux à venir ! 🎁', 'info');
+    // window.location.href = "giftshop.html"; // Décommenter si vous avez une page boutique
+}
+
 // ==================== INITIALISATION ====================
 document.addEventListener('DOMContentLoaded', async function() {
     console.log('🚀 TIKTAK - Démarrage...');
@@ -181,18 +187,24 @@ function createVideoElement(video, autoPlay = false) {
     container.dataset.videoId = video.id;
     
     container.innerHTML = `
-        <video 
-            src="${video.videoUrl}" 
-            poster="${video.thumbnail}"
-            onclick="toggleVideoPlay(this)"
-            ${autoPlay && currentUser?.settings?.autoplay ? 'autoplay muted' : ''}
-            loop
-            preload="metadata"
-        ></video>
+        <div class="video-wrapper">
+            <video 
+                src="${video.videoUrl}" 
+                poster="${video.thumbnail}"
+                onclick="toggleVideoPlay(this)"
+                ${autoPlay && currentUser?.settings?.autoplay ? 'autoplay muted' : ''}
+                loop
+                preload="metadata"
+            ></video>
+            
+            <button class="manual-play-btn" onclick="toggleVideoPlay(this.previousElementSibling)">
+                <i class="fas fa-play"></i>
+            </button>
+        </div>
         
         <div class="video-overlay">
             <div class="creator-info">
-                <img src="${user.avatar || video.avatar || 'https://i.pravatar.cc/150?img=1'}" 
+                <img class="creator-avatar" src="${user.avatar || video.avatar || 'https://i.pravatar.cc/150?img=1'}" 
                      alt="${user.username || video.username || 'Utilisateur'}" 
                      onclick="openCreatorProfile('${video.userId}')">
                 <div class="creator-details">
@@ -236,10 +248,6 @@ function createVideoElement(video, autoPlay = false) {
                 <span>${formatNumber(video.shares || 0)}</span>
             </div>
         </div>
-        
-        <button class="manual-play-btn" onclick="toggleVideoPlay(this.previousElementSibling.previousElementSibling)">
-            <i class="fas fa-play"></i>
-        </button>
     `;
     
     return container;
@@ -279,6 +287,7 @@ async function toggleVideoPlay(videoElement) {
             }
         } catch (error) {
             console.error('Erreur lecture vidéo:', error);
+            playBtn.innerHTML = '<i class="fas fa-play"></i>';
         }
     } else {
         videoElement.pause();
@@ -465,7 +474,7 @@ async function copyToClipboard(text) {
     }
 }
 
-// ==================== CRÉATION DE VIDÉO ====================
+// ==================== CRÉATION DE VIDÉO (CORRIGÉ) ====================
 
 function openCreateModal() {
     document.getElementById('createModal').style.display = 'flex';
@@ -500,6 +509,7 @@ function openFilePicker() {
     document.getElementById('videoInput').click();
 }
 
+// CORRECTION DU PROBLÈME DE TÉLÉCHARGEMENT DE VIDÉO
 function setupVideoInput() {
     const videoInput = document.getElementById('videoInput');
     videoInput.addEventListener('change', function(e) {
@@ -510,6 +520,7 @@ function setupVideoInput() {
     });
 }
 
+// FONCTION CORRIGÉE POUR TRAITER LA VIDÉO
 function processVideoFile(file) {
     if (file.size > 100 * 1024 * 1024) {
         showNotification('Vidéo trop volumineuse (max 100MB)', 'error');
@@ -522,9 +533,11 @@ function processVideoFile(file) {
     }
     
     currentVideoFile = file;
-    const reader = new FileReader();
     
+    // Montrer l'indicateur de traitement
     document.getElementById('videoProcessing').style.display = 'flex';
+    
+    const reader = new FileReader();
     
     reader.onload = function(e) {
         const videoElement = document.getElementById('previewVideo');
@@ -534,15 +547,30 @@ function processVideoFile(file) {
         videoElement.style.display = 'block';
         placeholder.style.display = 'none';
         
-        setTimeout(() => {
+        // Attendre que la vidéo soit chargée
+        videoElement.onloadeddata = function() {
+            setTimeout(() => {
+                document.getElementById('videoProcessing').style.display = 'none';
+                document.getElementById('publishBtn').disabled = false;
+                
+                document.getElementById('videoFileInfo').innerHTML = `
+                    <i class="fas fa-file-video"></i>
+                    <span>${file.name} (${formatFileSize(file.size)})</span>
+                `;
+                
+                showNotification('Vidéo chargée avec succès !', 'success');
+            }, 1000);
+        };
+        
+        videoElement.onerror = function() {
             document.getElementById('videoProcessing').style.display = 'none';
-            document.getElementById('publishBtn').disabled = false;
-            
-            document.getElementById('videoFileInfo').innerHTML = `
-                <i class="fas fa-file-video"></i>
-                <span>${file.name} (${formatFileSize(file.size)})</span>
-            `;
-        }, 2000);
+            showNotification('Erreur de chargement de la vidéo', 'error');
+        };
+    };
+    
+    reader.onerror = function() {
+        document.getElementById('videoProcessing').style.display = 'none';
+        showNotification('Erreur de lecture du fichier', 'error');
     };
     
     reader.readAsDataURL(file);
@@ -566,14 +594,17 @@ function simulateRecording() {
         'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'
     ];
     
-    videoElement.src = demoVideos[Math.floor(Math.random() * demoVideos.length)];
+    const randomVideo = demoVideos[Math.floor(Math.random() * demoVideos.length)];
+    videoElement.src = randomVideo;
     videoElement.style.display = 'block';
     placeholder.style.display = 'none';
     
+    // Simuler un fichier
     currentVideoFile = {
         name: 'demo_video.mp4',
         size: 15000000,
-        type: 'video/mp4'
+        type: 'video/mp4',
+        url: randomVideo
     };
     
     document.getElementById('videoFileInfo').innerHTML = `
@@ -600,8 +631,21 @@ async function publishVideo() {
     
     try {
         const hashtags = extractHashtags(caption);
-        const videoUrl = document.getElementById('previewVideo').src || 
-                        'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
+        let videoUrl;
+        
+        // Si c'est un fichier réel
+        if (currentVideoFile && currentVideoFile instanceof File) {
+            // Dans une vraie app, il faudrait uploader vers Firebase Storage
+            // Pour la démo, on utilise une URL de démo
+            videoUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
+        } else if (currentVideoFile && currentVideoFile.url) {
+            // Si c'est une vidéo de démo
+            videoUrl = currentVideoFile.url;
+        } else {
+            // Si aucune vidéo n'est sélectionnée
+            videoUrl = document.getElementById('previewVideo').src || 
+                       'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
+        }
         
         const videoData = {
             userId: currentUser.id,
@@ -613,7 +657,11 @@ async function publishVideo() {
             isMonetized: isMonetized,
             hashtags: hashtags,
             duration: '00:15',
-            privacy: privacy
+            privacy: privacy,
+            views: 0,
+            likes: 0,
+            comments: 0,
+            shares: 0
         };
         
         const newVideo = await firebaseApp.saveVideo(videoData);
@@ -682,6 +730,9 @@ function resetCreateModal() {
 // ==================== RECHERCHE ====================
 
 async function performSearch(query) {
+    const searchInput = document.getElementById('searchInput');
+    if (!query) query = searchInput.value;
+    
     if (!query.trim()) {
         showNotification('Veuillez entrer un terme de recherche', 'info');
         return;
@@ -958,8 +1009,7 @@ function showNotification(message, type = 'info') {
 
 function updateUI() {
     try {
-        document.getElementById('coinCount').textContent = currentUser.coins || 0;
-        document.getElementById('userAvatar').src = currentUser.avatar || 'https://i.pravatar.cc/150?img=1';
+        // Plus besoin de mettre à jour coinCount car supprimé
     } catch (error) {
         console.error('❌ Erreur mise à jour UI:', error);
     }
@@ -973,15 +1023,10 @@ function showHome() {
     renderVideoFeed();
 }
 
-function toggleUserMenu() {
-    const menu = document.getElementById('userDropdown');
-    menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
-}
-
 function openSearch() {
     const searchInput = document.getElementById('searchInput');
-    searchInput.style.display = searchInput.style.display === 'none' ? 'block' : 'none';
-    if (searchInput.style.display === 'block') searchInput.focus();
+    searchInput.style.display = 'block';
+    searchInput.focus();
 }
 
 // ==================== ÉCOUTEURS D'ÉVÉNEMENTS ====================
@@ -1019,14 +1064,8 @@ function setupEventListeners() {
         }
     });
     
-    // Fermer les menus en cliquant à l'extérieur
+    // Fermer les modales en cliquant à l'extérieur
     document.addEventListener('click', function(e) {
-        const menu = document.getElementById('userDropdown');
-        const userMenu = document.querySelector('.user-menu');
-        if (menu && menu.style.display === 'block' && !userMenu.contains(e.target) && !menu.contains(e.target)) {
-            menu.style.display = 'none';
-        }
-        
         // Fermer les modales
         ['createModal', 'profileModal', 'settingsModal'].forEach(modalId => {
             const modal = document.getElementById(modalId);
@@ -1040,7 +1079,8 @@ function setupEventListeners() {
     
     // Navigation mobile
     document.querySelectorAll('.bottom-nav .nav-item').forEach(item => {
-        item.addEventListener('click', function() {
+        item.addEventListener('click', function(e) {
+            e.preventDefault();
             document.querySelectorAll('.bottom-nav .nav-item').forEach(i => i.classList.remove('active'));
             this.classList.add('active');
         });
@@ -1198,7 +1238,6 @@ window.openProfile = openProfile;
 window.closeProfile = closeProfile;
 window.openSettings = openSettings;
 window.closeSettings = closeSettings;
-window.toggleUserMenu = toggleUserMenu;
 window.openFilePicker = openFilePicker;
 window.simulateRecording = simulateRecording;
 window.publishVideo = publishVideo;
