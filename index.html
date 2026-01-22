@@ -22,7 +22,7 @@
 
     <!-- Main App -->
     <div class="app-container" id="appContainer" style="display: none;">
-        <!-- Navigation -->
+        <!-- Navigation simplifiée -->
         <nav class="navbar">
             <div class="logo">
                 <i class="fas fa-video"></i> <span class="logo-text">TIKTAK</span>
@@ -31,33 +31,6 @@
             <div class="search-bar">
                 <input type="text" id="searchInput" placeholder="Rechercher...">
                 <button class="search-btn" onclick="performSearch()"><i class="fas fa-search"></i></button>
-            </div>
-            
-            <div class="nav-right">
-                <div class="coin-balance" id="coinBalance" onclick="openWallet()">
-                    <i class="fas fa-coins"></i>
-                    <span id="coinCount">0</span>
-                </div>
-                
-                <button class="btn btn-live" onclick="openLiveStream()">
-                    <i class="fas fa-broadcast-tower"></i> <span class="live-text">Live</span>
-                </button>
-                
-                <button class="btn btn-upload" onclick="openCreateModal()">
-                    <i class="fas fa-plus"></i>
-                </button>
-                
-                <div class="user-menu" onclick="toggleUserMenu()">
-                    <img id="userAvatar" src="https://i.pravatar.cc/150?img=1" alt="Profil">
-                </div>
-            </div>
-            
-            <div class="dropdown-menu" id="userDropdown" style="display: none;">
-                <a href="#" onclick="openProfile()"><i class="fas fa-user"></i> Mon profil</a>
-                <a href="#" onclick="openWallet()"><i class="fas fa-wallet"></i> Mon portefeuille</a>
-                <a href="#" onclick="openSettings()"><i class="fas fa-cog"></i> Paramètres</a>
-                <div class="divider"></div>
-                <a href="#" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Déconnexion</a>
             </div>
         </nav>
 
