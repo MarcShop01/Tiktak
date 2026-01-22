@@ -5,12 +5,58 @@ let usersCache = {};
 let currentVideoFile = null;
 let currentPlayingVideo = null;
 let realtimeUnsubscribe = null;
-let isUploading = false;
+
+// ==================== FONCTIONS D'AIDE ====================
+
+// Fonction pour obtenir le type MIME d'une vidéo
+function getMimeType(url) {
+    if (!url) return 'video/mp4';
+    
+    const extension = url.split('.').pop().toLowerCase();
+    switch(extension) {
+        case 'mp4':
+        case 'm4v':
+            return 'video/mp4';
+        case 'webm':
+            return 'video/webm';
+        case 'ogg':
+        case 'ogv':
+            return 'video/ogg';
+        case 'mov':
+            return 'video/quicktime';
+        case 'avi':
+            return 'video/x-msvideo';
+        default:
+            return 'video/mp4'; // Par défaut, on suppose MP4
+    }
+}
+
+// Fonction pour vérifier si une vidéo est lisible
+async function isVideoPlayable(videoUrl) {
+    return new Promise((resolve) => {
+        const video = document.createElement('video');
+        video.preload = 'metadata';
+        
+        video.onloadedmetadata = () => {
+            resolve(true);
+        };
+        
+        video.onerror = () => {
+            resolve(false);
+        };
+        
+        video.src = videoUrl;
+        
+        // Timeout après 5 secondes
+        setTimeout(() => resolve(false), 5000);
+    });
+}
 
 // ==================== INITIALISATION ====================
 document.addEventListener('DOMContentLoaded', async function() {
     console.log('🚀 TIKTAK - Démarrage...');
     
+    // Masquer l'écran de chargement après 2 secondes max
     const loadingScreen = document.getElementById('loadingScreen');
     const appContainer = document.getElementById('appContainer');
     
@@ -22,9 +68,9 @@ document.addEventListener('DOMContentLoaded', async function() {
             await initializeApp();
         } catch (error) {
             console.error('❌ Erreur initialisation:', error);
-            showNotification('Erreur de chargement de l\'application', 'error');
+            showNotification('Erreur de chargement', 'error');
         }
-    }, 1500);
+    }, 2000);
 });
 
 async function initializeApp() {
@@ -60,10 +106,6 @@ async function initializeApp() {
     } catch (error) {
         console.error('❌ Erreur initialisation:', error);
         showNotification('Erreur de connexion à la base de données', 'error');
-        
-        // Afficher quand même l'appli en mode dégradé
-        videos = getDemoVideos();
-        renderVideoFeed();
     }
 }
 
@@ -89,12 +131,14 @@ function setupRealtimeListener() {
         realtimeUnsubscribe = firebaseApp.setupRealtimeListener((newVideos) => {
             console.log('🆕 Nouvelle vidéo en temps réel:', newVideos.length);
             
+            // Ajouter les nouvelles vidéos au début de la liste
             newVideos.forEach(newVideo => {
                 if (!videos.some(v => v.id === newVideo.id)) {
                     videos.unshift(newVideo);
                 }
             });
             
+            // Re-render le flux
             renderVideoFeed();
             
             if (newVideos.length > 0) {
@@ -163,10 +207,21 @@ async function renderVideoFeed(sortingAlgorithm = 'latest') {
     }
     
     // Afficher les vidéos
-    videosToDisplay.forEach((video, index) => {
-        const videoElement = createVideoElement(video, index < 1);
-        videoFeed.appendChild(videoElement);
-    });
+    for (const video of videosToDisplay) {
+        try {
+            // Vérifier si la vidéo est lisible
+            const isPlayable = await isVideoPlayable(video.videoUrl);
+            if (!isPlayable) {
+                console.warn(`⚠️ Vidéo ${video.id} non lisible: ${video.videoUrl}`);
+                continue;
+            }
+            
+            const videoElement = createVideoElement(video, false); // Pas d'autoplay pour éviter les problèmes
+            videoFeed.appendChild(videoElement);
+        } catch (error) {
+            console.error(`❌ Erreur création vidéo ${video.id}:`, error);
+        }
+    }
 }
 
 function getTrendingVideos() {
@@ -200,28 +255,30 @@ function createVideoElement(video, autoPlay = false) {
     container.className = 'video-container';
     container.dataset.videoId = video.id;
     
-    // Vérifier si l'URL de la vidéo est valide
-    const videoUrl = video.videoUrl || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
+    const mimeType = getMimeType(video.videoUrl);
+    const videoSource = video.videoUrl;
     
     container.innerHTML = `
-        <div class="video-wrapper">
+        <div class="video-player-wrapper" style="position: relative; width: 100%; height: 600px; background: #000;">
             <video 
-                ${autoPlay ? 'autoplay muted' : ''}
+                id="video-${video.id}"
+                poster="${video.thumbnail}"
                 onclick="toggleVideoPlay(this)"
+                ${autoPlay ? 'autoplay muted playsinline' : ''}
                 loop
                 preload="metadata"
                 playsinline
                 webkit-playsinline
-                style="width: 100%; height: 600px; object-fit: cover; background: #000;"
+                x5-playsinline
+                style="width: 100%; height: 100%; object-fit: cover;"
             >
-                <source src="${videoUrl}" type="video/mp4">
-                <source src="${videoUrl}" type="video/webm">
-                Votre navigateur ne supporte pas la vidéo.
+                <source src="${videoSource}" type="${mimeType}">
+                Votre navigateur ne supporte pas la lecture de vidéos.
             </video>
             
-            <button class="manual-play-btn" onclick="toggleVideoPlay(this.parentElement.querySelector('video'))">
-                <i class="fas fa-play"></i>
-            </button>
+            <div class="video-loading-indicator" style="display: none;">
+                <div class="video-loading-spinner"></div>
+            </div>
         </div>
         
         <div class="video-overlay">
@@ -229,23 +286,23 @@ function createVideoElement(video, autoPlay = false) {
                 <img src="${user.avatar || video.avatar || 'https://i.pravatar.cc/150?img=1'}" 
                      alt="${user.username || video.username || 'Utilisateur'}" 
                      onclick="openCreatorProfile('${video.userId}')"
-                     class="creator-avatar">
+                     style="width: 40px; height: 40px; border-radius: 50%; border: 2px solid #00f2fe; cursor: pointer;">
                 <div class="creator-details">
                     <div class="creator-name">
-                        <h4>${user.username || video.username || 'Utilisateur'}</h4>
+                        <h4 style="margin: 0; font-size: 16px;">${user.username || video.username || 'Utilisateur'}</h4>
                         ${isFollowing ? '<span class="following-badge">Abonné</span>' : ''}
                     </div>
-                    <p class="video-caption">${video.caption || 'Pas de description'}</p>
+                    <p class="video-caption" style="margin: 5px 0; font-size: 14px;">${video.caption || 'Pas de description'}</p>
                     <div class="hashtags">
                         ${(video.hashtags || []).map(tag => `<span class="hashtag">${tag}</span>`).join('')}
                     </div>
                 </div>
-                <button class="btn btn-follow ${isFollowing ? 'following' : ''}" onclick="toggleFollow('${video.userId}', this)">
+                <button class="btn btn-follow ${isFollowing ? 'following' : ''}" onclick="toggleFollow('${video.userId}', this)" style="background: ${isFollowing ? '#00f2fe' : '#333'}; color: ${isFollowing ? '#000' : 'white'}; border: none; padding: 5px 15px; border-radius: 20px; cursor: pointer;">
                     ${isFollowing ? '<i class="fas fa-check"></i> Abonné' : '<i class="fas fa-plus"></i> Suivre'}
                 </button>
             </div>
             
-            <div class="video-stats">
+            <div class="video-stats" style="margin-top: 10px; display: flex; justify-content: space-between; font-size: 14px; color: #aaa;">
                 <div class="view-count">
                     <i class="fas fa-eye"></i> ${formatNumber(video.views || 0)} vues
                 </div>
@@ -256,23 +313,59 @@ function createVideoElement(video, autoPlay = false) {
             </div>
         </div>
         
-        <div class="video-actions">
-            <div class="action ${isLiked ? 'liked' : ''}" onclick="toggleLike('${video.id}')">
-                <i class="fas fa-heart"></i>
+        <div class="video-actions" style="position: absolute; right: 15px; bottom: 100px; display: flex; flex-direction: column; gap: 20px;">
+            <div class="action ${isLiked ? 'liked' : ''}" onclick="toggleLike('${video.id}')" style="display: flex; flex-direction: column; align-items: center; cursor: pointer; color: ${isLiked ? '#ff4757' : 'white'}">
+                <i class="fas fa-heart" style="font-size: 24px; margin-bottom: 5px;"></i>
                 <span>${formatNumber(video.likes || 0)}</span>
             </div>
             
-            <div class="action" onclick="openCommentsModal('${video.id}')">
-                <i class="fas fa-comment"></i>
+            <div class="action" onclick="openCommentsModal('${video.id}')" style="display: flex; flex-direction: column; align-items: center; cursor: pointer; color: white">
+                <i class="fas fa-comment" style="font-size: 24px; margin-bottom: 5px;"></i>
                 <span>${formatNumber(video.comments || 0)}</span>
             </div>
             
-            <div class="action" onclick="shareVideo('${video.id}')">
-                <i class="fas fa-share"></i>
+            <div class="action" onclick="shareVideo('${video.id}')" style="display: flex; flex-direction: column; align-items: center; cursor: pointer; color: white">
+                <i class="fas fa-share" style="font-size: 24px; margin-bottom: 5px;"></i>
                 <span>${formatNumber(video.shares || 0)}</span>
             </div>
         </div>
+        
+        <button class="manual-play-btn" onclick="toggleVideoPlay(this.parentElement.querySelector('video'))" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0, 242, 254, 0.9); color: white; border: none; border-radius: 50%; width: 70px; height: 70px; font-size: 28px; cursor: pointer; z-index: 10; display: flex; align-items: center; justify-content: center;">
+            <i class="fas fa-play"></i>
+        </button>
     `;
+    
+    // Configurer le gestionnaire d'erreur vidéo
+    const videoElement = container.querySelector('video');
+    if (videoElement) {
+        videoElement.addEventListener('error', function(e) {
+            console.error(`❌ Erreur lecture vidéo ${video.id}:`, e.target.error);
+            showNotification('Erreur de lecture vidéo', 'error');
+            
+            // Afficher un fallback
+            const wrapper = videoElement.parentElement;
+            wrapper.innerHTML = `
+                <div style="width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; background: #111;">
+                    <i class="fas fa-video-slash" style="font-size: 50px; margin-bottom: 20px; color: #ff4757;"></i>
+                    <h3>Vidéo non disponible</h3>
+                    <p>Cette vidéo ne peut pas être lue sur cet appareil.</p>
+                    <button class="btn btn-primary" onclick="shareVideo('${video.id}')">
+                        <i class="fas fa-share"></i> Partager
+                    </button>
+                </div>
+            `;
+        });
+        
+        videoElement.addEventListener('waiting', function() {
+            const loadingIndicator = container.querySelector('.video-loading-indicator');
+            if (loadingIndicator) loadingIndicator.style.display = 'flex';
+        });
+        
+        videoElement.addEventListener('playing', function() {
+            const loadingIndicator = container.querySelector('.video-loading-indicator');
+            if (loadingIndicator) loadingIndicator.style.display = 'none';
+        });
+    }
     
     return container;
 }
@@ -292,6 +385,8 @@ async function toggleVideoPlay(videoElement) {
         }
         
         try {
+            // Forcer le chargement avant de jouer
+            videoElement.load();
             await videoElement.play();
             playBtn.innerHTML = '<i class="fas fa-pause"></i>';
             currentPlayingVideo = videoElement;
@@ -312,6 +407,17 @@ async function toggleVideoPlay(videoElement) {
         } catch (error) {
             console.error('Erreur lecture vidéo:', error);
             showNotification('Impossible de lire la vidéo', 'error');
+            
+            // Essayer sans son
+            try {
+                videoElement.muted = true;
+                await videoElement.play();
+                playBtn.innerHTML = '<i class="fas fa-pause"></i>';
+                currentPlayingVideo = videoElement;
+            } catch (mutedError) {
+                console.error('Erreur même en muet:', mutedError);
+                playBtn.innerHTML = '<i class="fas fa-play"></i>';
+            }
         }
     } else {
         videoElement.pause();
@@ -321,6 +427,7 @@ async function toggleVideoPlay(videoElement) {
 }
 
 // ==================== INTERACTIONS ====================
+
 async function toggleLike(videoId) {
     try {
         const video = videos.find(v => v.id === videoId);
@@ -502,6 +609,7 @@ async function copyToClipboard(text) {
 }
 
 // ==================== RECHERCHE ====================
+
 async function performSearch(query) {
     const searchInput = document.getElementById('searchInput');
     const searchValue = query || (searchInput ? searchInput.value : '');
@@ -556,6 +664,7 @@ function displaySearchResults(results, query) {
 }
 
 // ==================== COMMENTAIRES ====================
+
 async function openCommentsModal(videoId) {
     try {
         const video = videos.find(v => v.id === videoId);
@@ -673,6 +782,7 @@ async function postComment(videoId) {
 }
 
 // ==================== CRÉATION DE VIDÉO ====================
+
 function openCreateModal() {
     document.getElementById('createModal').style.display = 'flex';
     document.body.style.overflow = 'hidden';
@@ -719,39 +829,49 @@ function setupVideoInput() {
 }
 
 function processVideoFile(file) {
+    // Vérifier le type de fichier
+    const allowedTypes = ['video/mp4', 'video/webm', 'video/ogg'];
+    if (!allowedTypes.includes(file.type)) {
+        showNotification('Format non supporté. Utilisez MP4, WebM ou OGG', 'error');
+        return;
+    }
+    
     if (file.size > 100 * 1024 * 1024) {
         showNotification('Vidéo trop volumineuse (max 100MB)', 'error');
         return;
     }
     
-    if (!file.type.startsWith('video/')) {
-        showNotification('Fichier vidéo invalide', 'error');
-        return;
-    }
-    
     currentVideoFile = file;
-    
     const reader = new FileReader();
-    const videoElement = document.getElementById('previewVideo');
-    const placeholder = document.querySelector('.preview-placeholder');
-    const processing = document.getElementById('videoProcessing');
     
-    processing.style.display = 'flex';
+    document.getElementById('videoProcessing').style.display = 'flex';
     
     reader.onload = function(e) {
+        const videoElement = document.getElementById('previewVideo');
+        const placeholder = document.querySelector('.preview-placeholder');
+        
         videoElement.src = e.target.result;
         videoElement.style.display = 'block';
         placeholder.style.display = 'none';
         
-        setTimeout(() => {
-            processing.style.display = 'none';
-            document.getElementById('publishBtn').disabled = false;
-            
-            document.getElementById('videoFileInfo').innerHTML = `
-                <i class="fas fa-file-video"></i>
-                <span>${file.name} (${formatFileSize(file.size)})</span>
-            `;
-        }, 1000);
+        // Vérifier si la vidéo est lisible
+        videoElement.addEventListener('loadedmetadata', function() {
+            setTimeout(() => {
+                document.getElementById('videoProcessing').style.display = 'none';
+                document.getElementById('publishBtn').disabled = false;
+                
+                document.getElementById('videoFileInfo').innerHTML = `
+                    <i class="fas fa-file-video"></i>
+                    <span>${file.name} (${formatFileSize(file.size)}) - ${getMimeType(file.name)}</span>
+                `;
+            }, 1000);
+        });
+        
+        videoElement.addEventListener('error', function() {
+            document.getElementById('videoProcessing').style.display = 'none';
+            showNotification('Format vidéo non supporté', 'error');
+            resetCreateModal();
+        });
     };
     
     reader.readAsDataURL(file);
@@ -782,24 +902,18 @@ function simulateRecording() {
     currentVideoFile = {
         name: 'demo_video.mp4',
         size: 15000000,
-        type: 'video/mp4',
-        isDemo: true
+        type: 'video/mp4'
     };
     
     document.getElementById('videoFileInfo').innerHTML = `
         <i class="fas fa-file-video"></i>
-        <span>demo_video.mp4 (15 MB)</span>
+        <span>demo_video.mp4 (15 MB) - video/mp4</span>
     `;
     
     document.getElementById('publishBtn').disabled = false;
 }
 
 async function publishVideo() {
-    if (isUploading) {
-        showNotification('Publication déjà en cours...', 'warning');
-        return;
-    }
-    
     const caption = document.getElementById('videoCaption').value.trim();
     const isMonetized = document.getElementById('monetizeVideo').checked;
     const privacy = document.getElementById('videoPrivacy').value;
@@ -810,35 +924,14 @@ async function publishVideo() {
     }
     
     const publishBtn = document.getElementById('publishBtn');
-    isUploading = true;
     publishBtn.disabled = true;
     publishBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Publication...';
     
     try {
         const hashtags = extractHashtags(caption);
-        let videoUrl = '';
+        const videoUrl = document.getElementById('previewVideo').src || 
+                        'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
         
-        // Traiter le fichier vidéo
-        if (currentVideoFile) {
-            if (currentVideoFile.isDemo) {
-                // Utiliser l'URL de démo
-                const videoElement = document.getElementById('previewVideo');
-                videoUrl = videoElement.src;
-            } else if (currentVideoFile instanceof File) {
-                // Pour les vrais fichiers, utiliser l'URL locale
-                const videoElement = document.getElementById('previewVideo');
-                videoUrl = videoElement.src;
-            }
-        } else {
-            const videoElement = document.getElementById('previewVideo');
-            if (videoElement.src) {
-                videoUrl = videoElement.src;
-            } else {
-                throw new Error('Aucune vidéo sélectionnée');
-            }
-        }
-        
-        // Préparer les données de la vidéo
         const videoData = {
             userId: currentUser.id,
             username: currentUser.username,
@@ -849,31 +942,22 @@ async function publishVideo() {
             isMonetized: isMonetized,
             hashtags: hashtags,
             duration: '00:15',
-            privacy: privacy
+            privacy: privacy,
+            videoType: getMimeType(videoUrl)
         };
         
-        // Sauvegarder dans Firebase
         const newVideo = await firebaseApp.saveVideo(videoData);
-        
-        // Ajouter à la liste locale
         videos.unshift(newVideo);
         
-        // Fermer la modale
         closeCreateModal();
-        
-        // Recharger le flux
         renderVideoFeed();
-        
-        // Mettre à jour l'interface
         updateUI();
-        
         showNotification('Vidéo publiée avec succès ! 🎉', 'success');
         
     } catch (error) {
         console.error('❌ Erreur publication:', error);
-        showNotification('Erreur lors de la publication: ' + error.message, 'error');
+        showNotification('Erreur lors de la publication', 'error');
     } finally {
-        isUploading = false;
         publishBtn.disabled = false;
         publishBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Publier';
     }
@@ -923,10 +1007,10 @@ function resetCreateModal() {
     document.getElementById('publishBtn').disabled = true;
     
     currentVideoFile = null;
-    isUploading = false;
 }
 
 // ==================== UTILITAIRES ====================
+
 function formatNumber(num) {
     if (!num && num !== 0) return '0';
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
@@ -1047,9 +1131,11 @@ function updateUI() {
 }
 
 // ==================== NAVIGATION ====================
+
 function showHome() {
     document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
-    document.querySelector('.nav-item:nth-child(1)')?.classList.add('active');
+    const firstNavItem = document.querySelector('.nav-item:nth-child(1)');
+    if (firstNavItem) firstNavItem.classList.add('active');
     renderVideoFeed();
 }
 
@@ -1060,11 +1146,192 @@ function toggleUserMenu() {
 
 function openSearch() {
     const searchInput = document.getElementById('searchInput');
-    if (searchInput.style.display === 'none') {
-        searchInput.style.display = 'block';
+    searchInput.style.display = searchInput.style.display === 'none' ? 'block' : 'block';
+    if (searchInput.style.display === 'block') {
         searchInput.focus();
+        searchInput.select();
+    }
+}
+
+// ==================== ÉCOUTEURS D'ÉVÉNEMENTS ====================
+
+function setupEventListeners() {
+    console.log('🔧 Configuration des écouteurs d\'événements...');
+    
+    // Recherche par Entrée
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                performSearch(this.value);
+            }
+        });
+    }
+    
+    // Bouton de recherche
+    const searchBtn = document.querySelector('.search-btn');
+    if (searchBtn) {
+        searchBtn.addEventListener('click', function() {
+            performSearch();
+        });
+    }
+    
+    // Input vidéo
+    setupVideoInput();
+    
+    // Input photo de profil
+    const profilePictureInput = document.getElementById('profilePictureInput');
+    if (profilePictureInput) {
+        profilePictureInput.addEventListener('change', async function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    currentUser.avatar = e.target.result;
+                    updateUI();
+                    firebaseApp.updateUser(currentUser.id, { avatar: currentUser.avatar });
+                    showNotification('Photo de profil mise à jour ✅', 'success');
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+    
+    // Fermer les menus en cliquant à l'extérieur
+    document.addEventListener('click', function(e) {
+        const menu = document.getElementById('userDropdown');
+        const userMenu = document.querySelector('.user-menu');
+        if (menu && menu.style.display === 'block' && userMenu && !userMenu.contains(e.target) && !menu.contains(e.target)) {
+            menu.style.display = 'none';
+        }
+        
+        // Fermer les modales
+        ['createModal', 'profileModal', 'settingsModal'].forEach(modalId => {
+            const modal = document.getElementById(modalId);
+            if (modal && modal.style.display === 'flex' && e.target === modal) {
+                if (modalId === 'createModal') closeCreateModal();
+                if (modalId === 'profileModal') closeProfile();
+                if (modalId === 'settingsModal') closeSettings();
+            }
+        });
+    });
+    
+    // Navigation mobile
+    document.querySelectorAll('.bottom-nav .nav-item').forEach(item => {
+        item.addEventListener('click', function(e) {
+            e.preventDefault();
+            document.querySelectorAll('.bottom-nav .nav-item').forEach(i => i.classList.remove('active'));
+            this.classList.add('active');
+        });
+    });
+    
+    // Gestion du rafraîchissement
+    window.addEventListener('beforeunload', function() {
+        if (realtimeUnsubscribe) {
+            realtimeUnsubscribe();
+        }
+    });
+    
+    console.log('✅ Écouteurs d\'événements configurés');
+}
+
+// ==================== FONCTIONS NON IMPLÉMENTÉES ====================
+
+function openWallet() {
+    showNotification('Portefeuille - Solde: ' + (currentUser.coins || 0) + ' coins', 'info');
+}
+
+function openNotifications() {
+    showNotification('Aucune nouvelle notification', 'info');
+}
+
+function showTrending() {
+    renderVideoFeed('trending');
+}
+
+function showFollowing() {
+    const followingVideos = videos.filter(v => currentUser.following?.includes(v.userId));
+    if (followingVideos.length === 0) {
+        showNotification('Vous ne suivez personne', 'info');
+        renderVideoFeed();
     } else {
-        performSearch();
+        const videoFeed = document.getElementById('videoFeed');
+        videoFeed.innerHTML = '';
+        followingVideos.forEach(video => videoFeed.appendChild(createVideoElement(video)));
+        showNotification('Affichage des abonnements', 'info');
+    }
+}
+
+function showFavorites() {
+    const favoriteVideos = videos.filter(v => currentUser.likedVideos?.includes(v.id));
+    if (favoriteVideos.length === 0) {
+        showNotification('Vous n\'avez pas de vidéos favorites', 'info');
+    } else {
+        const videoFeed = document.getElementById('videoFeed');
+        videoFeed.innerHTML = '';
+        favoriteVideos.forEach(video => videoFeed.appendChild(createVideoElement(video)));
+        showNotification('Affichage des favoris', 'info');
+    }
+}
+
+function showMyVideos() {
+    const myVideos = videos.filter(v => v.userId === currentUser.id);
+    if (myVideos.length === 0) {
+        showNotification('Vous n\'avez pas de vidéos', 'info');
+    } else {
+        const videoFeed = document.getElementById('videoFeed');
+        videoFeed.innerHTML = '';
+        myVideos.forEach(video => videoFeed.appendChild(createVideoElement(video)));
+        showNotification('Affichage de vos vidéos', 'info');
+    }
+}
+
+function openCreatorProfile(userId) {
+    showNotification('Profil créateur: ' + (usersCache[userId]?.username || userId), 'info');
+}
+
+function openGiftShop(videoId) {
+    showNotification('Boutique de cadeaux pour la vidéo: ' + videoId, 'info');
+}
+
+function openLiveStream() {
+    showNotification('Live streaming à venir', 'info');
+}
+
+function clearLocalStorage() {
+    if (confirm('Réinitialiser les données locales ?')) {
+        localStorage.clear();
+        location.reload();
+    }
+}
+
+function logout() {
+    if (confirm('Se déconnecter ?')) {
+        try {
+            firebaseApp.auth.signOut().then(() => {
+                localStorage.clear();
+                location.reload();
+            });
+        } catch (error) {
+            location.reload();
+        }
+    }
+}
+
+function openVideoDetail(videoId) {
+    showNotification('Détails vidéo: ' + videoId, 'info');
+}
+
+function editDraft(draftId) {
+    showNotification('Édition brouillon: ' + draftId, 'info');
+}
+
+function deleteDraft(draftId) {
+    if (confirm('Supprimer ce brouillon ?')) {
+        currentUser.drafts = currentUser.drafts.filter(d => d.id !== draftId);
+        firebaseApp.updateUser(currentUser.id, { drafts: currentUser.drafts });
+        showNotification('Brouillon supprimé', 'success');
     }
 }
 
@@ -1141,8 +1408,8 @@ function loadProfileVideos() {
         <div class="videos-grid">
             ${userVideos.map(video => `
                 <div class="video-thumbnail" onclick="openVideoDetail('${video.id}')">
-                    <img src="${video.thumbnail}" alt="${video.caption}">
-                    <div class="thumbnail-overlay">
+                    <img src="${video.thumbnail || 'https://images.unsplash.com/photo-1611605698335-8b1569810432'}" alt="${video.caption || ''}" style="width: 100%; height: 150px; object-fit: cover; border-radius: 10px;">
+                    <div class="thumbnail-overlay" style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.7); padding: 5px; display: flex; justify-content: space-between; color: white; font-size: 12px;">
                         <span><i class="fas fa-eye"></i> ${formatNumber(video.views || 0)}</span>
                         <span><i class="fas fa-heart"></i> ${formatNumber(video.likes || 0)}</span>
                     </div>
@@ -1171,8 +1438,8 @@ function loadProfileLikes() {
         <div class="videos-grid">
             ${likedVideos.map(video => `
                 <div class="video-thumbnail" onclick="openVideoDetail('${video.id}')">
-                    <img src="${video.thumbnail}" alt="${video.caption}">
-                    <div class="thumbnail-overlay">
+                    <img src="${video.thumbnail || 'https://images.unsplash.com/photo-1611605698335-8b1569810432'}" alt="${video.caption || ''}" style="width: 100%; height: 150px; object-fit: cover; border-radius: 10px;">
+                    <div class="thumbnail-overlay" style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.7); padding: 5px; display: flex; justify-content: space-between; color: white; font-size: 12px;">
                         <span><i class="fas fa-eye"></i> ${formatNumber(video.views || 0)}</span>
                         <span><i class="fas fa-heart"></i> ${formatNumber(video.likes || 0)}</span>
                     </div>
@@ -1199,17 +1466,17 @@ function loadProfileDrafts() {
     container.innerHTML = `
         <div class="drafts-list">
             ${currentUser.drafts.map(draft => `
-                <div class="draft-item">
+                <div class="draft-item" style="background: #333; padding: 15px; border-radius: 8px; margin: 10px 0; border-left: 4px solid #00f2fe; display: flex; justify-content: space-between; align-items: center;">
                     <div>
-                        <h4>${draft.caption}</h4>
-                        <p>Créé le ${draft.date}</p>
-                        ${draft.isMonetized ? '<span class="draft-monetized">Monétisé</span>' : ''}
+                        <h4 style="margin: 0; color: white;">${draft.caption}</h4>
+                        <p style="margin: 5px 0 0 0; color: #aaa; font-size: 12px;">Crée le ${draft.date}</p>
+                        ${draft.isMonetized ? '<span class="draft-monetized" style="background: #ffd700; color: #000; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: bold; margin-left: 10px;">Monétisé</span>' : ''}
                     </div>
-                    <div class="draft-actions">
-                        <button class="btn btn-small btn-primary" onclick="editDraft('${draft.id}')">
+                    <div class="draft-actions" style="display: flex; gap: 10px;">
+                        <button class="btn btn-small btn-primary" onclick="editDraft('${draft.id}')" style="padding: 5px 10px; font-size: 12px; background: #00f2fe; color: #000; border: none; border-radius: 5px; cursor: pointer;">
                             <i class="fas fa-edit"></i>
                         </button>
-                        <button class="btn btn-small btn-danger" onclick="deleteDraft('${draft.id}')">
+                        <button class="btn btn-small btn-danger" onclick="deleteDraft('${draft.id}')" style="padding: 5px 10px; font-size: 12px; background: #ff4757; color: white; border: none; border-radius: 5px; cursor: pointer;">
                             <i class="fas fa-trash"></i>
                         </button>
                     </div>
@@ -1278,220 +1545,8 @@ async function saveSettings() {
     showNotification('Paramètres sauvegardés ✅', 'success');
 }
 
-// ==================== ÉCOUTEURS D'ÉVÉNEMENTS ====================
-function setupEventListeners() {
-    console.log('🔧 Configuration des écouteurs d'événements...');
-    
-    // Recherche par Entrée
-    const searchInput = document.getElementById('searchInput');
-    if (searchInput) {
-        searchInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                performSearch(this.value);
-            }
-        });
-    }
-    
-    // Input vidéo
-    setupVideoInput();
-    
-    // Input photo de profil
-    const profilePictureInput = document.getElementById('profilePictureInput');
-    if (profilePictureInput) {
-        profilePictureInput.addEventListener('change', async function(e) {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    currentUser.avatar = e.target.result;
-                    updateUI();
-                    firebaseApp.updateUser(currentUser.id, { avatar: currentUser.avatar });
-                    showNotification('Photo de profil mise à jour ✅', 'success');
-                };
-                reader.readAsDataURL(file);
-            }
-        });
-    }
-    
-    // Fermer les menus en cliquant à l'extérieur
-    document.addEventListener('click', function(e) {
-        const menu = document.getElementById('userDropdown');
-        const userMenu = document.querySelector('.user-menu');
-        if (menu && menu.style.display === 'block' && userMenu && !userMenu.contains(e.target) && !menu.contains(e.target)) {
-            menu.style.display = 'none';
-        }
-        
-        // Fermer les modales
-        ['createModal', 'profileModal', 'settingsModal'].forEach(modalId => {
-            const modal = document.getElementById(modalId);
-            if (modal && modal.style.display === 'flex' && e.target === modal) {
-                if (modalId === 'createModal') closeCreateModal();
-                if (modalId === 'profileModal') closeProfile();
-                if (modalId === 'settingsModal') closeSettings();
-            }
-        });
-    });
-    
-    // Navigation mobile
-    document.querySelectorAll('.bottom-nav .nav-item').forEach(item => {
-        item.addEventListener('click', function(e) {
-            e.preventDefault();
-            document.querySelectorAll('.bottom-nav .nav-item').forEach(i => i.classList.remove('active'));
-            this.classList.add('active');
-        });
-    });
-    
-    // Gestion du rafraîchissement
-    window.addEventListener('beforeunload', function() {
-        if (realtimeUnsubscribe) {
-            realtimeUnsubscribe();
-        }
-    });
-    
-    console.log('✅ Écouteurs d'événements configurés');
-}
-
-// ==================== FONCTIONS NON IMPLÉMENTÉES ====================
-function openWallet() {
-    showNotification('Portefeuille - Solde: ' + (currentUser.coins || 0) + ' coins', 'info');
-}
-
-function openNotifications() {
-    showNotification('Aucune nouvelle notification', 'info');
-}
-
-function showTrending() {
-    renderVideoFeed('trending');
-}
-
-function showFollowing() {
-    const followingVideos = videos.filter(v => currentUser.following?.includes(v.userId));
-    if (followingVideos.length === 0) {
-        showNotification('Vous ne suivez personne', 'info');
-        renderVideoFeed();
-    } else {
-        const videoFeed = document.getElementById('videoFeed');
-        videoFeed.innerHTML = '';
-        followingVideos.forEach(video => videoFeed.appendChild(createVideoElement(video)));
-        showNotification('Affichage des abonnements', 'info');
-    }
-}
-
-function showFavorites() {
-    const favoriteVideos = videos.filter(v => currentUser.likedVideos?.includes(v.id));
-    if (favoriteVideos.length === 0) {
-        showNotification('Vous n'avez pas de vidéos favorites', 'info');
-    } else {
-        const videoFeed = document.getElementById('videoFeed');
-        videoFeed.innerHTML = '';
-        favoriteVideos.forEach(video => videoFeed.appendChild(createVideoElement(video)));
-        showNotification('Affichage des favoris', 'info');
-    }
-}
-
-function showMyVideos() {
-    const myVideos = videos.filter(v => v.userId === currentUser.id);
-    if (myVideos.length === 0) {
-        showNotification('Vous n'avez pas de vidéos', 'info');
-    } else {
-        const videoFeed = document.getElementById('videoFeed');
-        videoFeed.innerHTML = '';
-        myVideos.forEach(video => videoFeed.appendChild(createVideoElement(video)));
-        showNotification('Affichage de vos vidéos', 'info');
-    }
-}
-
-function openCreatorProfile(userId) {
-    showNotification('Profil créateur: ' + (usersCache[userId]?.username || userId), 'info');
-}
-
-function openLiveStream() {
-    showNotification('Live streaming à venir', 'info');
-}
-
-function clearLocalStorage() {
-    if (confirm('Réinitialiser les données locales ? Cette action est irréversible.')) {
-        localStorage.clear();
-        showNotification('Données locales réinitialisées', 'success');
-        setTimeout(() => location.reload(), 1000);
-    }
-}
-
-function logout() {
-    if (confirm('Se déconnecter ?')) {
-        try {
-            firebase.auth().signOut().then(() => {
-                localStorage.clear();
-                location.reload();
-            });
-        } catch (error) {
-            location.reload();
-        }
-    }
-}
-
-function openVideoDetail(videoId) {
-    showNotification('Détails vidéo: ' + videoId, 'info');
-}
-
-function editDraft(draftId) {
-    showNotification('Édition brouillon: ' + draftId, 'info');
-}
-
-function deleteDraft(draftId) {
-    if (confirm('Supprimer ce brouillon ?')) {
-        currentUser.drafts = currentUser.drafts.filter(d => d.id !== draftId);
-        firebaseApp.updateUser(currentUser.id, { drafts: currentUser.drafts });
-        showNotification('Brouillon supprimé', 'success');
-        loadProfileDrafts();
-    }
-}
-
-function getDemoVideos() {
-    return [
-        {
-            id: 'demo1',
-            userId: 'demo_user',
-            username: 'TIKTAK',
-            avatar: 'https://i.pravatar.cc/150?img=1',
-            videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-            thumbnail: 'https://images.unsplash.com/photo-1611605698335-8b1569810432',
-            caption: 'Bienvenue sur TIKTAK ! 🎬 Créez votre première vidéo ! #bienvenue #tiktak',
-            likes: 15,
-            comments: 3,
-            shares: 2,
-            views: 150,
-            gifts: 0,
-            hashtags: ['#bienvenue', '#tiktak', '#premierevideo'],
-            duration: '00:15',
-            privacy: 'public',
-            isMonetized: false,
-            createdAt: new Date(Date.now() - 10000000)
-        },
-        {
-            id: 'demo2',
-            userId: 'demo_user2',
-            username: 'Créateur Pro',
-            avatar: 'https://i.pravatar.cc/150?img=2',
-            videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
-            thumbnail: 'https://images.unsplash.com/photo-1518709268805-4e9042af2176',
-            caption: 'Découvrez les fonctionnalités de TIKTAK #fun #video #creativite',
-            likes: 25,
-            comments: 5,
-            shares: 3,
-            views: 250,
-            gifts: 0,
-            hashtags: ['#fun', '#video', '#creativite'],
-            duration: '00:20',
-            privacy: 'public',
-            isMonetized: true,
-            createdAt: new Date(Date.now() - 5000000)
-        }
-    ];
-}
-
 // ==================== EXPORT DES FONCTIONS ====================
+
 window.openCreateModal = openCreateModal;
 window.closeCreateModal = closeCreateModal;
 window.openProfile = openProfile;
@@ -1507,6 +1562,7 @@ window.toggleVideoPlay = toggleVideoPlay;
 window.toggleLike = toggleLike;
 window.openCommentsModal = openCommentsModal;
 window.shareVideo = shareVideo;
+window.openGiftShop = openGiftShop;
 window.openNotifications = openNotifications;
 window.openWallet = openWallet;
 window.logout = logout;
@@ -1531,5 +1587,12 @@ window.openCameraForRecording = openCameraForRecording;
 window.openFileUpload = openFileUpload;
 window.formatNumber = formatNumber;
 window.postComment = postComment;
+
+// Initialiser les écouteurs d'événements au chargement
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(() => {
+        setupEventListeners();
+    }, 1000);
+});
 
 console.log('✅ script.js chargé avec succès - MODE RÉEL ACTIF');
