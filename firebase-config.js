@@ -87,12 +87,12 @@ async function getCurrentUser() {
     });
 }
 
-// Charger les vidéos - VERSION CORRIGÉE SANS INDEX
+// Charger les vidéos - VERSION CORRIGÉE
 async function loadVideos(limit = 50) {
     try {
         console.log('📥 Chargement des vidéos depuis Firebase...');
         
-        // Charger les vidéos publiques
+        // Charger les vidéos avec un filtre pour celles qui ont des URLs valides
         const snapshot = await db.collection('videos')
             .where('privacy', '==', 'public')
             .orderBy('createdAt', 'desc')
@@ -107,6 +107,7 @@ async function loadVideos(limit = 50) {
         const videos = [];
         snapshot.forEach(doc => {
             const data = doc.data();
+            
             // Convertir le timestamp Firestore en Date
             let createdAt = new Date();
             if (data.createdAt && data.createdAt.toDate) {
@@ -115,29 +116,76 @@ async function loadVideos(limit = 50) {
                 createdAt = new Date(data.createdAt);
             }
             
-            videos.push({
-                id: doc.id,
-                ...data,
-                createdAt: createdAt,
-                likes: data.likes || 0,
-                comments: data.comments || 0,
-                shares: data.shares || 0,
-                views: data.views || 0,
-                gifts: data.gifts || 0,
-                duration: data.duration || '00:15',
-                privacy: data.privacy || 'public',
-                videoType: data.videoType || 'video/mp4'
-            });
+            // Vérifier que l'URL vidéo existe et est valide
+            if (data.videoUrl && data.videoUrl.trim() !== '') {
+                videos.push({
+                    id: doc.id,
+                    ...data,
+                    createdAt: createdAt,
+                    likes: data.likes || 0,
+                    comments: data.comments || 0,
+                    shares: data.shares || 0,
+                    views: data.views || 0,
+                    gifts: data.gifts || 0,
+                    duration: data.duration || '00:15',
+                    privacy: data.privacy || 'public',
+                    videoFormat: data.videoFormat || 'mp4'
+                });
+            }
         });
         
-        console.log(`✅ ${videos.length} vidéos chargées`);
+        console.log(`✅ ${videos.length} vidéos chargées (avec URLs valides)`);
         return videos;
         
     } catch (error) {
         console.error('❌ Erreur chargement vidéos:', error);
-        // Retourner un tableau vide au lieu de démo
-        return [];
+        // Retourner des vidéos de démo si Firebase échoue
+        return getFallbackVideos();
     }
+}
+
+// Vidéos de secours compatibles
+function getFallbackVideos() {
+    return [
+        {
+            id: 'demo1',
+            userId: 'system',
+            username: 'TIKTAK Team',
+            avatar: 'https://i.pravatar.cc/150?img=1',
+            videoUrl: 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4',
+            thumbnail: 'https://images.unsplash.com/photo-1611605698335-8b1569810432',
+            caption: 'Bienvenue sur TIKTAK ! 🎬 Créez votre première vidéo !',
+            likes: 15,
+            comments: 3,
+            shares: 2,
+            views: 150,
+            gifts: 0,
+            hashtags: ['#bienvenue', '#tiktak'],
+            duration: '00:15',
+            privacy: 'public',
+            videoFormat: 'mp4',
+            createdAt: new Date(Date.now() - 86400000) // Hier
+        },
+        {
+            id: 'demo2',
+            userId: 'system',
+            username: 'TIKTAK Demo',
+            avatar: 'https://i.pravatar.cc/150?img=2',
+            videoUrl: 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
+            thumbnail: 'https://images.unsplash.com/photo-1518709268805-4e9042af2176',
+            caption: 'Découvrez les meilleures créations ! ✨ #demo #fun',
+            likes: 25,
+            comments: 5,
+            shares: 3,
+            views: 250,
+            gifts: 0,
+            hashtags: ['#demo', '#fun'],
+            duration: '00:15',
+            privacy: 'public',
+            videoFormat: 'mp4',
+            createdAt: new Date(Date.now() - 172800000) // Avant-hier
+        }
+    ];
 }
 
 // Sauvegarder une vidéo
@@ -162,7 +210,7 @@ async function saveVideo(videoData) {
             gifts: 0,
             privacy: videoData.privacy || 'public',
             duration: '00:15',
-            videoType: videoData.videoType || 'video/mp4'
+            videoFormat: videoData.videoFormat || 'mp4'
         };
         
         await videoRef.set(videoWithMetadata);
@@ -354,28 +402,50 @@ async function initializeDatabase() {
         // Vérifier si des vidéos existent
         const videosCount = await db.collection('videos').get();
         if (videosCount.empty) {
-            console.log('📝 Initialisation de la base de données avec une vidéo de démo...');
+            console.log('📝 Initialisation de la base de données avec des vidéos de démo compatibles...');
             
-            const demoVideo = {
-                userId: user.id,
-                username: user.username,
-                avatar: user.avatar,
-                videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-                thumbnail: 'https://images.unsplash.com/photo-1611605698335-8b1569810432',
-                caption: 'Bienvenue sur TIKTAK ! 🎬 Créez votre première vidéo ! #bienvenue #tiktak',
-                likes: 15,
-                comments: 3,
-                shares: 2,
-                views: 150,
-                gifts: 0,
-                hashtags: ['#bienvenue', '#tiktak', '#premierevideo'],
-                duration: '00:15',
-                privacy: 'public',
-                isMonetized: false,
-                videoType: 'video/mp4'
-            };
+            const demoVideos = [
+                {
+                    userId: user.id,
+                    username: user.username,
+                    avatar: user.avatar,
+                    videoUrl: 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4',
+                    thumbnail: 'https://images.unsplash.com/photo-1611605698335-8b1569810432',
+                    caption: 'Bienvenue sur TIKTAK ! 🎬 Créez votre première vidéo ! #bienvenue #tiktak',
+                    likes: 15,
+                    comments: 3,
+                    shares: 2,
+                    views: 150,
+                    gifts: 0,
+                    hashtags: ['#bienvenue', '#tiktak', '#premierevideo'],
+                    duration: '00:15',
+                    privacy: 'public',
+                    isMonetized: false,
+                    videoFormat: 'mp4'
+                },
+                {
+                    userId: user.id,
+                    username: user.username,
+                    avatar: user.avatar,
+                    videoUrl: 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
+                    thumbnail: 'https://images.unsplash.com/photo-1518709268805-4e9042af2176',
+                    caption: 'Découvrez les fonctionnalités de TIKTAK ! #decouverte #fun',
+                    likes: 25,
+                    comments: 5,
+                    shares: 3,
+                    views: 250,
+                    gifts: 0,
+                    hashtags: ['#decouverte', '#fun'],
+                    duration: '00:15',
+                    privacy: 'public',
+                    isMonetized: false,
+                    videoFormat: 'mp4'
+                }
+            ];
             
-            await saveVideo(demoVideo);
+            for (const demoVideo of demoVideos) {
+                await saveVideo(demoVideo);
+            }
         }
         
         return true;
@@ -473,4 +543,4 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-console.log('🔥 Firebase configuré pour TIKTAK - MODE RÉEL ACTIF');
+console.log('🔥 Firebase configuré pour TIKTAK - FORMATS VIDÉO COMPATIBLES');
