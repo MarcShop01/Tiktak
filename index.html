@@ -284,65 +284,55 @@
                     <button class="btn btn-primary" onclick="saveProfileSettings()">Enregistrer les informations</button>
                 </div>
                 
-               <div class="settings-section">
-    <h3>Préférences</h3>
-    <div class="setting-item">
-        <label>
-            <input type="checkbox" id="settingsNotifications" checked>
-            <span>Notifications par email</span>
-        </label>
-    </div>
-    <div class="setting-item">
-        <label>
-            <input type="checkbox" id="settingsAutoplay" checked>
-            <span>Lecture automatique des vidéos</span>
-        </label>
-    </div>
-    <div class="setting-item">
-        <label>
-            <input type="checkbox" id="settingsPrivateAccount">
-            <span>Compte privé</span>
-        </label>
-    </div>
-</div>
+                <div class="settings-section">
+                    <h3>Préférences</h3>
+                    <div class="setting-item">
+                        <label>
+                            <input type="checkbox" id="settingsNotifications" checked>
+                            <span>Notifications par email</span>
+                        </label>
+                    </div>
+                    <div class="setting-item">
+                        <label>
+                            <input type="checkbox" id="settingsAutoplay" checked>
+                            <span>Lecture automatique des vidéos</span>
+                        </label>
+                    </div>
+                    <div class="setting-item">
+                        <label>
+                            <input type="checkbox" id="settingsPrivateAccount">
+                            <span>Compte privé</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="settings-section">
+                    <h3>Sécurité</h3>
+                    <div class="setting-item">
+                        <button class="btn btn-secondary" onclick="changePassword()">
+                            <i class="fas fa-key"></i> Changer le mot de passe
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="settings-section">
+                    <h3>Données</h3>
+                    <button class="btn btn-danger" onclick="clearLocalStorage()">
+                        <i class="fas fa-trash"></i> Réinitialiser les données locales
+                    </button>
+                    <button class="btn btn-danger" onclick="deleteAccount()" style="margin-top: 10px;">
+                        <i class="fas fa-user-slash"></i> Supprimer mon compte
+                    </button>
+                </div>
+            </div>
+        </div>
 
-<div class="settings-section">
-    <h3>Sécurité</h3>
-    <div class="setting-item">
-        <button class="btn btn-secondary" onclick="changePassword()">
-            <i class="fas fa-key"></i> Changer le mot de passe
-        </button>
-    </div>
-</div>
+        <!-- Notifications -->
+        <div id="notificationsContainer" class="notifications-container"></div>
+    </div> <!-- fin de app-container -->
 
-<div class="settings-section">
-    <h3>Données</h3>
-    <button class="btn btn-danger" onclick="clearLocalStorage()">
-        <i class="fas fa-trash"></i> Réinitialiser les données locales
-    </button>
-    <button class="btn btn-danger" onclick="deleteAccount()" style="margin-top: 10px;">
-        <i class="fas fa-user-slash"></i> Supprimer mon compte
-    </button>
-</div>
-
-<!-- Notifications -->
-<div id="notificationsContainer" class="notifications-container"></div>
-
-<!-- Lecteur vidéo multi-format pour tes vidéos réelles -->
-<div class="video-section" style="margin:20px;">
-    <h3>Mes vidéos réelles</h3>
-    <video controls width="640" height="360">
-        <source src="videos/reel1.mp4" type="video/mp4">
-        <source src="videos/reel1.webm" type="video/webm">
-        <source src="videos/reel1.ogv" type="video/ogg">
-        Votre navigateur ne supporte pas la lecture vidéo.
-    </video>
-</div>
-
-</div> <!-- fin de app-container -->
-
-<!-- Scripts -->
-<script src="firebase-config.js"></script>
-<script src="script.js"></script>
+    <!-- Scripts -->
+    <script src="firebase-config.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>
