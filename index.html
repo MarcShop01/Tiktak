@@ -7,17 +7,11 @@
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-<!-- Firebase SDK -->
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
-
-<!-- Ton fichier firebase-config.js -->
-<script src="firebase-config.js"></script>
-<script src="script.js"></script>
-
-
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
 </head>
 <body>
     <!-- Loading Screen -->
@@ -39,66 +33,6 @@
                 <button class="search-btn" onclick="performSearch()"><i class="fas fa-search"></i></button>
             </div>
         </nav>
-
-        <!-- 🔥 Formulaire d'inscription -->
-        <section id="signup-section" style="margin:20px;">
-            <h2>Créer un compte</h2>
-            <form id="signupForm">
-                <input type="email" id="email" placeholder="Email" required>
-                <input type="password" id="password" placeholder="Mot de passe" required>
-                <button type="submit">Créer un compte</button>
-            </form>
-        </section>
-    </div>
-
-    <!-- Script d'inscription -->
-    <script>
-    async function signUp(email, password) {
-      try {
-        if (!email || !password) {
-          throw new Error("Email et mot de passe requis !");
-        }
-
-        const userCredential = await firebase.auth().createUserWithEmailAndPassword(email, password);
-        const user = userCredential.user;
-
-        console.log("✅ Utilisateur créé:", user.uid);
-
-        // Créer un profil dans Firestore
-        await firebase.firestore().collection("users").doc(user.uid).set({
-          username: email.split("@")[0],
-          avatar: `https://i.pravatar.cc/150?img=${Math.floor(Math.random() * 70)}`,
-          coins: 100,
-          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-
-        alert("Compte créé avec succès !");
-        return user;
-      } catch (error) {
-        console.error("❌ Erreur inscription:", error.message);
-        alert("Erreur: " + error.message);
-        throw error;
-      }
-    }
-
-    // Gestion du formulaire
-    document.addEventListener("DOMContentLoaded", () => {
-      const form = document.getElementById("signupForm");
-      if (form) {
-        form.addEventListener("submit", async (e) => {
-          e.preventDefault();
-          const email = document.getElementById("email").value;
-          const password = document.getElementById("password").value;
-          await signUp(email, password);
-        });
-      }
-    });
-    </script>
-</body>
-</html>
-
-
 
         <!-- Main Content -->
         <main class="main-content">
@@ -306,37 +240,67 @@
         <div id="settingsModal" class="modal-overlay" style="display: none;">
             <div class="modal-content">
                 <span class="close-btn" onclick="closeSettings()">&times;</span>
-                <h2>Paramètres</h2>
+                <h2>Paramètres du compte</h2>
                 
                 <div class="settings-section">
-                    <h3>Compte</h3>
+                    <h3>Informations personnelles</h3>
                     <div class="setting-item">
                         <label>Nom d'utilisateur</label>
-                        <input type="text" id="settingsUsername" value="Utilisateur TIKTAK">
+                        <input type="text" id="settingsUsername" placeholder="Votre nom d'utilisateur">
                     </div>
                     <div class="setting-item">
                         <label>Email</label>
-                        <input type="email" id="settingsEmail" value="user@tiktak.demo">
+                        <input type="email" id="settingsEmail" placeholder="votre@email.com">
                     </div>
-                    <button class="btn btn-secondary" onclick="saveSettings()">Enregistrer</button>
+                    <div class="setting-item">
+                        <label>Téléphone</label>
+                        <input type="tel" id="settingsPhone" placeholder="+33 1 23 45 67 89">
+                    </div>
+                    <div class="setting-item">
+                        <label>Bio</label>
+                        <textarea id="settingsBio" placeholder="Parlez un peu de vous..." rows="3"></textarea>
+                    </div>
+                    <button class="btn btn-primary" onclick="saveProfileSettings()">Enregistrer les informations</button>
                 </div>
                 
                 <div class="settings-section">
-                    <h3>Application</h3>
+                    <h3>Préférences</h3>
                     <div class="setting-item">
                         <label>
                             <input type="checkbox" id="settingsNotifications" checked>
-                            <span>Notifications</span>
+                            <span>Notifications par email</span>
                         </label>
                     </div>
                     <div class="setting-item">
                         <label>
                             <input type="checkbox" id="settingsAutoplay" checked>
-                            <span>Lecture automatique</span>
+                            <span>Lecture automatique des vidéos</span>
                         </label>
                     </div>
+                    <div class="setting-item">
+                        <label>
+                            <input type="checkbox" id="settingsPrivateAccount">
+                            <span>Compte privé</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="settings-section">
+                    <h3>Sécurité</h3>
+                    <div class="setting-item">
+                        <button class="btn btn-secondary" onclick="changePassword()">
+                            <i class="fas fa-key"></i> Changer le mot de passe
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="settings-section">
+                    <h3>Données</h3>
                     <button class="btn btn-danger" onclick="clearLocalStorage()">
                         <i class="fas fa-trash"></i> Réinitialiser les données locales
+                    </button>
+                    <button class="btn btn-danger" onclick="deleteAccount()" style="margin-top: 10px;">
+                        <i class="fas fa-user-slash"></i> Supprimer mon compte
                     </button>
                 </div>
             </div>
@@ -346,10 +310,8 @@
         <div id="notificationsContainer" class="notifications-container"></div>
     </div>
 
+    <!-- Scripts -->
+    <script src="firebase-config.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>
-
-
-
-
-
