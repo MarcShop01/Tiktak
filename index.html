@@ -12,6 +12,9 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+
+    <!-- Ton fichier firebase-config.js -->
+    <script src="firebase-config.js"></script>
 </head>
 <body>
     <!-- Loading Screen -->
@@ -33,6 +36,60 @@
                 <button class="search-btn" onclick="performSearch()"><i class="fas fa-search"></i></button>
             </div>
         </nav>
+
+        <!-- 🔥 Formulaire d'inscription -->
+        <section id="signup-section" style="margin:20px;">
+            <h2>Créer un compte</h2>
+            <form id="signupForm">
+                <input type="email" id="email" placeholder="Email" required>
+                <input type="password" id="password" placeholder="Mot de passe" required>
+                <button type="submit">Créer un compte</button>
+            </form>
+        </section>
+    </div>
+
+    <!-- Script d'inscription -->
+    <script>
+    async function signUp(email, password) {
+      try {
+        if (!email || !password) {
+          throw new Error("Email et mot de passe requis !");
+        }
+
+        const userCredential = await firebase.auth().createUserWithEmailAndPassword(email, password);
+        const user = userCredential.user;
+
+        console.log("✅ Utilisateur créé:", user.uid);
+
+        // Créer un profil dans Firestore
+        await firebase.firestore().collection("users").doc(user.uid).set({
+          username: email.split("@")[0],
+          avatar: `https://i.pravatar.cc/150?img=${Math.floor(Math.random() * 70)}`,
+          coins: 100,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        alert("Compte créé avec succès !");
+        return user;
+      } catch (error) {
+        console.error("❌ Erreur inscription:", error.message);
+        alert("Erreur: " + error.message);
+        throw error;
+      }
+    }
+
+    // Gestion du formulaire
+    document.getElementById("signupForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+      await signUp(email, password);
+    });
+    </script>
+</body>
+</html>
+
 
         <!-- Main Content -->
         <main class="main-content">
@@ -285,3 +342,4 @@
     <script src="script.js"></script>
 </body>
 </html>
+
