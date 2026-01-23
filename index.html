@@ -32,6 +32,11 @@
                 <input type="text" id="searchInput" placeholder="Rechercher...">
                 <button class="search-btn" onclick="performSearch()"><i class="fas fa-search"></i></button>
             </div>
+            
+            <div class="user-coins">
+                <i class="fas fa-coins"></i>
+                <span id="coinCount">0</span>
+            </div>
         </nav>
 
         <!-- Main Content -->
@@ -50,16 +55,46 @@
                     <a href="#" onclick="showFavorites()"><i class="fas fa-heart"></i> Favoris</a>
                     <a href="#" onclick="showMyVideos()"><i class="fas fa-video"></i> Mes vidéos</a>
                 </div>
+                
+                <div class="sidebar-section">
+                    <h3>Création</h3>
+                    <a href="#" onclick="openCreateModal()"><i class="fas fa-plus-circle"></i> Créer une vidéo</a>
+                    <a href="#" onclick="openLiveStream()"><i class="fas fa-broadcast-tower"></i> Live</a>
+                    <a href="#" onclick="openGiftShop()"><i class="fas fa-gift"></i> Boutique cadeaux</a>
+                </div>
+                
+                <div class="sidebar-section">
+                    <h3>Compte</h3>
+                    <a href="#" onclick="openProfile()"><i class="fas fa-user"></i> Mon profil</a>
+                    <a href="#" onclick="openWallet()"><i class="fas fa-wallet"></i> Portefeuille</a>
+                    <a href="#" onclick="openSettings()"><i class="fas fa-cog"></i> Paramètres</a>
+                    <a href="#" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Déconnexion</a>
+                </div>
             </aside>
         </main>
 
         <!-- Bottom Navigation (Mobile) -->
         <div class="bottom-nav">
-            <a href="#" class="nav-item active" onclick="showHome()"><i class="fas fa-home"></i></a>
-            <a href="#" class="nav-item" onclick="openSearch()"><i class="fas fa-search"></i></a>
-            <a href="#" class="nav-item" onclick="openCreateModal()"><i class="fas fa-plus-square"></i></a>
-            <a href="#" class="nav-item" onclick="openNotifications()"><i class="fas fa-bell"></i></a>
-            <a href="#" class="nav-item" onclick="openProfile()"><i class="fas fa-user"></i></a>
+            <a href="#" class="nav-item active" onclick="showHome()">
+                <i class="fas fa-home"></i>
+                <span>Accueil</span>
+            </a>
+            <a href="#" class="nav-item" onclick="openSearch()">
+                <i class="fas fa-search"></i>
+                <span>Rechercher</span>
+            </a>
+            <a href="#" class="nav-item" onclick="openCreateModal()">
+                <i class="fas fa-plus-square"></i>
+                <span>Créer</span>
+            </a>
+            <a href="#" class="nav-item" onclick="openNotifications()">
+                <i class="fas fa-bell"></i>
+                <span>Notifications</span>
+            </a>
+            <a href="#" class="nav-item" onclick="openProfile()">
+                <i class="fas fa-user"></i>
+                <span>Profil</span>
+            </a>
         </div>
 
         <!-- Modale de création -->
@@ -142,7 +177,7 @@
                         </div>
                     </div>
                     
-                    <input type="file" id="videoInput" accept="video/*" style="display: none;">
+                    <input type="file" id="videoInput" accept="video/*" style="display: none;" onchange="processVideoFile(this.files[0])">
                 </div>
                 
                 <!-- Formulaire de publication -->
@@ -191,6 +226,7 @@
                     <img id="profileAvatar" src="https://i.pravatar.cc/150?img=1" alt="Avatar">
                     <div class="profile-info">
                         <h3 id="profileUsername">Utilisateur TIKTAK</h3>
+                        <p id="profileBio"></p>
                         <p><i class="fas fa-coins"></i> <span id="profileCoins">0</span> coins</p>
                         <p id="profileStats">0 vidéos • 0 abonnés • 0 abonnements</p>
                     </div>
@@ -208,30 +244,15 @@
                 </div>
                 
                 <div id="profileVideos" class="profile-content">
-                    <div class="empty-state">
-                        <i class="fas fa-video-slash"></i>
-                        <h3>Aucune vidéo</h3>
-                        <p>Commencez à créer du contenu !</p>
-                        <button class="btn btn-primary" onclick="openCreateModal(); closeProfile();">
-                            Créer une vidéo
-                        </button>
-                    </div>
+                    <!-- Les vidéos seront chargées ici -->
                 </div>
                 
                 <div id="profileLikes" class="profile-content" style="display: none;">
-                    <div class="empty-state">
-                        <i class="fas fa-heart"></i>
-                        <h3>Aucun like</h3>
-                        <p>Les vidéos que vous aimez apparaîtront ici</p>
-                    </div>
+                    <!-- Les likes seront chargés ici -->
                 </div>
                 
                 <div id="profileDrafts" class="profile-content" style="display: none;">
-                    <div class="empty-state">
-                        <i class="fas fa-file-alt"></i>
-                        <h3>Aucun brouillon</h3>
-                        <p>Vos vidéos non publiées apparaîtront ici</p>
-                    </div>
+                    <!-- Les brouillons seront chargés ici -->
                 </div>
             </div>
         </div>
