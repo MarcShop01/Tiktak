@@ -32,7 +32,7 @@ async function initializeApp() {
     
     try {
         // Charger l'utilisateur depuis Firebase
-        currentUser = await getCurrentUserFromFirebase();
+        currentUser = await firebaseApp.getCurrentUser();
         
         if (!currentUser) {
             showNotification('Erreur de connexion utilisateur', 'error');
@@ -1455,4 +1455,5 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 console.log('✅ script.js chargé avec succès - MODE RÉEL');
+
 
