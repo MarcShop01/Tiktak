@@ -80,15 +80,21 @@
     }
 
     // Gestion du formulaire
-    document.getElementById("signupForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const email = document.getElementById("email").value;
-      const password = document.getElementById("password").value;
-      await signUp(email, password);
+    document.addEventListener("DOMContentLoaded", () => {
+      const form = document.getElementById("signupForm");
+      if (form) {
+        form.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const email = document.getElementById("email").value;
+          const password = document.getElementById("password").value;
+          await signUp(email, password);
+        });
+      }
     });
     </script>
 </body>
 </html>
+
 
 
         <!-- Main Content -->
@@ -342,4 +348,5 @@
     <script src="script.js"></script>
 </body>
 </html>
+
 
