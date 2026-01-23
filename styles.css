@@ -1281,3 +1281,118 @@ body {
 .btn-danger:hover {
     background: #ff3742;
 }
+/* ==================== STYLES MANQUANTS ==================== */
+
+.draft-warning {
+    background: linear-gradient(45deg, #ffaa00, #ff7700);
+    color: #000;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: bold;
+    display: inline-block;
+    margin-left: 10px;
+}
+
+.search-header {
+    width: 100%;
+    padding: 20px;
+    background: #111;
+    border-radius: 15px;
+    margin-bottom: 20px;
+    border: 1px solid #333;
+    text-align: center;
+}
+
+.search-header h3 {
+    color: #00f2fe;
+    margin-bottom: 10px;
+}
+
+.btn-small {
+    padding: 5px 15px;
+    font-size: 12px;
+    border-radius: 20px;
+}
+
+/* Animation pour le cœur */
+@keyframes heartPulse {
+    0% {
+        transform: translate(-50%, -50%) scale(0.5);
+        opacity: 0;
+    }
+    20% {
+        transform: translate(-50%, -50%) scale(1.2);
+        opacity: 1;
+    }
+    80% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 1;
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(1.5);
+        opacity: 0;
+    }
+}
+
+/* Responsive amélioré */
+@media (max-width: 480px) {
+    .video-wrapper {
+        height: 70vh;
+    }
+    
+    .modal-content {
+        margin: 10px;
+        padding: 15px;
+        max-height: 85vh;
+    }
+    
+    .videos-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+    }
+    
+    .creator-info {
+        flex-wrap: wrap;
+    }
+    
+    .btn-follow {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+    }
+}
+
+/* Scrollbar personnalisée */
+.modal-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.modal-content::-webkit-scrollbar-track {
+    background: #111;
+    border-radius: 4px;
+}
+
+.modal-content::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 4px;
+}
+
+.modal-content::-webkit-scrollbar-thumb:hover {
+    background: #444;
+}
+
+/* États de chargement */
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.fa-spin {
+    animation: fa-spin 1s infinite linear;
+}
+
+@keyframes fa-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
