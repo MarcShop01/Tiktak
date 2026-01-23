@@ -1,6 +1,4 @@
-// firebase-config.js
-
-// Configuration Firebase pour TIKTAK - MODE RÉEL
+// Configuration Firebase pour TIKTAK
 const firebaseConfig = {
     apiKey: "AIzaSyD6UBg16fK3WP6ttzzmGMLglruXO4-KEzA",
     authDomain: "tiktak-97036.firebaseapp.com",
@@ -16,7 +14,7 @@ if (!firebase.apps.length) {
     firebase.initializeApp(firebaseConfig);
     console.log("✅ Firebase initialisé avec succès");
 } else {
-    firebase.app(); // Utiliser l'app existante
+    firebase.app();
 }
 
 // Initialiser les services
@@ -42,9 +40,12 @@ async function createAnonymousUser() {
             following: [],
             followers: [],
             notifications: [],
+            bio: '',
+            phone: '',
             settings: {
                 notifications: true,
                 autoplay: true,
+                privateAccount: false,
                 privacy: 'public'
             },
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -71,7 +72,14 @@ async function getCurrentUser() {
             if (user) {
                 const userDoc = await db.collection('users').doc(user.uid).get();
                 if (userDoc.exists) {
-                    resolve({ id: userDoc.id, ...userDoc.data() });
+                    const userData = userDoc.data();
+                    resolve({ 
+                        id: userDoc.id, 
+                        ...userData,
+                        email: user.email || userData.email || '',
+                        phone: userData.phone || '',
+                        bio: userData.bio || ''
+                    });
                 } else {
                     const newUser = await createAnonymousUser();
                     resolve(newUser);
@@ -84,37 +92,18 @@ async function getCurrentUser() {
     });
 }
 
-// Charger les vidéos
-async function loadVideos(limit = 50) {
+// Mettre à jour le profil utilisateur
+async function updateUserProfile(userId, updates) {
     try {
-        const snapshot = await db.collection('videos')
-            .orderBy('createdAt', 'desc')
-            .limit(limit * 3)
-            .get();
-        
-        if (snapshot.empty) {
-            console.log('📭 Aucune vidéo trouvée');
-            return [];
-        }
-        
-        const allVideos = [];
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            if (data.privacy === 'public' || !data.privacy) {
-                allVideos.push({
-                    id: doc.id,
-                    ...data,
-                    createdAt: data.createdAt ? data.createdAt.toDate() : new Date()
-                });
-            }
+        await db.collection('users').doc(userId).update({
+            ...updates,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
-        
-        console.log(`✅ ${allVideos.length} vidéos chargées`);
-        return allVideos.slice(0, limit);
-        
+        console.log('✅ Profil utilisateur mis à jour:', userId);
+        return true;
     } catch (error) {
-        console.error('❌ Erreur chargement vidéos:', error);
-        return [];
+        console.error('❌ Erreur mise à jour profil:', error);
+        throw error;
     }
 }
 
@@ -156,6 +145,40 @@ async function saveVideo(videoData) {
     } catch (error) {
         console.error('❌ Erreur sauvegarde vidéo:', error);
         throw error;
+    }
+}
+
+// Charger les vidéos
+async function loadVideos(limit = 50) {
+    try {
+        const snapshot = await db.collection('videos')
+            .orderBy('createdAt', 'desc')
+            .limit(limit * 3)
+            .get();
+        
+        if (snapshot.empty) {
+            console.log('📭 Aucune vidéo trouvée');
+            return [];
+        }
+        
+        const allVideos = [];
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            if (data.privacy === 'public' || !data.privacy) {
+                allVideos.push({
+                    id: doc.id,
+                    ...data,
+                    createdAt: data.createdAt ? data.createdAt.toDate() : new Date()
+                });
+            }
+        });
+        
+        console.log(`✅ ${allVideos.length} vidéos chargées`);
+        return allVideos.slice(0, limit);
+        
+    } catch (error) {
+        console.error('❌ Erreur chargement vidéos:', error);
+        return [];
     }
 }
 
@@ -255,31 +278,27 @@ async function searchVideos(query) {
     }
 }
 
-// Mettre à jour l'utilisateur
-async function updateUser(userId, updates) {
-    try {
-        await db.collection('users').doc(userId).update({
-            ...updates,
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        return true;
-    } catch (error) {
-        console.error('❌ Erreur mise à jour utilisateur:', error);
-        throw error;
-    }
-}
-
 // Charger un utilisateur
 async function loadUser(userId) {
     try {
         const userDoc = await db.collection('users').doc(userId).get();
         if (userDoc.exists) {
-            return { id: userDoc.id, ...userDoc.data() };
+            const userData = userDoc.data();
+            return { 
+                id: userDoc.id, 
+                ...userData,
+                email: userData.email || '',
+                phone: userData.phone || '',
+                bio: userData.bio || ''
+            };
         }
         return {
             id: userId,
             username: 'Utilisateur',
             avatar: 'https://i.pravatar.cc/150?img=1',
+            email: '',
+            phone: '',
+            bio: '',
             followers: [],
             following: []
         };
@@ -289,6 +308,9 @@ async function loadUser(userId) {
             id: userId,
             username: 'Utilisateur',
             avatar: 'https://i.pravatar.cc/150?img=1',
+            email: '',
+            phone: '',
+            bio: '',
             followers: [],
             following: []
         };
@@ -302,6 +324,7 @@ window.firebaseApp = {
     storage,
     getCurrentUser,
     createAnonymousUser,
+    updateUserProfile,
     saveVideo,
     loadVideos,
     updateVideo,
@@ -309,8 +332,7 @@ window.firebaseApp = {
     updateLikes,
     followUser,
     searchVideos,
-    updateUser,
     loadUser
 };
 
-console.log('🔥 Firebase configuré pour TIKTAK - MODE RÉEL');
+console.log('🔥 Firebase configuré pour TIKTAK');
