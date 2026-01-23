@@ -1456,4 +1456,150 @@ document.addEventListener('DOMContentLoaded', function() {
 
 console.log('✅ script.js chargé avec succès - MODE RÉEL');
 
+// ==================== NOUVELLES FONCTIONS POUR PROFIL ====================
+
+function changePassword() {
+    const newPassword = prompt('Entrez votre nouveau mot de passe (min. 6 caractères):');
+    if (newPassword && newPassword.length >= 6) {
+        const user = firebase.auth().currentUser;
+        if (user) {
+            user.updatePassword(newPassword)
+                .then(() => {
+                    showNotification('Mot de passe changé avec succès ✅', 'success');
+                })
+                .catch(error => {
+                    console.error('❌ Erreur changement mot de passe:', error);
+                    showNotification('Erreur: ' + error.message, 'error');
+                });
+        }
+    } else if (newPassword) {
+        showNotification('Le mot de passe doit avoir au moins 6 caractères', 'error');
+    }
+}
+
+async function saveProfileSettings() {
+    const username = document.getElementById('settingsUsername').value.trim();
+    const email = document.getElementById('settingsEmail').value.trim();
+    const phone = document.getElementById('settingsPhone').value.trim();
+    const bio = document.getElementById('settingsBio').value.trim();
+    const notifications = document.getElementById('settingsNotifications').checked;
+    const autoplay = document.getElementById('settingsAutoplay').checked;
+    const privateAccount = document.getElementById('settingsPrivateAccount').checked;
+    
+    if (!currentUser) {
+        showNotification('Utilisateur non connecté', 'error');
+        return;
+    }
+    
+    const updates = {};
+    
+    // Mettre à jour le nom d'utilisateur
+    if (username && username !== currentUser.username) {
+        updates.username = username;
+        currentUser.username = username;
+        
+        // Mettre à jour les vidéos de l'utilisateur
+        for (const video of videos) {
+            if (video.userId === currentUser.id) {
+                video.username = username;
+                await firebaseApp.updateVideo(video.id, { username: username });
+            }
+        }
+    }
+    
+    // Mettre à jour l'email si fourni
+    if (email && email !== currentUser.email) {
+        updates.email = email;
+        currentUser.email = email;
+    }
+    
+    // Mettre à jour le téléphone et la bio
+    if (phone !== currentUser.phone) updates.phone = phone;
+    if (bio !== currentUser.bio) updates.bio = bio;
+    
+    // Mettre à jour les paramètres
+    currentUser.settings = {
+        notifications: notifications,
+        autoplay: autoplay,
+        privateAccount: privateAccount,
+        privacy: currentUser.settings?.privacy || 'public'
+    };
+    updates.settings = currentUser.settings;
+    
+    try {
+        await firebaseApp.updateUserProfile(currentUser.id, updates);
+        showNotification('Paramètres sauvegardés avec succès ✅', 'success');
+        
+        // Mettre à jour l'affichage du profil
+        document.getElementById('profileUsername').textContent = currentUser.username;
+        if (currentUser.bio) {
+            const profileInfo = document.querySelector('.profile-info');
+            if (profileInfo) {
+                const bioElement = document.createElement('p');
+                bioElement.id = 'profileBio';
+                bioElement.textContent = currentUser.bio;
+                profileInfo.appendChild(bioElement);
+            }
+        }
+        
+    } catch (error) {
+        console.error('❌ Erreur sauvegarde paramètres:', error);
+        showNotification('Erreur lors de la sauvegarde: ' + error.message, 'error');
+    }
+}
+
+function deleteAccount() {
+    if (confirm('Êtes-vous sûr de vouloir supprimer votre compte ? Cette action est irréversible.')) {
+        const user = firebase.auth().currentUser;
+        if (user) {
+            // Supprimer le document utilisateur de Firestore
+            firebaseApp.db.collection('users').doc(user.uid).delete()
+                .then(() => {
+                    // Supprimer l'utilisateur de l'authentification
+                    user.delete()
+                        .then(() => {
+                            showNotification('Compte supprimé avec succès', 'success');
+                            setTimeout(() => {
+                                location.reload();
+                            }, 2000);
+                        })
+                        .catch(error => {
+                            console.error('❌ Erreur suppression compte:', error);
+                            showNotification('Erreur lors de la suppression du compte', 'error');
+                        });
+                })
+                .catch(error => {
+                    console.error('❌ Erreur suppression données:', error);
+                    showNotification('Erreur lors de la suppression des données', 'error');
+                });
+        }
+    }
+}
+
+// ==================== CHARGEMENT DES PARAMÈTRES ====================
+
+function loadSettings() {
+    if (!currentUser) return;
+    
+    const settingsUsername = document.getElementById('settingsUsername');
+    const settingsEmail = document.getElementById('settingsEmail');
+    const settingsPhone = document.getElementById('settingsPhone');
+    const settingsBio = document.getElementById('settingsBio');
+    const settingsNotifications = document.getElementById('settingsNotifications');
+    const settingsAutoplay = document.getElementById('settingsAutoplay');
+    const settingsPrivateAccount = document.getElementById('settingsPrivateAccount');
+    
+    if (settingsUsername) settingsUsername.value = currentUser.username || '';
+    if (settingsEmail) settingsEmail.value = currentUser.email || '';
+    if (settingsPhone) settingsPhone.value = currentUser.phone || '';
+    if (settingsBio) settingsBio.value = currentUser.bio || '';
+    if (settingsNotifications) settingsNotifications.checked = currentUser.settings?.notifications || true;
+    if (settingsAutoplay) settingsAutoplay.checked = currentUser.settings?.autoplay || true;
+    if (settingsPrivateAccount) settingsPrivateAccount.checked = currentUser.settings?.privateAccount || false;
+}
+
+// Ajoutez ces fonctions aux exports à la fin du fichier :
+window.changePassword = changePassword;
+window.saveProfileSettings = saveProfileSettings;
+window.deleteAccount = deleteAccount;
 
