@@ -5,6 +5,7 @@ let usersCache = {};
 let currentVideoFile = null;
 let currentPlayingVideo = null;
 let isInitialized = false;
+let currentVideoObjectURL = null;
 
 // ==================== FONCTION OPEN GIFTSHOP ====================
 function openGiftShop() {
@@ -609,8 +610,17 @@ function openFilePicker() {
 }
 
 function processVideoFile(file) {
-    if (!file) return;
-    
+    if (!file) {
+        console.error("Aucun fichier vidéo sélectionné.");
+        return;
+    }
+
+    // Libérer l'URL précédente si elle existe
+    if (currentVideoObjectURL) {
+        URL.revokeObjectURL(currentVideoObjectURL);
+        currentVideoObjectURL = null;
+    }
+
     // Vérifications
     if (file.size > 100 * 1024 * 1024) {
         showNotification('Vidéo trop volumineuse (max 100MB)', 'error');
@@ -630,63 +640,54 @@ function processVideoFile(file) {
         videoProcessing.style.display = 'flex';
     }
     
-    const reader = new FileReader();
+    // Générer une URL temporaire pour lire le fichier choisi
+    currentVideoObjectURL = URL.createObjectURL(file);
     
-    reader.onload = function(e) {
-        const videoElement = document.getElementById('previewVideo');
-        const placeholder = document.querySelector('.preview-placeholder');
-        
-        if (!videoElement) {
-            console.error('❌ Élément previewVideo non trouvé');
-            return;
-        }
-        
-        videoElement.src = e.target.result;
-        videoElement.style.display = 'block';
-        
-        if (placeholder) {
-            placeholder.style.display = 'none';
-        }
-        
-        videoElement.onloadeddata = function() {
-            setTimeout(() => {
-                if (videoProcessing) {
-                    videoProcessing.style.display = 'none';
-                }
-                
-                const publishBtn = document.getElementById('publishBtn');
-                if (publishBtn) {
-                    publishBtn.disabled = false;
-                }
-                
-                const videoFileInfo = document.getElementById('videoFileInfo');
-                if (videoFileInfo) {
-                    videoFileInfo.innerHTML = `
-                        <i class="fas fa-file-video"></i>
-                        <span>${file.name} (${formatFileSize(file.size)})</span>
-                    `;
-                }
-                
-                showNotification('Vidéo chargée avec succès !', 'success');
-            }, 1000);
-        };
-        
-        videoElement.onerror = function() {
+    const videoElement = document.getElementById('previewVideo');
+    const placeholder = document.querySelector('.preview-placeholder');
+    
+    if (!videoElement) {
+        console.error('❌ Élément previewVideo non trouvé');
+        return;
+    }
+    
+    videoElement.src = currentVideoObjectURL;
+    videoElement.style.display = 'block';
+    
+    if (placeholder) {
+        placeholder.style.display = 'none';
+    }
+    
+    videoElement.onloadeddata = function() {
+        setTimeout(() => {
             if (videoProcessing) {
                 videoProcessing.style.display = 'none';
             }
-            showNotification('Erreur de chargement de la vidéo', 'error');
-        };
+            
+            const publishBtn = document.getElementById('publishBtn');
+            if (publishBtn) {
+                publishBtn.disabled = false;
+            }
+            
+            const videoFileInfo = document.getElementById('videoFileInfo');
+            if (videoFileInfo) {
+                videoFileInfo.innerHTML = `
+                    <i class="fas fa-file-video"></i>
+                    <span>${file.name} (${formatFileSize(file.size)})</span>
+                `;
+            }
+            
+            showNotification('Vidéo chargée avec succès !', 'success');
+        }, 1000);
     };
     
-    reader.onerror = function() {
+    videoElement.onerror = function() {
         if (videoProcessing) {
             videoProcessing.style.display = 'none';
         }
-        showNotification('Erreur de lecture du fichier', 'error');
+        showNotification('Erreur de chargement de la vidéo', 'error');
+        console.error("Erreur lecture vidéo: format non supporté ou fichier corrompu.");
     };
-    
-    reader.readAsDataURL(file);
 }
 
 function formatFileSize(bytes) {
@@ -938,6 +939,12 @@ function saveAsDraft() {
 }
 
 function resetCreateModal() {
+    // Libérer l'URL de l'objet vidéo si elle existe
+    if (currentVideoObjectURL) {
+        URL.revokeObjectURL(currentVideoObjectURL);
+        currentVideoObjectURL = null;
+    }
+    
     const captionInput = document.getElementById('videoCaption');
     const monetizeCheckbox = document.getElementById('monetizeVideo');
     const privacySelect = document.getElementById('videoPrivacy');
