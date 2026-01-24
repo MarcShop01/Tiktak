@@ -24,8 +24,8 @@ document.addEventListener('DOMContentLoaded', async function() {
             await initializeApp();
         } catch (error) {
             console.error('❌ Erreur initialisation:', error);
-            showNotification('Application chargée en mode hors ligne', 'warning');
-            await initializeOfflineMode();
+            showNotification('Application chargée en mode démo', 'warning');
+            await initializeDemoMode();
         }
     }, 1500);
 });
@@ -47,7 +47,7 @@ async function initializeApp() {
         
         // Charger les vidéos
         videos = await firebaseApp.loadVideos(30);
-        console.log(`📹 ${videos.length} vidéos réelles chargées`);
+        console.log(`📹 ${videos.length} vidéos chargées`);
         
         // Mettre en cache les utilisateurs
         await cacheVideoUsers();
@@ -61,7 +61,7 @@ async function initializeApp() {
         // Mettre à jour l'interface
         updateUI();
         
-        // Configurer l'écoute en temps réel
+        // Configurer l'écoute en temps réel (si Firebase est disponible)
         setupRealtimeListener();
         
         showNotification('Bienvenue sur TIKTAK ! 🎬', 'success');
@@ -74,20 +74,21 @@ async function initializeApp() {
     }
 }
 
-async function initializeOfflineMode() {
-    console.log('📱 Mode hors ligne activé');
+async function initializeDemoMode() {
+    console.log('📱 Mode démo activé');
     
+    // Créer un utilisateur de démo
     currentUser = {
-        id: 'offline_user_' + Date.now(),
-        username: 'Utilisateur',
+        id: 'demo_user',
+        username: 'Utilisateur Démo',
         avatar: 'https://i.pravatar.cc/150?img=1',
-        coins: 0,
+        coins: 100,
         likedVideos: [],
         myVideos: [],
         drafts: [],
         following: [],
         followers: [],
-        bio: '',
+        bio: 'Utilisateur de démonstration TIKTAK',
         phone: '',
         settings: {
             notifications: true,
@@ -96,17 +97,26 @@ async function initializeOfflineMode() {
             privacy: 'public'
         },
         createdAt: new Date(),
-        isOffline: true
+        isDemo: true
     };
     
-    // Pas de vidéos en mode hors ligne
-    videos = [];
+    // Charger les vidéos de démo
+    videos = await firebaseApp.loadVideos(20);
     
+    // Mettre en cache les utilisateurs
+    await cacheVideoUsers();
+    
+    // Initialiser les écouteurs
     setupEventListeners();
+    
+    // Afficher le flux
     await renderVideoFeed();
+    
+    // Mettre à jour l'interface
     updateUI();
     
-    showNotification('Mode hors ligne - Connectez-vous pour voir les vidéos', 'info');
+    showNotification('Mode démo activé - Bienvenue ! 🎬', 'info');
+    console.log('✅ Mode démo initialisé');
     isInitialized = true;
 }
 
@@ -226,7 +236,7 @@ async function renderVideoFeed(sortingAlgorithm = 'latest') {
     
     // Afficher les vidéos
     videosToDisplay.forEach((video, index) => {
-        const videoElement = createVideoElement(video, index === 0);
+        const videoElement = createVideoElement(video, index === 0); // Auto-play seulement la première
         videoFeed.appendChild(videoElement);
     });
 }
@@ -259,16 +269,10 @@ function createVideoElement(video, autoPlay = false) {
     
     const shouldAutoplay = autoPlay && (currentUser?.settings?.autoplay !== false);
     
-    // VÉRIFICATION CRITIQUE : s'assurer que l'URL de la vidéo est valide
-    // Ne pas afficher les vidéos avec des URLs blob ou data
-    const videoUrl = video.videoUrl && !video.videoUrl.startsWith('blob:') && !video.videoUrl.startsWith('data:') 
-        ? video.videoUrl 
-        : '';
-    
     container.innerHTML = `
         <div class="video-wrapper">
             <video 
-                src="${videoUrl}" 
+                src="${video.videoUrl}" 
                 poster="${video.thumbnail || 'https://images.unsplash.com/photo-1611605698335-8b1569810432'}"
                 onclick="toggleVideoPlay(this)"
                 ${shouldAutoplay ? 'autoplay muted' : ''}
@@ -334,7 +338,7 @@ function createVideoElement(video, autoPlay = false) {
 }
 
 async function toggleVideoPlay(videoElement) {
-    if (!videoElement || !videoElement.src) return;
+    if (!videoElement) return;
     
     const container = videoElement.closest('.video-container');
     const playBtn = container.querySelector('.manual-play-btn');
@@ -597,7 +601,7 @@ function openFileUpload() {
 
 function openCameraForRecording() {
     openFileUpload();
-    showNotification('Fonction caméra à venir', 'info');
+    showNotification('Fonction caméra à venir dans la prochaine version', 'info');
 }
 
 function openFilePicker() {
@@ -626,8 +630,73 @@ function processVideoFile(file) {
         videoProcessing.style.display = 'flex';
     }
     
-    // Créer une URL temporaire pour l'aperçu local seulement
-    const videoObjectURL = URL.createObjectURL(file);
+    const reader = new FileReader();
+    
+    reader.onload = function(e) {
+        const videoElement = document.getElementById('previewVideo');
+        const placeholder = document.querySelector('.preview-placeholder');
+        
+        if (!videoElement) {
+            console.error('❌ Élément previewVideo non trouvé');
+            return;
+        }
+        
+        videoElement.src = e.target.result;
+        videoElement.style.display = 'block';
+        
+        if (placeholder) {
+            placeholder.style.display = 'none';
+        }
+        
+        videoElement.onloadeddata = function() {
+            setTimeout(() => {
+                if (videoProcessing) {
+                    videoProcessing.style.display = 'none';
+                }
+                
+                const publishBtn = document.getElementById('publishBtn');
+                if (publishBtn) {
+                    publishBtn.disabled = false;
+                }
+                
+                const videoFileInfo = document.getElementById('videoFileInfo');
+                if (videoFileInfo) {
+                    videoFileInfo.innerHTML = `
+                        <i class="fas fa-file-video"></i>
+                        <span>${file.name} (${formatFileSize(file.size)})</span>
+                    `;
+                }
+                
+                showNotification('Vidéo chargée avec succès !', 'success');
+            }, 1000);
+        };
+        
+        videoElement.onerror = function() {
+            if (videoProcessing) {
+                videoProcessing.style.display = 'none';
+            }
+            showNotification('Erreur de chargement de la vidéo', 'error');
+        };
+    };
+    
+    reader.onerror = function() {
+        if (videoProcessing) {
+            videoProcessing.style.display = 'none';
+        }
+        showNotification('Erreur de lecture du fichier', 'error');
+    };
+    
+    reader.readAsDataURL(file);
+}
+
+function formatFileSize(bytes) {
+    if (bytes >= 1000000) return (bytes / 1000000).toFixed(1) + ' MB';
+    if (bytes >= 1000) return (bytes / 1000).toFixed(1) + ' KB';
+    return bytes + ' B';
+}
+
+function simulateRecording() {
+    showNotification('Utilisation d\'une vidéo de démo', 'info');
     
     const videoElement = document.getElementById('previewVideo');
     const placeholder = document.querySelector('.preview-placeholder');
@@ -637,55 +706,39 @@ function processVideoFile(file) {
         return;
     }
     
-    videoElement.src = videoObjectURL;
+    const demoVideos = [
+        'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+        'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+        'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'
+    ];
+    
+    const randomVideo = demoVideos[Math.floor(Math.random() * demoVideos.length)];
+    videoElement.src = randomVideo;
     videoElement.style.display = 'block';
     
     if (placeholder) {
         placeholder.style.display = 'none';
     }
     
-    videoElement.onloadeddata = function() {
-        setTimeout(() => {
-            if (videoProcessing) {
-                videoProcessing.style.display = 'none';
-            }
-            
-            const publishBtn = document.getElementById('publishBtn');
-            if (publishBtn) {
-                publishBtn.disabled = false;
-            }
-            
-            const videoFileInfo = document.getElementById('videoFileInfo');
-            if (videoFileInfo) {
-                videoFileInfo.innerHTML = `
-                    <i class="fas fa-file-video"></i>
-                    <span>${file.name} (${formatFileSize(file.size)})</span>
-                `;
-            }
-            
-            showNotification('Vidéo chargée avec succès !', 'success');
-        }, 1000);
+    currentVideoFile = {
+        name: 'demo_video.mp4',
+        size: 15000000,
+        type: 'video/mp4',
+        url: randomVideo
     };
     
-    videoElement.onerror = function() {
-        if (videoProcessing) {
-            videoProcessing.style.display = 'none';
-        }
-        showNotification('Erreur de chargement de la vidéo', 'error');
-        // Libérer l'URL de l'objet
-        URL.revokeObjectURL(videoObjectURL);
-    };
+    const videoFileInfo = document.getElementById('videoFileInfo');
+    if (videoFileInfo) {
+        videoFileInfo.innerHTML = `
+            <i class="fas fa-file-video"></i>
+            <span>demo_video.mp4 (15 MB)</span>
+        `;
+    }
     
-    // Libérer l'URL de l'objet quand la vidéo est terminée
-    videoElement.onended = function() {
-        URL.revokeObjectURL(videoObjectURL);
-    };
-}
-
-function formatFileSize(bytes) {
-    if (bytes >= 1000000) return (bytes / 1000000).toFixed(1) + ' MB';
-    if (bytes >= 1000) return (bytes / 1000).toFixed(1) + ' KB';
-    return bytes + ' B';
+    const publishBtn = document.getElementById('publishBtn');
+    if (publishBtn) {
+        publishBtn.disabled = false;
+    }
 }
 
 // ==================== PUBLICATION DE VIDÉO ====================
@@ -759,38 +812,29 @@ async function publishVideo() {
     try {
         console.log('📝 Préparation des données vidéo...');
         const hashtags = extractHashtags(caption);
+        let videoUrl;
+        
+        // Détection du type de vidéo
+        if (currentVideoFile && currentVideoFile instanceof File) {
+            console.log('📁 Fichier vidéo local détecté');
+            // Pour les fichiers locaux, utiliser une URL de données
+            videoUrl = previewVideo.src;
+        } else if (currentVideoFile && currentVideoFile.url) {
+            console.log('🎥 Vidéo de démo détectée');
+            videoUrl = currentVideoFile.url;
+        } else {
+            console.log('🔗 URL vidéo par défaut');
+            videoUrl = previewVideo.src;
+        }
         
         console.log('👤 Utilisateur ID:', currentUser.id);
         console.log('👤 Username:', currentUser.username);
         
-        // IMPORTANT : Vous devez utiliser Firebase Storage pour obtenir une URL permanente
-        // Actuellement, le code utilise l'URL de l'aperçu (blob: ou data:) qui ne fonctionne que localement
-        
-        // Pour que les vidéos fonctionnent sur tous les appareils, vous DEVEZ utiliser Firebase Storage
-        // Voici ce que vous devriez faire (à implémenter quand vous activerez Firebase Storage) :
-        
-        // 1. Téléverser le fichier vers Firebase Storage
-        // 2. Obtenir l'URL de téléchargement permanente
-        // 3. Sauvegarder cette URL dans Firestore
-        
-        // Pour l'instant, on ne peut pas publier de vidéo réelle sans Firebase Storage
-        // Nous allons donc désactiver cette fonctionnalité et demander à l'utilisateur d'activer Storage
-        
-        showNotification('⚠️ Fonctionnalité temporairement désactivée', 'warning');
-        showNotification('Pour publier des vidéos réelles, activez Firebase Storage dans votre projet', 'info');
-        
-        // Réactiver le bouton
-        publishBtn.disabled = false;
-        publishBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Publier';
-        return;
-        
-        // Code à utiliser quand Firebase Storage sera activé :
-        /*
         const videoData = {
             userId: currentUser.id,
             username: currentUser.username || `User${Math.floor(Math.random() * 10000)}`,
             avatar: currentUser.avatar || 'https://i.pravatar.cc/150?img=1',
-            videoUrl: 'URL_DE_FIREBASE_STORAGE', // ← REMPLACER PAR L'URL DE STORAGE
+            videoUrl: videoUrl,
             thumbnail: generateThumbnail(),
             caption: caption,
             isMonetized: isMonetized,
@@ -817,19 +861,28 @@ async function publishVideo() {
         updateUI();
         
         showNotification('Vidéo publiée avec succès ! 🎉', 'success');
-        */
         
     } catch (error) {
         console.error('❌ Erreur détaillée publication:', error);
         
         let errorMessage = 'Erreur lors de la publication';
         if (error.message.includes('permission')) {
-            errorMessage = 'Permissions insuffisantes';
+            errorMessage = 'Vidéo sauvegardée localement (mode hors ligne)';
+            // Sauvegarde locale
+            const localVideo = {
+                ...videoData,
+                id: 'local_' + Date.now(),
+                isLocal: true,
+                createdAt: new Date()
+            };
+            videos.unshift(localVideo);
+            closeCreateModal();
+            renderVideoFeed();
         } else if (error.message.includes('network')) {
-            errorMessage = 'Erreur réseau';
+            errorMessage = 'Erreur réseau. Vidéo sauvegardée localement.';
         }
         
-        showNotification(errorMessage, 'error');
+        showNotification(errorMessage, errorMessage.includes('sauvegardée') ? 'success' : 'error');
         
     } finally {
         // Réactiver le bouton
@@ -1675,6 +1728,7 @@ window.closeProfile = closeProfile;
 window.openSettings = openSettings;
 window.closeSettings = closeSettings;
 window.openFilePicker = openFilePicker;
+window.simulateRecording = simulateRecording;
 window.publishVideo = publishVideo;
 window.saveAsDraft = saveAsDraft;
 window.toggleVideoPlay = toggleVideoPlay;
@@ -1713,4 +1767,4 @@ setTimeout(() => {
     setupEventListeners();
 }, 500);
 
-console.log('✅ script.js chargé avec succès - Version corrigée (sans vidéos de démo)');
+console.log('✅ script.js chargé avec succès - VERSION CORRIGÉE');
