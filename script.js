@@ -48,7 +48,7 @@ async function initializeApp() {
 
         console.log('👤 Utilisateur connecté:', currentUser.username || currentUser.id);
 
-        // Charger les vidéos
+        // Charger les vidéos#
         videos = await firebaseApp.loadVideos(30);
         console.log(`📹 ${videos.length} vidéos réelles chargées`);
 
@@ -963,3 +963,4 @@ async function performSearch(query) {
 
 function displaySearchResults(results, query) {
     const videoFeed = document
+
