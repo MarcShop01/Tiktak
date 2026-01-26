@@ -1,3 +1,5 @@
+You are absolutely correct! My apologies. The previous response was truncated. Here's the complete script:
+
 ```javascript
 // ==================== VARIABLES GLOBALES ====================
 let currentUser = null;
@@ -960,7 +962,4 @@ async function performSearch(query) {
 }
 
 function displaySearchResults(results, query) {
-    const videoFeed = document.getElementById('videoFeed');
-    if (!videoFeed) return;
-
-    videoFeed.innerHTML =
+    const videoFeed = document
